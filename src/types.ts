@@ -37,6 +37,8 @@ export interface PoolForecast {
   feeTrendUsdPerEpoch: number;
   /** Current bribes offered this epoch, USD. */
   currentBribesUsd: number;
+  /** Votes currently cast on this pool's gauge (veAERO units). */
+  currentVotes: number;
   /** Current vote share across analyzed pools (0..1). */
   voteShare: number;
   /** Predicted fee-demand share across analyzed pools (0..1). */
@@ -56,6 +58,8 @@ export interface AllocationRecommendation {
   generatedAt: string;
   epochStart: number;
   epochProgressPct: number;
+  /** veAERO voting power the voter_roi weights were sized for. */
+  votingPowerVe?: number;
   allocations: Array<{
     pool: string;
     symbol: string;
@@ -64,6 +68,8 @@ export interface AllocationRecommendation {
     predictedDemandSharePct: number;
     predictiveEdgePct: number;
     rewardPer1kVotesUsd: number;
+    /** Expected USD reward next epoch for the votes allocated here, after dilution. */
+    expectedRewardUsd?: number;
     confidence: number;
     rationale: string;
   }>;

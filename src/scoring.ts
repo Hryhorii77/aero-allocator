@@ -90,11 +90,15 @@ async function buildSnapshot(): Promise<MarketSnapshot> {
     const { current, completed } = splitCurrentEpoch(history);
     const feeSeries = completed.map((e) => e.feesUsd);
 
-    // The in-progress epoch, extrapolated to full length, is the freshest
-    // demand signal — prepend it when at least 20% of the epoch has elapsed.
+    // The in-progress epoch is the freshest demand signal, but dividing by
+    // progress explodes early-epoch noise (a $2k burst on Thursday reads as a
+    // $70k week). Estimate the full epoch as realized fees so far plus the
+    // last completed epoch's pace for the remainder — low variance early,
+    // converging to the realized total as the epoch matures.
     const progress = epochProgress();
-    if (current && progress > 0.2) {
-      feeSeries.unshift(current.feesUsd / progress);
+    if (current && progress > 0.05) {
+      const pace = completed[0]?.feesUsd ?? current.feesUsd / progress;
+      feeSeries.unshift(current.feesUsd + pace * (1 - progress));
     }
 
     const { predicted, trend, confidence } = forecastFees(feeSeries);
@@ -114,6 +118,7 @@ async function buildSnapshot(): Promise<MarketSnapshot> {
     return {
       pool: p.pool,
       history: p.history,
+      currentVotes: Math.round(votes),
       predictedFeesUsd: round2(p.predicted),
       lastEpochFeesUsd: round2(last?.feesUsd ?? 0),
       feeTrendUsdPerEpoch: round2(p.trend),
@@ -135,24 +140,96 @@ function round2(x: number): number {
 }
 
 /**
+ * Optimal split of `votingPower` votes across pools where pool i pays
+ * rewards R_i shared pro-rata: your payout is R_i * v_i / (E_i + v_i).
+ * Total payout is maximized by equalizing marginal returns
+ * R_i * E_i / (E_i + v_i)^2 = λ  →  v_i(λ) = max(0, sqrt(R_i * E_i / λ) - E_i),
+ * with λ found by bisection so Σ v_i = votingPower. Dust pools naturally
+ * receive only the few votes their reward capacity can pay for.
+ */
+function waterfillVotes(
+  pools: Array<{ rewardsUsd: number; existingVotes: number }>,
+  votingPower: number,
+): number[] {
+  const eps = pools.map((p) => ({ r: p.rewardsUsd, e: Math.max(p.existingVotes, 1) }));
+  const allocAt = (lambda: number) => eps.map((p) => Math.max(0, Math.sqrt((p.r * p.e) / lambda) - p.e));
+
+  // λ is the marginal USD-per-vote; bracket it between "everything allocated"
+  // and "nothing allocated" (max marginal at v=0 is r/e).
+  let hi = Math.max(...eps.map((p) => p.r / p.e), 1e-12);
+  let lo = hi * 1e-12;
+  for (let i = 0; i < 100; i++) {
+    const mid = Math.sqrt(lo * hi);
+    const total = allocAt(mid).reduce((s, x) => s + x, 0);
+    if (total > votingPower) lo = mid;
+    else hi = mid;
+  }
+  const v = allocAt(Math.sqrt(lo * hi));
+  const total = v.reduce((s, x) => s + x, 0);
+  return total > 0 ? v.map((x) => (x * votingPower) / total) : v;
+}
+
+/**
+ * Water-fill with a per-pool concentration cap: the unconstrained optimum can
+ * put most votes into one low-confidence pool riding a short fee burst, which
+ * is a poor default for real voting. Saturated pools are pinned at the cap and
+ * the remainder is re-filled across the rest.
+ */
+function waterfillCapped(
+  pools: Array<{ rewardsUsd: number; existingVotes: number }>,
+  votingPower: number,
+  capFraction: number,
+): number[] {
+  const n = pools.length;
+  const cap = Math.max(capFraction, 1 / n) * votingPower;
+  const votes = new Array<number>(n).fill(0);
+  let active = Array.from({ length: n }, (_, i) => i);
+  let remaining = votingPower;
+
+  for (let round = 0; round < n && remaining > 1e-6 && active.length > 0; round++) {
+    const fill = waterfillVotes(active.map((i) => pools[i]), remaining);
+    const saturated = active.filter((_, k) => fill[k] >= cap);
+    if (saturated.length === 0) {
+      active.forEach((i, k) => (votes[i] = fill[k]));
+      return votes;
+    }
+    for (const i of saturated) {
+      votes[i] = cap;
+      remaining -= cap;
+    }
+    active = active.filter((i) => !saturated.includes(i));
+  }
+
+  if (remaining > 1e-6) {
+    // Everything hit the cap; spread the remainder pro-rata so weights still sum.
+    const total = votes.reduce((s, x) => s + x, 0) || 1;
+    for (let i = 0; i < n; i++) votes[i] += (remaining * votes[i]) / total;
+  }
+  return votes;
+}
+
+/**
  * Turn forecasts into a concrete allocation.
  *
  * protocol_efficiency: weights proportional to predicted fee demand — what an
  * ideal Predictive Allocation outcome looks like. Useful for benchmarking and
  * for directing incentives as a protocol/treasury.
  *
- * voter_roi: maximize expected reward per vote. Greedy toward the
- * highest (fees+bribes)/votes pools, confidence-weighted, with a per-pool cap
- * so votes don't crowd into one gauge and dilute their own return.
+ * voter_roi: maximize the voter's expected next-epoch reward for a given
+ * amount of veAERO, accounting for self-dilution (adding votes to a pool
+ * shrinks its per-vote payout). Pools below the reward-capacity floor are
+ * excluded so thin dust pools can't top the ranking.
  */
 export function recommendAllocation(
   snapshot: MarketSnapshot,
   objective: AllocationObjective,
   maxPools = 10,
+  votingPowerVe = 10_000,
+  maxWeightFraction = 0.35,
 ): AllocationRecommendation {
   const eligible = snapshot.forecasts.filter((f) => f.pool.gaugeAlive && f.confidence > 0);
 
-  let scored: Array<{ f: PoolForecast; weight: number; rationale: string }>;
+  let scored: Array<{ f: PoolForecast; weight: number; expectedRewardUsd?: number; rationale: string }>;
 
   if (objective === "protocol_efficiency") {
     scored = eligible
@@ -165,25 +242,46 @@ export function recommendAllocation(
         rationale: rationaleFor(f, "demand"),
       }));
   } else {
-    const CAP = 0.25;
-    scored = eligible
-      .filter((f) => f.rewardPer1kVotesUsd > 0)
+    // Expected next-epoch voter rewards: predicted fees blended toward the
+    // last realized epoch by forecast confidence (a shaky forecast shouldn't
+    // outrank a pool's demonstrated payout), plus incentives already posted.
+    const candidates = eligible
       .map((f) => ({
         f,
-        // Expected ROI, shrunk toward the field average by forecast confidence,
-        // and nudged by the predictive edge (under-voted pools dilute slower).
-        weight:
-          f.rewardPer1kVotesUsd * (0.5 + 0.5 * f.confidence) * (1 + Math.max(0, f.predictiveEdge) * 2),
-        rationale: rationaleFor(f, "roi"),
+        rewardsUsd:
+          f.confidence * f.predictedFeesUsd +
+          (1 - f.confidence) * f.lastEpochFeesUsd +
+          f.currentBribesUsd,
       }))
+      .filter((c) => c.rewardsUsd >= SETTINGS.minVoterRewardCapacityUsd);
+
+    const votes = waterfillCapped(
+      candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: c.f.currentVotes })),
+      votingPowerVe,
+      maxWeightFraction,
+    );
+
+    scored = candidates
+      .map((c, i) => {
+        const v = votes[i];
+        const expected = (c.rewardsUsd * v) / (Math.max(c.f.currentVotes, 1) + v);
+        return {
+          f: c.f,
+          weight: v / votingPowerVe,
+          expectedRewardUsd: round2(expected),
+          rationale:
+            `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
+            `(pool pays ~$${Math.round(c.rewardsUsd).toLocaleString()}, has ${c.f.currentVotes.toLocaleString()} votes); ` +
+            rationaleFor(c.f, "roi"),
+        };
+      })
+      .filter((x) => x.weight > 0.001)
       .sort((a, b) => b.weight - a.weight)
       .slice(0, maxPools);
-    const total = scored.reduce((s, x) => s + x.weight, 0);
-    scored = scored.map((x) => ({ ...x, weight: Math.min(x.weight / total, CAP) }));
   }
 
   const totalW = scored.reduce((s, x) => s + x.weight, 0);
-  const allocations = scored.map(({ f, weight, rationale }) => ({
+  const allocations = scored.map(({ f, weight, expectedRewardUsd, rationale }) => ({
     pool: f.pool.lp,
     symbol: f.pool.symbol,
     weightPct: round2((weight / totalW) * 100),
@@ -191,24 +289,28 @@ export function recommendAllocation(
     predictedDemandSharePct: round2(f.predictedDemandShare * 100),
     predictiveEdgePct: round2(f.predictiveEdge * 100),
     rewardPer1kVotesUsd: f.rewardPer1kVotesUsd,
+    ...(expectedRewardUsd !== undefined && { expectedRewardUsd }),
     confidence: f.confidence,
     rationale,
   }));
 
   const topEdge = [...eligible].sort((a, b) => b.predictiveEdge - a.predictiveEdge)[0];
+  const totalExpected = round2(scored.reduce((s, x) => s + (x.expectedRewardUsd ?? 0), 0));
   const summary =
     objective === "protocol_efficiency"
       ? `Allocate proportional to predicted next-epoch fee demand across ${allocations.length} pools. ` +
         `Largest mispricing: ${topEdge?.pool.symbol ?? "n/a"} is under-incentivized by ` +
         `${round2((topEdge?.predictiveEdge ?? 0) * 100)}pp of vote share vs predicted demand.`
-      : `Maximize reward per vote across ${allocations.length} pools (25% per-pool cap). ` +
-        `Best raw ROI: ${allocations[0]?.symbol ?? "n/a"} at ~$${allocations[0]?.rewardPer1kVotesUsd ?? 0}/1k votes last epoch.`;
+      : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} veAERO across ${allocations.length} pools ` +
+        `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
+        `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).`;
 
   return {
     objective,
     generatedAt: new Date(snapshot.generatedAt).toISOString(),
     epochStart: currentEpochStart(),
     epochProgressPct: round2(epochProgress() * 100),
+    ...(objective === "voter_roi" && { votingPowerVe }),
     allocations,
     summary,
   };

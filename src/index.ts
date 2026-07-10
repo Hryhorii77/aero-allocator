@@ -109,17 +109,29 @@ server.registerTool(
     description:
       "Produce a concrete incentive-allocation recommendation across Aerodrome pools. " +
       "objective=protocol_efficiency allocates proportional to predicted next-epoch fee demand " +
-      "(the Predictive Allocation ideal); objective=voter_roi maximizes expected reward per veAERO vote " +
-      "with a 25% per-pool concentration cap. Returns weights that sum to 100%.",
+      "(the Predictive Allocation ideal). objective=voter_roi maximizes the expected next-epoch reward " +
+      "for votingPowerVe veAERO, accounting for self-dilution (your votes shrink the per-vote payout), " +
+      "so pass the voter's real veAERO amount for sized weights. Returns weights that sum to 100%.",
     inputSchema: {
       objective: z.enum(["protocol_efficiency", "voter_roi"]).default("voter_roi"),
       maxPools: z.number().int().min(2).max(20).default(8),
+      votingPowerVe: z
+        .number()
+        .min(1)
+        .default(10000)
+        .describe("veAERO voting power to allocate (voter_roi only)"),
+      maxWeightPct: z
+        .number()
+        .min(5)
+        .max(100)
+        .default(35)
+        .describe("Per-pool concentration cap in percent (voter_roi only)"),
       refresh: z.boolean().default(false),
     },
   },
-  async ({ objective, maxPools, refresh }) => {
+  async ({ objective, maxPools, votingPowerVe, maxWeightPct, refresh }) => {
     const snap = await getMarketSnapshot(refresh);
-    return json(recommendAllocation(snap, objective, maxPools));
+    return json(recommendAllocation(snap, objective, maxPools, votingPowerVe, maxWeightPct / 100));
   },
 );
 

@@ -21,7 +21,7 @@ for (const f of snap.forecasts.slice(0, 10)) {
 }
 
 for (const objective of ["voter_roi", "protocol_efficiency"] as const) {
-  const rec = recommendAllocation(snap, objective, 8);
+  const rec = recommendAllocation(snap, objective, 8, 100_000);
   console.log(`\n=== ${objective} ===`);
   console.log(rec.summary);
   for (const a of rec.allocations) {

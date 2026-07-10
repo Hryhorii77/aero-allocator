@@ -13,7 +13,7 @@ metadata:
 MCP server that gives any agent a live, quantitative view of Aerodrome (Base) incentive markets:
 
 - **predict_demand** — next-epoch trading-fee forecast per pool, plus `predictiveEdgePct`: predicted demand share minus current vote share. Positive edge = under-incentivized pool.
-- **recommend_allocation** — a weights-sum-to-100% allocation. `voter_roi` maximizes reward per veAERO vote (25% per-pool cap); `protocol_efficiency` allocates proportional to predicted demand.
+- **recommend_allocation** — a weights-sum-to-100% allocation. `voter_roi` optimally splits your veAERO (pass `votingPowerVe`) accounting for self-dilution, with expected USD rewards per pool; `protocol_efficiency` allocates proportional to predicted demand.
 - **prepare_vote_calldata** — unsigned `Voter.vote()` calldata for your wallet layer to review and submit. This skill never signs or holds keys.
 - **scan_pools / pool_history** — raw market data: TVL, per-epoch votes, emissions, fees and bribes in USD.
 

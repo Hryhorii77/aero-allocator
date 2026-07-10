@@ -17,7 +17,7 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `scan_pools` | Gauge-enabled pools with live TVL, staked TVL, fee tier |
 | `pool_history` | Per-epoch votes, emissions, fees (USD), bribes (USD) for one pool |
 | `predict_demand` | Next-epoch fee forecast per pool + **predictiveEdgePct** (predicted demand share − current vote share) |
-| `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand) or `voter_roi` (max reward per vote, 25% concentration cap) |
+| `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand) or `voter_roi` (dilution-aware optimal split of your veAERO) |
 | `prepare_vote_calldata` | Unsigned `Voter.vote()` calldata from an allocation — submit via your own wallet layer (e.g. Base MCP `send_calls`) |
 | `predictive_allocation_status` | Whether direct Predictive Allocation submission is wired up yet |
 
@@ -67,7 +67,7 @@ For each candidate pool (top N by staked TVL above a TVL floor):
 Two allocation objectives:
 
 - **protocol_efficiency** — weights ∝ predicted demand share. This is the Predictive Allocation ideal; useful for treasuries/protocols directing incentives and for benchmarking the live mechanism once it ships.
-- **voter_roi** — maximize expected (fees + bribes) per vote, confidence-shrunk and edge-boosted, capped at 25% per pool so your own votes don't dilute the return.
+- **voter_roi** — maximize your expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Output includes the expected USD reward per pool after self-dilution.
 
 ## Predictive Allocation adapter
 

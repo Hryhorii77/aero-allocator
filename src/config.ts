@@ -44,6 +44,8 @@ export const SETTINGS = {
   scanConcurrency: Number(process.env.AERO_SCAN_CONCURRENCY ?? 3),
   /** EWMA decay for demand forecasting (weight on most recent epoch). */
   ewmaAlpha: 0.45,
+  /** Minimum expected epoch rewards (USD) for a pool to receive voter_roi votes. */
+  minVoterRewardCapacityUsd: Number(process.env.AERO_MIN_REWARD_CAPACITY_USD ?? 500),
   /** Cache TTL for the full market snapshot, ms. */
   cacheTtlMs: 5 * 60 * 1000,
   /** Cache TTL for the raw full-range pool scan, ms (pool set changes slowly). */
