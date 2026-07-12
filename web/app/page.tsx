@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ConnectButton, VotePanel } from "./wallet";
 
 interface PoolRow {
   lp: string;
@@ -160,6 +161,7 @@ export default function Dashboard() {
           >
             {loading ? "loading…" : "refresh"}
           </button>
+          <ConnectButton />
         </div>
       </header>
 
@@ -288,6 +290,7 @@ export default function Dashboard() {
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
                   </p>
+                  <VotePanel allocations={voterAlloc.allocations} />
                 </>
               )}
             </div>

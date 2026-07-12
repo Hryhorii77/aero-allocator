@@ -44,6 +44,11 @@ Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence
 Voter ROI (enter your veAERO) and Protocol Efficiency allocation panels. First load builds the
 onchain snapshot (~1 min), then it's cached.
 
+Connect a wallet (injected or Coinbase Wallet, Base chain) to cast the Voter ROI allocation as a
+real vote: your veAERO NFTs are auto-detected via VeSugar (manual id entry as fallback) and the
+"cast vote" button submits `Voter.vote()` with the recommended weights — you sign in your wallet;
+the app never holds keys.
+
 Register with Claude Code:
 
 ```bash
@@ -109,7 +114,7 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 - [ ] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy
 - [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
 - [x] "Predicted hot pools" dashboard (`web/`)
-- [ ] Wallet connection + one-click vote from the dashboard (wagmi)
+- [x] Wallet connection + one-click vote from the dashboard (wagmi)
 
 ## Disclaimer
 
