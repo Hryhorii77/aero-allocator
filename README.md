@@ -31,6 +31,19 @@ npm run smoke        # live end-to-end test against Base mainnet
 npm run build
 ```
 
+### Dashboard
+
+A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
+
+```bash
+npm run build                 # engine dist/ used by the web app
+cd web && npm install && npm run dev
+```
+
+Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence), plus interactive
+Voter ROI (enter your veAERO) and Protocol Efficiency allocation panels. First load builds the
+onchain snapshot (~1 min), then it's cached.
+
 Register with Claude Code:
 
 ```bash
@@ -95,7 +108,8 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [ ] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy
 - [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
-- [ ] "Predicted hot pools" dashboard (Next.js + wagmi)
+- [x] "Predicted hot pools" dashboard (`web/`)
+- [ ] Wallet connection + one-click vote from the dashboard (wagmi)
 
 ## Disclaimer
 
