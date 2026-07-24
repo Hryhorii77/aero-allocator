@@ -1,10 +1,11 @@
 import type { AllocationRecommendation } from "../types.js";
 
 /**
- * Adapter for Aerodrome's Predictive Allocation mechanism (launching July 2026
- * alongside the Aerodrome/Velodrome "Aero" merger).
+ * Adapter for Aerodrome's Predictive Allocation mechanism (launching September
+ * 2026 alongside the Aerodrome/Velodrome "Aero" merger — pushed back from the
+ * original July 2026 target).
  *
- * As of 2026-07-06 Dromos Labs has announced the mechanism (real-time,
+ * As of 2026-07-24 Dromos Labs has announced the mechanism (real-time,
  * prediction-market-style incentive allocation replacing weekly gauge voting)
  * but has not published contract addresses or an ABI. This module isolates
  * everything that depends on those specifics so the rest of the engine —

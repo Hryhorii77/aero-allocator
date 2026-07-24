@@ -193,7 +193,7 @@ server.registerTool(
   "predictive_allocation_status",
   {
     description:
-      "Status of the direct Predictive Allocation submission path (Aerodrome's July 2026 mechanism " +
+      "Status of the direct Predictive Allocation submission path (Aerodrome's September 2026 mechanism " +
       "replacing weekly gauge voting). Reports whether live contracts are wired into this server.",
     inputSchema: {},
   },
@@ -202,7 +202,7 @@ server.registerTool(
       live: adapter.isLive(),
       mechanism:
         "Predictive Allocation: real-time incentive allocation based on predicted future demand, " +
-        "replacing weekly veAERO gauge voting (Dromos Labs, launching July 2026 with the Aero merger).",
+        "replacing weekly veAERO gauge voting (Dromos Labs, launching September 2026 with the Aero merger).",
       currentPath: adapter.isLive()
         ? "Direct submission available via prepare_submission."
         : "Contracts not yet published. Use predict_demand + recommend_allocation for the signal, and " +

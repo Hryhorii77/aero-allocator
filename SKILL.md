@@ -40,4 +40,4 @@ Optional env: `BASE_RPC_URL` (defaults to the public Base RPC; a dedicated RPC m
 
 ## Predictive Allocation
 
-When Dromos Labs publishes the Predictive Allocation contracts (July 2026, with the Aero merger), direct submission lands in `src/adapters/predictive-allocation.ts` — check `predictive_allocation_status` to see if it's live in your installed version.
+When Dromos Labs publishes the Predictive Allocation contracts (September 2026, with the Aero merger — pushed back from the original July target), direct submission lands in `src/adapters/predictive-allocation.ts` — check `predictive_allocation_status` to see if it's live in your installed version.

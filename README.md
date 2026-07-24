@@ -1,6 +1,6 @@
 # aero-allocator
 
-MCP server that forecasts **next-epoch demand** for Aerodrome pools on Base and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (July 2026), where incentives follow *predicted future demand* instead of last week's votes.
+MCP server that forecasts **next-epoch demand** for Aerodrome pools on Base and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes.
 
 Any MCP-capable agent (Claude Code, Claude Desktop, Bankr-hosted agents) can use it to answer:
 
@@ -89,7 +89,7 @@ Two allocation objectives:
 
 ## Predictive Allocation adapter
 
-Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-07-06). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts` — on launch day, wire the addresses/ABI there and `prepare_submission` goes live. Until then `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
+Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-07-24; launch has slipped from July to September 2026). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts` — on launch day, wire the addresses/ABI there and `prepare_submission` goes live. Until then `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
 
 ## Configuration (env)
 
