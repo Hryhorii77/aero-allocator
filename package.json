@@ -14,10 +14,11 @@
     "./types": "./dist/types.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "keywords": [
     "aerodrome",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   }
 }
