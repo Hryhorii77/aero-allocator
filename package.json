@@ -17,6 +17,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "backtest": "tsx scripts/backtest.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

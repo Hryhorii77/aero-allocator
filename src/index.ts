@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ADDRESSES } from "./config.js";
 import { fetchEpochHistory, scanPools } from "./data.js";
 import { getMarketSnapshot, recommendAllocation, summarizeHistory } from "./scoring.js";
+import { getBacktestReport } from "./backtest.js";
 import { adapter } from "./adapters/predictive-allocation.js";
 
 const server = new McpServer({
@@ -208,6 +209,31 @@ server.registerTool(
         : "Contracts not yet published. Use predict_demand + recommend_allocation for the signal, and " +
           "prepare_vote_calldata for the classic Voter.vote() flow in the meantime.",
     });
+  },
+);
+
+server.registerTool(
+  "backtest_summary",
+  {
+    description:
+      "Walk-forward validation of the demand forecast against real historical outcomes: replays " +
+      "completed epochs, forecasts each using only data available at the time (same trailing window " +
+      "predict_demand uses), and compares to a naive 'predict = last epoch' baseline. Reports error " +
+      "metrics, skill vs. baseline, and whether confidence scores are actually calibrated. Heavier " +
+      "than other tools (deep per-pool history) — cached ~1h.",
+    inputSchema: {
+      refresh: z.boolean().default(false).describe("Force a fresh backtest run"),
+      maxPools: z
+        .number()
+        .int()
+        .min(5)
+        .max(60)
+        .optional()
+        .describe("Pools to analyze; defaults to a smaller, faster set than predict_demand"),
+    },
+  },
+  async ({ refresh, maxPools }) => {
+    return json(await getBacktestReport({ force: refresh, maxPools }));
   },
 );
 

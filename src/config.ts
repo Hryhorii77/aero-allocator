@@ -50,4 +50,10 @@ export const SETTINGS = {
   cacheTtlMs: 5 * 60 * 1000,
   /** Cache TTL for the raw full-range pool scan, ms (pool set changes slowly). */
   poolScanTtlMs: 60 * 60 * 1000,
+  /** Epochs of history to fetch per pool for the backtest (deeper than live forecasting; same call count). */
+  backtestEpochs: Number(process.env.AERO_BACKTEST_EPOCHS ?? 26),
+  /** How many top pools the backtest analyzes by default. */
+  backtestMaxPools: Number(process.env.AERO_BACKTEST_MAX_POOLS ?? 30),
+  /** Cache TTL for the default-params backtest report, ms (doesn't need to be fresher than an epoch). */
+  backtestCacheTtlMs: 60 * 60 * 1000,
 } as const;

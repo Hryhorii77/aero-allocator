@@ -20,6 +20,7 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand) or `voter_roi` (dilution-aware optimal split of your veAERO) |
 | `prepare_vote_calldata` | Unsigned `Voter.vote()` calldata from an allocation — submit via your own wallet layer (e.g. Base MCP `send_calls`) |
 | `predictive_allocation_status` | Whether direct Predictive Allocation submission is wired up yet |
+| `backtest_summary` | Walk-forward accuracy of the demand forecast vs. realized fees and a naive baseline — see [Forecast accuracy](#forecast-accuracy) |
 
 **This server never holds keys or signs anything.** Execution is the host agent's job, behind explicit user approval.
 
@@ -87,6 +88,25 @@ Two allocation objectives:
 - **protocol_efficiency** — weights ∝ predicted demand share. This is the Predictive Allocation ideal; useful for treasuries/protocols directing incentives and for benchmarking the live mechanism once it ships.
 - **voter_roi** — maximize your expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Output includes the expected USD reward per pool after self-dilution.
 
+## Forecast accuracy
+
+`confidence` on each forecast is a heuristic (history depth + variance), not a proven accuracy number —
+`backtest_summary` (tool) and `npm run backtest` (script) validate it against real outcomes.
+
+Methodology: walk forward through each pool's completed-epoch history. At every historical epoch
+boundary, forecast that epoch using only the epochs that would have actually been available beforehand
+(capped at the same trailing window `predict_demand` uses — the backtest never gives the model more
+history than it gets live), then compare against what actually happened. Errors are reported as MAE,
+RMSE and WAPE (`Σ|error| / Σactual`, robust to the near-zero-fee epochs MAPE chokes on), alongside
+**skill vs. baseline** — the same comparison against a naive "predict next epoch = last epoch" model,
+so a negative skill number means the EWMA+trend forecast isn't earning its complexity over doing
+nothing. A confidence-calibration table checks whether higher-confidence forecasts actually have lower
+error. One known gap: this replays epoch-boundary predictions only — it doesn't replay the mid-epoch
+pace-extrapolation blend used for the live in-progress epoch.
+
+Run `npm run backtest` for a console report, or call `backtest_summary` from any connected agent for
+live numbers (cached ~1h; `AERO_BACKTEST_EPOCHS` / `AERO_BACKTEST_MAX_POOLS` tune the depth/breadth).
+
 ## Predictive Allocation adapter
 
 Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-07-24; launch has slipped from July to September 2026). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts` — on launch day, wire the addresses/ABI there and `prepare_submission` goes live. Until then `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
@@ -98,6 +118,8 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 | `BASE_RPC_URL` | `https://mainnet.base.org` | Use a dedicated RPC for faster snapshots |
 | `AERO_MIN_TVL_USD` | `50000` | Candidate pool TVL floor |
 | `AERO_MAX_CANDIDATES` | `60` | Pools receiving full epoch-history analysis |
+| `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
+| `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
 
 ## Contracts used (Base, 8453)
 
@@ -111,7 +133,7 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 
 - [ ] Predictive Allocation live adapter (day-one, when contracts publish)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
-- [ ] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy
+- [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
 - [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
