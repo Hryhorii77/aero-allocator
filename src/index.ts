@@ -191,6 +191,44 @@ server.registerTool(
 );
 
 server.registerTool(
+  "prepare_submission",
+  {
+    description:
+      "Build unsigned transaction calldata for direct Predictive Allocation submission, once Dromos Labs' " +
+      "contracts are wired in via AERO_PREDICTIVE_ALLOCATION_* env vars (see predictive_allocation_status " +
+      "and README). Same shape as prepare_vote_calldata. Fails with a clear error if contracts aren't live " +
+      "yet — use prepare_vote_calldata for the classic Voter.vote() flow until then.",
+    inputSchema: {
+      veNftId: z.number().int().min(1).optional().describe("veAERO NFT id, if the live mechanism requires one"),
+      allocations: z
+        .array(
+          z.object({
+            pool: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+            weightPct: z.number().min(0.01).max(100),
+          }),
+        )
+        .min(1)
+        .max(30),
+    },
+  },
+  async ({ veNftId, allocations }) => {
+    const total = allocations.reduce((s, a) => s + a.weightPct, 0);
+    if (Math.abs(total - 100) > 0.5) {
+      return err(`Allocation weights must sum to 100% (got ${total.toFixed(2)}%).`);
+    }
+    try {
+      const calls = await adapter.prepareSubmission({ veNftId, allocations });
+      return json({
+        calls,
+        note: "Review pools and weights, then submit via your wallet with user approval. This server never signs.",
+      });
+    } catch (e) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
   "predictive_allocation_status",
   {
     description:

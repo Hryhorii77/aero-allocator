@@ -19,6 +19,7 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `predict_demand` | Next-epoch fee forecast per pool + **predictiveEdgePct** (predicted demand share − current vote share) |
 | `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand) or `voter_roi` (dilution-aware optimal split of your veAERO) |
 | `prepare_vote_calldata` | Unsigned `Voter.vote()` calldata from an allocation — submit via your own wallet layer (e.g. Base MCP `send_calls`) |
+| `prepare_submission` | Unsigned calldata for direct Predictive Allocation submission, once wired up — see [Predictive Allocation adapter](#predictive-allocation-adapter) |
 | `predictive_allocation_status` | Whether direct Predictive Allocation submission is wired up yet |
 | `backtest_summary` | Walk-forward accuracy of the demand forecast vs. realized fees and a naive baseline — see [Forecast accuracy](#forecast-accuracy) |
 
@@ -109,7 +110,16 @@ live numbers (cached ~1h; `AERO_BACKTEST_EPOCHS` / `AERO_BACKTEST_MAX_POOLS` tun
 
 ## Predictive Allocation adapter
 
-Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-07-24; launch has slipped from July to September 2026). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts` — on launch day, wire the addresses/ABI there and `prepare_submission` goes live. Until then `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
+Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-08-16; launch has slipped from July to September 2026). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts`, and it's fully config-driven — no code changes needed on launch day, just set env vars once Dromos publishes the address and ABI:
+
+| Var | Example | |
+|---|---|---|
+| `AERO_PREDICTIVE_ALLOCATION_ADDRESS` | `0x...` | The mechanism's contract address |
+| `AERO_PREDICTIVE_ALLOCATION_ABI` | `["function submitAllocation(uint256 tokenId, address[] pools, uint256[] weights)"]` | Human-readable ABI (JSON array), single function |
+| `AERO_PREDICTIVE_ALLOCATION_FUNCTION` | `submitAllocation` | Function name to call |
+| `AERO_PREDICTIVE_ALLOCATION_ARGS` | `["veNftId","pools","weightsBps"]` | Positional arg roles — supported: `veNftId`, `pools`, `weightsBps` (100 = 1%, matches `Voter.vote()`), `weightsWad` (fraction of 1e18) |
+
+With all four set, `prepare_submission` builds real calldata; `predictive_allocation_status` reports `live: true`. Until then, `prepare_submission` fails with a clear "not published yet" error and `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
 
 ## Configuration (env)
 
@@ -131,7 +141,7 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 
 ## Roadmap
 
-- [ ] Predictive Allocation live adapter (day-one, when contracts publish)
+- [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
 - [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
