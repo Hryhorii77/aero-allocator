@@ -18,6 +18,7 @@
     "dev": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
     "backtest": "tsx scripts/backtest.ts",
+    "epoch-reminder": "tsx scripts/epoch-reminder.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

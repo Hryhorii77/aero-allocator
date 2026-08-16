@@ -74,6 +74,60 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
+const WEEK_SECONDS = 7 * 24 * 60 * 60;
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "epoch just flipped";
+  const totalMin = Math.floor(ms / 60_000);
+  const d = Math.floor(totalMin / (24 * 60));
+  const h = Math.floor((totalMin % (24 * 60)) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function EpochCountdown({ epochStart }: { epochStart: number }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const nextFlipMs = (epochStart + WEEK_SECONDS) * 1000;
+  const remainingMs = nextFlipMs - now;
+  const hoursLeft = remainingMs / (60 * 60 * 1000);
+  const urgent = hoursLeft <= 6;
+  const soon = hoursLeft <= 24;
+
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+        urgent
+          ? "animate-pulse border-rose-800 bg-rose-950/40"
+          : soon
+            ? "border-amber-800 bg-amber-950/30"
+            : "border-neutral-800 bg-neutral-900/40"
+      }`}
+      title={`Next epoch flips ${new Date(nextFlipMs).toUTCString()}`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          urgent ? "bg-rose-400" : soon ? "bg-amber-400" : "bg-neutral-500"
+        }`}
+      />
+      <span
+        className={`font-mono text-xs ${
+          urgent ? "text-rose-300" : soon ? "text-amber-300" : "text-neutral-400"
+        }`}
+      >
+        votes flip in {formatCountdown(remainingMs)}
+      </span>
+    </div>
+  );
+}
+
 function WeightBar({ pct, color }: { pct: number; color: string }) {
   return (
     <div className="h-2 flex-1 rounded bg-neutral-800">
@@ -141,6 +195,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
           {snapshot && (
             <div className="text-right">
               <div className="mb-1 font-mono text-xs text-neutral-400">
