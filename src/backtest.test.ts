@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateBacktest, confidenceBuckets, walkForwardBacktest, type BacktestPoint } from "./backtest.js";
+import { aggregateBacktest, confidenceBuckets, deriveConfidenceCalibration, walkForwardBacktest, type BacktestPoint } from "./backtest.js";
 import { forecastFees } from "./scoring.js";
 import type { EpochStats } from "./types.js";
 
@@ -153,5 +153,31 @@ describe("confidenceBuckets", () => {
   it("returns empty buckets (not errors) when there are no points", () => {
     const buckets = confidenceBuckets([]);
     expect(buckets.every((b) => b.n === 0)).toBe(true);
+  });
+});
+
+describe("deriveConfidenceCalibration", () => {
+  it("computes calibratedConfidence = 1/(1+wape) per bucket", () => {
+    // Low-confidence bucket: badly wrong (wape=1 -> calibrated 0.5).
+    const low = Array.from({ length: 10 }, () => point({ confidence: 0.1, actual: 100, predicted: 200, baseline: 100 }));
+    // High-confidence bucket: dead on (wape=0 -> calibrated 1).
+    const high = Array.from({ length: 10 }, () => point({ confidence: 0.9, actual: 100, predicted: 100, baseline: 100 }));
+
+    const calibration = deriveConfidenceCalibration([...low, ...high]);
+    const lowBucket = calibration.find((b) => b.min === 0 && b.max === 0.3);
+    const highBucket = calibration.find((b) => b.max === 1);
+
+    expect(lowBucket?.calibratedConfidence).toBeCloseTo(0.5, 4);
+    expect(highBucket?.calibratedConfidence).toBe(1);
+  });
+
+  it("drops buckets with fewer samples than the minimum", () => {
+    const points = [point({ confidence: 0.9, actual: 100, predicted: 100, baseline: 100 })]; // only 1 sample
+    expect(deriveConfidenceCalibration(points, [0.3, 0.6], 8)).toEqual([]);
+    expect(deriveConfidenceCalibration(points, [0.3, 0.6], 1)).toHaveLength(1);
+  });
+
+  it("returns no buckets for an empty point set", () => {
+    expect(deriveConfidenceCalibration([])).toEqual([]);
   });
 });

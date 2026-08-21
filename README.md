@@ -94,8 +94,10 @@ Two allocation objectives:
 
 ## Forecast accuracy
 
-`confidence` on each forecast is a heuristic (history depth + variance), not a proven accuracy number —
-`backtest_summary` (tool) and `npm run backtest` (script) validate it against real outcomes.
+`confidence` on each forecast starts as a heuristic (history depth + variance), then gets recalibrated
+against real backtested accuracy before it reaches any tool output — see [Confidence
+calibration](#confidence-calibration) below. `backtest_summary` (tool) and `npm run backtest` (script)
+expose the full validation.
 
 Methodology: walk forward through each pool's completed-epoch history. At every historical epoch
 boundary, forecast that epoch using only the epochs that would have actually been available beforehand
@@ -107,6 +109,26 @@ so a negative skill number means the EWMA+trend forecast isn't earning its compl
 nothing. A confidence-calibration table checks whether higher-confidence forecasts actually have lower
 error. One known gap: this replays epoch-boundary predictions only — it doesn't replay the mid-epoch
 pace-extrapolation blend used for the live in-progress epoch.
+
+### Confidence calibration
+
+The heuristic confidence (`depthScore × stabilityScore`) is a guess at how trustworthy a forecast is —
+it's never seen a real outcome. `deriveConfidenceCalibration` buckets every walk-forward backtest point
+by its *raw* heuristic confidence, computes the actual WAPE realized within each bucket, and converts
+that to `calibratedConfidence = 1/(1+wape)` (the same functional form the heuristic already uses for its
+own variance term). `predict_demand`, `recommend_allocation` and `recommend_bribe_placement` then remap
+every live forecast's confidence through this curve via `applyConfidenceCalibration` — so a
+confidence range that the heuristic thought looked solid but has actually been noisy in practice gets
+marked down, and vice versa. This matters beyond display: confidence directly weights the `voter_roi`
+reward estimate and gates `recommend_bribe_placement`'s candidate pools, so a miscalibrated score would
+quietly bias both.
+
+Buckets with fewer than 8 backtest samples are dropped rather than trusted, and any forecast whose raw
+confidence falls in a dropped (or as-yet-uncomputed) range keeps its heuristic score — calibration is
+opportunistic on top of the always-available heuristic, never a hard dependency. If a fresh
+`backtest_summary` hasn't run yet in the last hour, the relevant tools fetch one alongside the market
+snapshot (concurrently, so it doesn't add to the wait) and fall back to the raw heuristic if that fetch
+fails for any reason.
 
 Run `npm run backtest` for a console report, or call `backtest_summary` from any connected agent for
 live numbers (cached ~1h; `AERO_BACKTEST_EPOCHS` / `AERO_BACKTEST_MAX_POOLS` tune the depth/breadth).

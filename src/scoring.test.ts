@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { forecastFees, recommendAllocation, simulateBribeImpact, summarizeHistory, type MarketSnapshot } from "./scoring.js";
+import {
+  applyConfidenceCalibration,
+  forecastFees,
+  recommendAllocation,
+  simulateBribeImpact,
+  summarizeHistory,
+  type ConfidenceCalibrationBucket,
+  type MarketSnapshot,
+} from "./scoring.js";
 import type { PoolForecast, PoolInfo } from "./types.js";
 
 describe("forecastFees", () => {
@@ -251,6 +259,39 @@ describe("simulateBribeImpact", () => {
     const gainExpensive = simulateBribeImpact(expensiveSnap, expensiveSnap.forecasts[1].pool.lp, 5_000, 1).voteGain;
 
     expect(gainCheap).toBeGreaterThan(gainExpensive);
+  });
+});
+
+describe("applyConfidenceCalibration", () => {
+  const calibration: ConfidenceCalibrationBucket[] = [
+    { min: 0, max: 0.5, n: 20, wape: 1, calibratedConfidence: 0.5 }, // noisy in practice, marked down
+    { min: 0.5, max: 1, n: 20, wape: 0, calibratedConfidence: 1 }, // dead accurate, marked up
+  ];
+
+  it("remaps each forecast's confidence to its bucket's calibrated value", () => {
+    const snapshot = snapshotOf([makeForecast({ confidence: 0.9 }), makeForecast({ confidence: 0.2 })]);
+    const out = applyConfidenceCalibration(snapshot, calibration);
+    expect(out.forecasts[0].confidence).toBe(1);
+    expect(out.forecasts[1].confidence).toBe(0.5);
+  });
+
+  it("leaves other fields and the snapshot timestamp untouched", () => {
+    const snapshot = snapshotOf([makeForecast({ confidence: 0.9, predictedFeesUsd: 12_345 })]);
+    const out = applyConfidenceCalibration(snapshot, calibration);
+    expect(out.generatedAt).toBe(snapshot.generatedAt);
+    expect(out.forecasts[0].predictedFeesUsd).toBe(12_345);
+  });
+
+  it("leaves confidence unchanged when no bucket covers it", () => {
+    const sparse: ConfidenceCalibrationBucket[] = [{ min: 0.8, max: 1, n: 20, wape: 0.1, calibratedConfidence: 0.9 }];
+    const snapshot = snapshotOf([makeForecast({ confidence: 0.3 })]);
+    const out = applyConfidenceCalibration(snapshot, sparse);
+    expect(out.forecasts[0].confidence).toBe(0.3);
+  });
+
+  it("is a no-op for an empty calibration curve", () => {
+    const snapshot = snapshotOf([makeForecast({ confidence: 0.42 })]);
+    expect(applyConfidenceCalibration(snapshot, [])).toBe(snapshot);
   });
 });
 

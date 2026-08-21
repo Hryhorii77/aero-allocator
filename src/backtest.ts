@@ -1,6 +1,6 @@
 import { SETTINGS } from "./config.js";
 import { fetchHistories, scanPools, splitCurrentEpoch } from "./data.js";
-import { forecastFees } from "./scoring.js";
+import { forecastFees, type ConfidenceCalibrationBucket } from "./scoring.js";
 import type { EpochStats } from "./types.js";
 
 /**
@@ -110,11 +110,10 @@ export function aggregateBacktest(points: BacktestPoint[]): BacktestMetrics {
   };
 }
 
-/** Bucket points by forecast confidence and report error per bucket — checks whether confidence is calibrated. */
-export function confidenceBuckets(
+function bucketByConfidence(
   points: BacktestPoint[],
-  edges: number[] = [0.3, 0.6],
-): Array<{ range: string; n: number; mae: number; wape: number }> {
+  edges: number[],
+): Array<{ min: number; max: number; points: BacktestPoint[] }> {
   const sortedEdges = [...edges].sort((a, b) => a - b);
   const bounds = [0, ...sortedEdges, 1];
   const buckets: BacktestPoint[][] = bounds.slice(0, -1).map(() => []);
@@ -131,10 +130,41 @@ export function confidenceBuckets(
     buckets[idx].push(p);
   }
 
-  return buckets.map((bucketPoints, i) => {
+  return buckets.map((bucketPoints, i) => ({ min: bounds[i], max: bounds[i + 1], points: bucketPoints }));
+}
+
+/** Bucket points by forecast confidence and report error per bucket — checks whether confidence is calibrated. */
+export function confidenceBuckets(
+  points: BacktestPoint[],
+  edges: number[] = [0.3, 0.6],
+): Array<{ range: string; n: number; mae: number; wape: number }> {
+  return bucketByConfidence(points, edges).map(({ min, max, points: bucketPoints }) => {
     const m = aggregateBacktest(bucketPoints);
-    return { range: `${bounds[i].toFixed(2)}–${bounds[i + 1].toFixed(2)}`, n: m.n, mae: m.mae, wape: m.wape };
+    return { range: `${min.toFixed(2)}–${max.toFixed(2)}`, n: m.n, mae: m.mae, wape: m.wape };
   });
+}
+
+const MIN_CALIBRATION_SAMPLES = 8;
+
+/**
+ * Convert per-confidence-bucket backtested accuracy into a calibration curve
+ * for applyConfidenceCalibration (scoring.ts): calibratedConfidence =
+ * 1/(1+wape), so a bucket that was historically noisy gets marked down even
+ * if the heuristic thought it looked confident. Buckets with too few samples
+ * to trust are dropped — applyConfidenceCalibration leaves forecasts in a
+ * dropped range at their heuristic score rather than using a noisy estimate.
+ */
+export function deriveConfidenceCalibration(
+  points: BacktestPoint[],
+  edges: number[] = [0.3, 0.6],
+  minSamples = MIN_CALIBRATION_SAMPLES,
+): ConfidenceCalibrationBucket[] {
+  return bucketByConfidence(points, edges)
+    .map(({ min, max, points: bucketPoints }) => {
+      const m = aggregateBacktest(bucketPoints);
+      return { min, max, n: m.n, wape: m.wape, calibratedConfidence: round2(1 / (1 + m.wape)) };
+    })
+    .filter((b) => b.n >= minSamples);
 }
 
 export interface BacktestReport {
@@ -144,6 +174,8 @@ export interface BacktestReport {
   samplePoints: number;
   overall: BacktestMetrics;
   byConfidence: ReturnType<typeof confidenceBuckets>;
+  /** Calibration curve for applyConfidenceCalibration (scoring.ts) — how live confidence gets recalibrated. */
+  confidenceCalibration: ConfidenceCalibrationBucket[];
   worstMisses: Array<{
     pool: string;
     symbol: string;
@@ -223,6 +255,7 @@ async function buildBacktestReport(maxPools: number, epochs: number): Promise<Ba
     samplePoints: tagged.length,
     overall: aggregateBacktest(tagged),
     byConfidence: confidenceBuckets(tagged),
+    confidenceCalibration: deriveConfidenceCalibration(tagged),
     worstMisses,
     methodology: METHODOLOGY,
   };

@@ -60,6 +60,39 @@ export function forecastFees(completedNewestFirst: number[]): {
   return { predicted, trend: slope, confidence };
 }
 
+export interface ConfidenceCalibrationBucket {
+  /** Raw heuristic confidence range this bucket covers (from forecastFees). */
+  min: number;
+  max: number;
+  /** Backtested sample size and WAPE for forecasts whose raw confidence fell in this range. */
+  n: number;
+  wape: number;
+  /** Recalibrated confidence: 1/(1+wape) — same functional form forecastFees uses for its variance term. */
+  calibratedConfidence: number;
+}
+
+/**
+ * Remap each forecast's heuristic confidence through backtested accuracy
+ * (see backtest.ts's deriveConfidenceCalibration): a raw-confidence bucket
+ * that turned out noisy in the walk-forward backtest gets marked down even
+ * if the heuristic (history depth + variance) thought it looked confident,
+ * and vice versa. Forecasts whose raw confidence doesn't fall in any bucket
+ * (calibration data too sparse there) keep their heuristic score.
+ */
+export function applyConfidenceCalibration(
+  snapshot: MarketSnapshot,
+  calibration: ConfidenceCalibrationBucket[],
+): MarketSnapshot {
+  if (calibration.length === 0) return snapshot;
+  return {
+    ...snapshot,
+    forecasts: snapshot.forecasts.map((f) => {
+      const bucket = calibration.find((b) => f.confidence >= b.min && f.confidence <= b.max);
+      return bucket ? { ...f, confidence: bucket.calibratedConfidence } : f;
+    }),
+  };
+}
+
 export interface MarketSnapshot {
   generatedAt: number;
   forecasts: PoolForecast[];

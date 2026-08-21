@@ -5,7 +5,7 @@ import { encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
 import { ADDRESSES } from "./config.js";
 import { fetchEpochHistory, scanPools } from "./data.js";
-import { getMarketSnapshot, recommendAllocation, simulateBribeImpact, summarizeHistory } from "./scoring.js";
+import { applyConfidenceCalibration, getMarketSnapshot, recommendAllocation, simulateBribeImpact, summarizeHistory } from "./scoring.js";
 import { getBacktestReport } from "./backtest.js";
 import { adapter } from "./adapters/predictive-allocation.js";
 
@@ -20,6 +20,22 @@ function json(data: unknown) {
 
 function err(message: string) {
   return { content: [{ type: "text" as const, text: message }], isError: true };
+}
+
+/**
+ * Snapshot with confidence recalibrated against backtested accuracy, when
+ * available. Fetches the snapshot and the (usually cache-warm) backtest
+ * report concurrently; any backtest failure just falls back to the raw
+ * heuristic confidence rather than breaking the calling tool.
+ */
+async function calibratedSnapshot(refresh: boolean) {
+  const [snap, calibration] = await Promise.all([
+    getMarketSnapshot(refresh),
+    getBacktestReport()
+      .then((r) => r.confidenceCalibration)
+      .catch(() => undefined),
+  ]);
+  return calibration ? applyConfidenceCalibration(snap, calibration) : snap;
 }
 
 server.registerTool(
@@ -80,7 +96,7 @@ server.registerTool(
     },
   },
   async ({ limit, sortBy, refresh }) => {
-    const snap = await getMarketSnapshot(refresh);
+    const snap = await calibratedSnapshot(refresh);
     const sorted = [...snap.forecasts].sort((a, b) => {
       if (sortBy === "predictive_edge") return b.predictiveEdge - a.predictiveEdge;
       if (sortBy === "voter_roi") return b.rewardPer1kVotesUsd - a.rewardPer1kVotesUsd;
@@ -131,7 +147,7 @@ server.registerTool(
     },
   },
   async ({ objective, maxPools, votingPowerVe, maxWeightPct, refresh }) => {
-    const snap = await getMarketSnapshot(refresh);
+    const snap = await calibratedSnapshot(refresh);
     return json(recommendAllocation(snap, objective, maxPools, votingPowerVe, maxWeightPct / 100));
   },
 );
@@ -159,7 +175,7 @@ server.registerTool(
     },
   },
   async ({ pool, bribeBudgetUsd, maxWeightPct, refresh }) => {
-    const snap = await getMarketSnapshot(refresh);
+    const snap = await calibratedSnapshot(refresh);
     try {
       return json(simulateBribeImpact(snap, pool, bribeBudgetUsd, maxWeightPct / 100));
     } catch (e) {
@@ -289,8 +305,11 @@ server.registerTool(
       "Walk-forward validation of the demand forecast against real historical outcomes: replays " +
       "completed epochs, forecasts each using only data available at the time (same trailing window " +
       "predict_demand uses), and compares to a naive 'predict = last epoch' baseline. Reports error " +
-      "metrics, skill vs. baseline, and whether confidence scores are actually calibrated. Heavier " +
-      "than other tools (deep per-pool history) — cached ~1h.",
+      "metrics, skill vs. baseline, and whether confidence scores are actually calibrated. The " +
+      "confidenceCalibration curve this produces is applied automatically to predict_demand, " +
+      "recommend_allocation and recommend_bribe_placement's confidence scores (falling back to the " +
+      "raw heuristic wherever backtest data is too sparse). Heavier than other tools (deep per-pool " +
+      "history) — cached ~1h.",
     inputSchema: {
       refresh: z.boolean().default(false).describe("Force a fresh backtest run"),
       maxPools: z
