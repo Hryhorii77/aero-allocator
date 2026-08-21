@@ -1,4 +1,4 @@
-import { SETTINGS, WEEK, currentEpochStart, epochProgress } from "./config.js";
+import { PRESET, SETTINGS, WEEK, currentEpochStart, epochProgress } from "./config.js";
 import { fetchHistories, scanPools, splitCurrentEpoch } from "./data.js";
 import type {
   AllocationObjective,
@@ -249,7 +249,7 @@ function waterfillCapped(
  * for directing incentives as a protocol/treasury.
  *
  * voter_roi: maximize the voter's expected next-epoch reward for a given
- * amount of veAERO, accounting for self-dilution (adding votes to a pool
+ * amount of ve-token voting power, accounting for self-dilution (adding votes to a pool
  * shrinks its per-vote payout). Pools below the reward-capacity floor are
  * excluded so thin dust pools can't top the ranking.
  */
@@ -346,7 +346,7 @@ export function recommendAllocation(
       ? `Allocate proportional to predicted next-epoch fee demand across ${allocations.length} pools. ` +
         `Largest mispricing: ${topEdge?.pool.symbol ?? "n/a"} is under-incentivized by ` +
         `${round2((topEdge?.predictiveEdge ?? 0) * 100)}pp of vote share vs predicted demand.`
-      : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} veAERO across ${allocations.length} pools ` +
+      : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} ${PRESET.veTokenSymbol} across ${allocations.length} pools ` +
         `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
         `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).`;
 
@@ -380,7 +380,7 @@ export interface BribeImpactSimulation {
 
 /**
  * Estimate the vote-share a bribe would pull toward `targetPool`, for a team
- * or protocol deciding where to spend a bribe budget rather than a veAERO
+ * or protocol deciding where to spend a bribe budget rather than a ve-token
  * holder deciding how to vote.
  *
  * Treats the market's total active voting power as fully reallocatable
@@ -476,7 +476,8 @@ export interface LpDepositOpportunity {
 
 export interface LpDepositReport {
   generatedAt: string;
-  aeroPriceUsd: number;
+  rewardTokenSymbol: string;
+  rewardTokenPriceUsd: number;
   opportunities: LpDepositOpportunity[];
   methodology: string;
 }
@@ -484,22 +485,22 @@ export interface LpDepositReport {
 /**
  * Rank pools by forward-looking staking (gauge) yield for LPs deciding
  * where to deposit and stake liquidity — deliberately NOT trading-fee
- * revenue: on Aerodrome, fees (and bribes) accrue to veAERO voters, not to
- * liquidity stakers, so ranking LPs by predictedFeesUsd would point them at
- * the wrong number entirely. Stakers instead earn AERO emissions pro-rata
- * to staked TVL; predictedNextEpochAprPct forecasts next-epoch emissions
- * from each pool's emissions history with the same EWMA+trend model
+ * revenue: fees (and bribes) accrue to ve-token voters, not to liquidity
+ * stakers, so ranking LPs by predictedFeesUsd would point them at the wrong
+ * number entirely. Stakers instead earn reward-token emissions pro-rata to
+ * staked TVL; predictedNextEpochAprPct forecasts next-epoch emissions from
+ * each pool's emissions history with the same EWMA+trend model
  * forecastFees uses for fees, then annualizes against current staked TVL.
  * currentEpochAprPct needs no forecast at all — the live epoch's emission
  * rate is already fixed by votes cast before it started.
  */
 export function recommendLpDeposits(
   snapshot: MarketSnapshot,
-  aeroPriceUsd: number,
+  rewardTokenPriceUsd: number,
   opts?: { maxPools?: number; minStakedTvlUsd?: number },
 ): LpDepositReport {
-  if (aeroPriceUsd <= 0) {
-    throw new Error("aeroPriceUsd must be a positive AERO/USD spot price.");
+  if (rewardTokenPriceUsd <= 0) {
+    throw new Error(`rewardTokenPriceUsd must be a positive ${PRESET.tokenSymbol}/USD spot price.`);
   }
   const maxPools = opts?.maxPools ?? 20;
   const minStakedTvlUsd = opts?.minStakedTvlUsd ?? 1000;
@@ -509,11 +510,11 @@ export function recommendLpDeposits(
     .map((f) => {
       const { completed } = splitCurrentEpoch(f.history);
       // e.emissions is a per-second rate (see EpochStats), not a per-epoch total — scale by WEEK first.
-      // Reuses forecastFees' EWMA+trend math on total AERO/epoch instead of USD/epoch fees — same
+      // Reuses forecastFees' EWMA+trend math on total reward-token/epoch instead of USD/epoch fees — same
       // forecasting problem, different series.
       const { predicted, trend, confidence } = forecastFees(completed.map((e) => e.emissions * WEEK));
-      const predictedNextEpochEmissionsUsd = predicted * aeroPriceUsd;
-      const currentEpochEmissionsUsd = (f.pool.emissionsPerSec / 1e18) * WEEK * aeroPriceUsd;
+      const predictedNextEpochEmissionsUsd = predicted * rewardTokenPriceUsd;
+      const currentEpochEmissionsUsd = (f.pool.emissionsPerSec / 1e18) * WEEK * rewardTokenPriceUsd;
 
       return {
         pool: f.pool.lp,
@@ -523,11 +524,11 @@ export function recommendLpDeposits(
         currentEpochAprPct: round2((currentEpochEmissionsUsd / f.pool.stakedTvlUsd) * EPOCHS_PER_YEAR * 100),
         predictedNextEpochAprPct: round2((predictedNextEpochEmissionsUsd / f.pool.stakedTvlUsd) * EPOCHS_PER_YEAR * 100),
         predictedNextEpochEmissionsUsd: round2(predictedNextEpochEmissionsUsd),
-        emissionsTrendUsdPerEpoch: round2(trend * aeroPriceUsd),
+        emissionsTrendUsdPerEpoch: round2(trend * rewardTokenPriceUsd),
         confidence,
         note:
-          `Staking yield from AERO emissions only. This pool's trading fees (predicted ` +
-          `$${Math.round(f.predictedFeesUsd).toLocaleString()}/epoch) accrue to veAERO voters, not stakers — ` +
+          `Staking yield from ${PRESET.tokenSymbol} emissions only. This pool's trading fees (predicted ` +
+          `$${Math.round(f.predictedFeesUsd).toLocaleString()}/epoch) accrue to ${PRESET.veTokenSymbol} voters, not stakers — ` +
           "see recommend_allocation or recommend_bribe_placement for the voter/briber side.",
       };
     })
@@ -536,13 +537,15 @@ export function recommendLpDeposits(
 
   return {
     generatedAt: new Date(snapshot.generatedAt).toISOString(),
-    aeroPriceUsd,
+    rewardTokenSymbol: PRESET.tokenSymbol,
+    rewardTokenPriceUsd,
     opportunities,
     methodology:
-      "predictedNextEpochAprPct forecasts next-epoch AERO emissions from completed-epoch history (EWMA + " +
-      "damped trend, same model predict_demand uses for fees), annualized against current staked TVL. " +
-      "currentEpochAprPct instead uses this epoch's already-fixed live emission rate — deterministic, no " +
-      "forecast error. Both use the current AERO spot price and ignore dilution from your own deposit.",
+      `predictedNextEpochAprPct forecasts next-epoch ${PRESET.tokenSymbol} emissions from completed-epoch ` +
+      "history (EWMA + damped trend, same model predict_demand uses for fees), annualized against current " +
+      "staked TVL. currentEpochAprPct instead uses this epoch's already-fixed live emission rate — " +
+      `deterministic, no forecast error. Both use the current ${PRESET.tokenSymbol} spot price and ignore ` +
+      "dilution from your own deposit.",
   };
 }
 

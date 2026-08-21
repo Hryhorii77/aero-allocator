@@ -1,14 +1,13 @@
 import { createPublicClient, http } from "viem";
-import { base } from "viem/chains";
 import { lpSugarAbi, rewardsSugarAbi } from "./abi.js";
-import { ADDRESSES, BASE_RPC_URL, SETTINGS, currentEpochStart } from "./config.js";
+import { ADDRESSES, CHAIN, RPC_URL, SETTINGS, currentEpochStart } from "./config.js";
 import { getPrices, sumRewardsUsd, type TokenPrice } from "./prices.js";
 import type { EpochStats, PoolInfo } from "./types.js";
 
 function makeClient() {
   return createPublicClient({
-    chain: base,
-    transport: http(BASE_RPC_URL, { batch: true, retryCount: 3 }),
+    chain: CHAIN,
+    transport: http(RPC_URL, { batch: true, retryCount: 3 }),
   });
 }
 
@@ -268,10 +267,10 @@ export async function fetchHistories(
   return out;
 }
 
-/** Current AERO spot price in USD, for valuing staking (gauge) emissions. */
-export async function getAeroPriceUsd(): Promise<number> {
-  const prices = await getPrices([ADDRESSES.aero]);
-  return prices.get(ADDRESSES.aero.toLowerCase())?.priceUsd ?? 0;
+/** Current reward-token (AERO/VELO) spot price in USD, for valuing staking (gauge) emissions. */
+export async function getRewardTokenPriceUsd(): Promise<number> {
+  const prices = await getPrices([ADDRESSES.rewardToken]);
+  return prices.get(ADDRESSES.rewardToken.toLowerCase())?.priceUsd ?? 0;
 }
 
 /** Split history into [inProgressEpoch | null, completedEpochs newest-first]. */

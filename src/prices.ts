@@ -1,6 +1,11 @@
 // USD token prices via DefiLlama's free coins API. No key required.
+import { PROTOCOL } from "./config.js";
+
 const LLAMA_URL = "https://coins.llama.fi/prices/current/";
 const BATCH = 80;
+
+// DefiLlama's coins API chain slug — "base" and "optimism" both happen to match viem's chain names here.
+const LLAMA_CHAIN = PROTOCOL === "velodrome" ? "optimism" : "base";
 
 export interface TokenPrice {
   priceUsd: number;
@@ -28,7 +33,7 @@ export async function getPrices(addresses: string[]): Promise<Map<string, TokenP
 
   for (let i = 0; i < missing.length; i += BATCH) {
     const chunk = missing.slice(i, i + BATCH);
-    const key = chunk.map((a) => `base:${a}`).join(",");
+    const key = chunk.map((a) => `${LLAMA_CHAIN}:${a}`).join(",");
     const res = await fetch(LLAMA_URL + key);
     if (!res.ok) {
       throw new Error(`DefiLlama price request failed: ${res.status} ${res.statusText}`);
@@ -37,7 +42,7 @@ export async function getPrices(addresses: string[]): Promise<Map<string, TokenP
       coins: Record<string, { price: number; decimals?: number; symbol?: string }>;
     };
     for (const addr of chunk) {
-      const coin = body.coins[`base:${addr}`];
+      const coin = body.coins[`${LLAMA_CHAIN}:${addr}`];
       const value: TokenPrice | null = coin
         ? { priceUsd: coin.price, decimals: coin.decimals ?? 18, symbol: coin.symbol ?? "?" }
         : null;

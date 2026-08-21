@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEEK, currentEpochStart, epochProgress, epochStart } from "./config.js";
+import { PRESET, WEEK, currentEpochStart, epochProgress, epochStart, resolveProtocol } from "./config.js";
 
 describe("epochStart", () => {
   it("floors a timestamp to the most recent week boundary", () => {
@@ -21,5 +21,26 @@ describe("currentEpochStart / epochProgress", () => {
     expect(progress).toBeGreaterThanOrEqual(0);
     expect(progress).toBeLessThan(1);
     expect(progress).toBeCloseTo((now - start) / WEEK, 3);
+  });
+});
+
+describe("resolveProtocol", () => {
+  it("defaults to aerodrome for unset or unrecognized values", () => {
+    expect(resolveProtocol(undefined)).toBe("aerodrome");
+    expect(resolveProtocol("")).toBe("aerodrome");
+    expect(resolveProtocol("base")).toBe("aerodrome");
+  });
+
+  it("selects velodrome only for an exact match", () => {
+    expect(resolveProtocol("velodrome")).toBe("velodrome");
+    expect(resolveProtocol("Velodrome")).toBe("aerodrome"); // case-sensitive by design — env vars should be exact
+  });
+});
+
+describe("PRESET", () => {
+  it("resolves to a preset for whichever protocol the process is running (aerodrome by default in this suite)", () => {
+    expect(["aerodrome", "velodrome"]).toContain(PRESET.protocol);
+    expect(PRESET.addresses.lpSugar).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(PRESET.addresses.rewardToken).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 });

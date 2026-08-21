@@ -1,6 +1,6 @@
 # aero-allocator
 
-MCP server that forecasts **next-epoch demand** for Aerodrome pools on Base and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes.
+MCP server that forecasts **next-epoch demand** for Aerodrome (Base) or Velodrome (Optimism) pools and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes. Aerodrome is the default; see [Multi-protocol](#multi-protocol-aerodrome--velodrome) to switch.
 
 Any MCP-capable agent (Claude Code, Claude Desktop, Bankr-hosted agents) can use it to answer:
 
@@ -35,9 +35,34 @@ npm run smoke        # live end-to-end test against Base mainnet
 npm run build
 ```
 
+## Multi-protocol (Aerodrome / Velodrome)
+
+Aerodrome (Base) and Velodrome (Optimism) are the same ve(3,3) lineage — Aerodrome is a Velodrome fork sharing the Sugar/Voter contract pattern — so one engine covers both. A single server process serves **one** protocol, selected at startup:
+
+```json
+{
+  "mcpServers": {
+    "aero-allocator": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/aero-allocator/src/index.ts"],
+      "env": { "AERO_PROTOCOL": "aerodrome" }
+    },
+    "velo-allocator": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/aero-allocator/src/index.ts"],
+      "env": { "AERO_PROTOCOL": "velodrome" }
+    }
+  }
+}
+```
+
+`AERO_PROTOCOL` defaults to `aerodrome` (unchanged behavior if unset). Register both entries to run them side by side — each is a separate process with its own RPC client and caches. Tool descriptions, ve-token naming (`veAERO`/`veVELO`), and reward-token naming (`AERO`/`VELO`) all switch automatically with the configured protocol; `predictive_allocation_status` correctly reports the mechanism as not applicable when running Velodrome, since Dromos Labs' announcement is Aerodrome-specific.
+
+RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; otherwise `BASE_RPC_URL` is honored for backward compatibility when running Aerodrome; otherwise each protocol falls back to a public default (`base-rpc.publicnode.com` / `mainnet.optimism.io`).
+
 ### Dashboard
 
-A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
+A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly) — currently Aerodrome/Base only:
 
 ```bash
 npm run build                 # engine dist/ used by the web app
@@ -153,19 +178,25 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 
 | Var | Default | |
 |---|---|---|
-| `BASE_RPC_URL` | `https://mainnet.base.org` | Use a dedicated RPC for faster snapshots |
+| `AERO_PROTOCOL` | `aerodrome` | `aerodrome` (Base) or `velodrome` (Optimism) — see [Multi-protocol](#multi-protocol-aerodrome--velodrome) |
+| `RPC_URL` | protocol default | Dedicated RPC, either protocol — always wins if set |
+| `BASE_RPC_URL` | `https://base-rpc.publicnode.com` | Legacy alias for `RPC_URL`, honored when `AERO_PROTOCOL=aerodrome` |
 | `AERO_MIN_TVL_USD` | `50000` | Candidate pool TVL floor |
 | `AERO_MAX_CANDIDATES` | `60` | Pools receiving full epoch-history analysis |
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
 
-## Contracts used (Base, 8453)
+## Contracts used
 
-| | |
-|---|---|
-| LpSugar v3 | `0x69dD9db6d8f8E7d83887A704f447b1a584b599A1` |
-| RewardsSugar | `0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678` |
-| Voter | `0x16613524e02ad97eDfeF371bC883F2F5d6C480A5` |
+Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
+
+| | Aerodrome (Base, 8453) | Velodrome (Optimism, 10) |
+|---|---|---|
+| LpSugar | `0x69dD9db6d8f8E7d83887A704f447b1a584b599A1` | `0x347512180804A8B40AA7525AE932a31198F074aA` |
+| RewardsSugar | `0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678` | `0x62CCFB2496f49A80B0184AD720379B529E9152fB` |
+| VeSugar | `0x4d6A741cEE6A8cC5632B2d948C050303F6246D24` | `0xFE0a44d356a9F52c9F1bE0ba0f0877d986438c9C` |
+| Voter | `0x16613524e02ad97eDfeF371bC883F2F5d6C480A5` | `0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C` |
+| Reward token (AERO/VELO) | `0x940181a94A35A4569E4529A3CDfB74e38FD98631` | `0x9560e827aF36c94D2Ac33a39bCe1fe78631088dB` |
 
 ## Roadmap
 
@@ -175,6 +206,8 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 - [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
+- [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
+- [ ] Dashboard (`web/`) multi-protocol support (currently Aerodrome/Base only)
 
 ## Disclaimer
 

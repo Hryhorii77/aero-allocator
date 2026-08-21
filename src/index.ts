@@ -3,8 +3,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
-import { ADDRESSES } from "./config.js";
-import { fetchEpochHistory, getAeroPriceUsd, scanPools } from "./data.js";
+import { ADDRESSES, PRESET } from "./config.js";
+import { fetchEpochHistory, getRewardTokenPriceUsd, scanPools } from "./data.js";
 import {
   applyConfidenceCalibration,
   getMarketSnapshot,
@@ -20,6 +20,10 @@ const server = new McpServer({
   name: "aero-allocator",
   version: "0.1.0",
 });
+
+// Static description text below is generated once at process startup for the
+// protocol selected via AERO_PROTOCOL (config.js) — one process serves one
+// protocol, so this is safe to bake in rather than resolve per call.
 
 function json(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
@@ -49,8 +53,8 @@ server.registerTool(
   "scan_pools",
   {
     description:
-      "Scan Aerodrome (Base) gauge-enabled pools with live TVL, staked TVL, fee tier and emissions. " +
-      "Sorted by staked TVL. Use this for a market overview before predicting demand.",
+      `Scan ${PRESET.displayName} (${PRESET.networkName}) gauge-enabled pools with live TVL, staked TVL, fee ` +
+      "tier and emissions. Sorted by staked TVL. Use this for a market overview before predicting demand.",
     inputSchema: {
       limit: z.number().int().min(1).max(100).default(25).describe("Max pools to return"),
       minTvlUsd: z.number().min(0).default(50000).describe("Minimum pool TVL in USD"),
@@ -75,8 +79,9 @@ server.registerTool(
   "pool_history",
   {
     description:
-      "Per-epoch history for one Aerodrome pool: votes, AERO emissions, trading fees (USD) and " +
-      "bribes/incentives (USD) per weekly epoch, newest first (first row is the in-progress epoch).",
+      `Per-epoch history for one ${PRESET.displayName} pool: votes, ${PRESET.tokenSymbol} emissions, ` +
+      "trading fees (USD) and bribes/incentives (USD) per weekly epoch, newest first (first row is the " +
+      "in-progress epoch).",
     inputSchema: {
       pool: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe("Pool (lp) address"),
       epochs: z.number().int().min(2).max(50).default(8),
@@ -84,7 +89,8 @@ server.registerTool(
   },
   async ({ pool, epochs }) => {
     const history = await fetchEpochHistory(pool, epochs);
-    if (history.length === 0) return err(`No epoch data found for ${pool}. Is it a gauge-enabled Aerodrome pool?`);
+    if (history.length === 0)
+      return err(`No epoch data found for ${pool}. Is it a gauge-enabled ${PRESET.displayName} pool?`);
     return json(summarizeHistory(history));
   },
 );
@@ -93,9 +99,10 @@ server.registerTool(
   "predict_demand",
   {
     description:
-      "Forecast next-epoch trading-fee demand for top Aerodrome pools and compare it with current vote " +
-      "allocation. Key output: predictiveEdgePct — pools with positive edge are under-incentivized " +
-      "relative to predicted demand (the signal Predictive Allocation rewards). Data is cached ~5 min.",
+      `Forecast next-epoch trading-fee demand for top ${PRESET.displayName} pools and compare it with ` +
+      "current vote allocation. Key output: predictiveEdgePct — pools with positive edge are " +
+      "under-incentivized relative to predicted demand (the signal a Predictive-Allocation-style mechanism " +
+      "would reward). Data is cached ~5 min.",
     inputSchema: {
       limit: z.number().int().min(1).max(60).default(20).describe("Max pools to return"),
       sortBy: z.enum(["predicted_fees", "predictive_edge", "voter_roi"]).default("predicted_fees"),
@@ -131,11 +138,12 @@ server.registerTool(
   "recommend_allocation",
   {
     description:
-      "Produce a concrete incentive-allocation recommendation across Aerodrome pools. " +
+      `Produce a concrete incentive-allocation recommendation across ${PRESET.displayName} pools. ` +
       "objective=protocol_efficiency allocates proportional to predicted next-epoch fee demand " +
-      "(the Predictive Allocation ideal). objective=voter_roi maximizes the expected next-epoch reward " +
-      "for votingPowerVe veAERO, accounting for self-dilution (your votes shrink the per-vote payout), " +
-      "so pass the voter's real veAERO amount for sized weights. Returns weights that sum to 100%.",
+      "(the Predictive-Allocation-style ideal). objective=voter_roi maximizes the expected next-epoch reward " +
+      `for votingPowerVe ${PRESET.veTokenSymbol}, accounting for self-dilution (your votes shrink the ` +
+      `per-vote payout), so pass the voter's real ${PRESET.veTokenSymbol} amount for sized weights. Returns ` +
+      "weights that sum to 100%.",
     inputSchema: {
       objective: z.enum(["protocol_efficiency", "voter_roi"]).default("voter_roi"),
       maxPools: z.number().int().min(2).max(20).default(8),
@@ -143,7 +151,7 @@ server.registerTool(
         .number()
         .min(1)
         .default(10000)
-        .describe("veAERO voting power to allocate (voter_roi only)"),
+        .describe(`${PRESET.veTokenSymbol} voting power to allocate (voter_roi only)`),
       maxWeightPct: z
         .number()
         .min(5)
@@ -164,7 +172,7 @@ server.registerTool(
   {
     description:
       "For a team/protocol deciding where to spend a bribe budget (not a voter deciding how to vote): " +
-      "estimate how much veAERO vote share a bribe would pull toward one pool. Models a full re-optimization " +
+      `estimate how much ${PRESET.veTokenSymbol} vote share a bribe would pull toward one pool. Models a full re-optimization ` +
       "of the market's active voting power by payout (votes scale with the square root of pool payout), so a " +
       "bribe dollar pulls disproportionately more on cheap/low-payout pools than on already-large ones — an " +
       "optimistic upper bound, since real voters re-vote slowly. Also reports which other pools lose the most " +
@@ -196,11 +204,12 @@ server.registerTool(
   {
     description:
       "Forward-looking staking-yield ranking for LPs deciding where to deposit and stake liquidity — " +
-      "deliberately NOT trading-fee revenue: on Aerodrome, fees and bribes accrue to veAERO voters, not to " +
-      "liquidity stakers (see recommend_allocation), so this ranks by predicted AERO emissions instead, the " +
-      "actual staker reward. predictedNextEpochAprPct forecasts next-epoch emissions from each pool's " +
-      "emissions history the same way predict_demand forecasts fees; currentEpochAprPct uses this epoch's " +
-      "already-fixed live emission rate (no forecast error).",
+      `deliberately NOT trading-fee revenue: on ${PRESET.displayName}, fees and bribes accrue to ` +
+      `${PRESET.veTokenSymbol} voters, not to liquidity stakers (see recommend_allocation), so this ranks ` +
+      `by predicted ${PRESET.tokenSymbol} emissions instead, the actual staker reward. ` +
+      "predictedNextEpochAprPct forecasts next-epoch emissions from each pool's emissions history the same " +
+      "way predict_demand forecasts fees; currentEpochAprPct uses this epoch's already-fixed live emission " +
+      "rate (no forecast error).",
     inputSchema: {
       maxPools: z.number().int().min(1).max(60).default(20),
       minStakedTvlUsd: z.number().min(0).default(1000).describe("Minimum staked TVL for a pool to be ranked"),
@@ -208,17 +217,18 @@ server.registerTool(
     },
   },
   async ({ maxPools, minStakedTvlUsd, refresh }) => {
-    const [snap, aeroPriceUsd] = await Promise.all([getMarketSnapshot(refresh), getAeroPriceUsd()]);
+    const [snap, rewardTokenPriceUsd] = await Promise.all([getMarketSnapshot(refresh), getRewardTokenPriceUsd()]);
     try {
-      return json(recommendLpDeposits(snap, aeroPriceUsd, { maxPools, minStakedTvlUsd }));
+      return json(recommendLpDeposits(snap, rewardTokenPriceUsd, { maxPools, minStakedTvlUsd }));
     } catch (e) {
       return err(e instanceof Error ? e.message : String(e));
     }
   },
 );
 
-// Classic veAERO voting is live today; Predictive Allocation submission goes
-// through the adapter once Dromos publishes contracts.
+// Classic ve-token voting is live today; Predictive Allocation submission
+// (Aerodrome-specific, see predictive_allocation_status) goes through the
+// adapter once Dromos publishes contracts.
 const voterAbi = parseAbi([
   "function vote(uint256 _tokenId, address[] _poolVote, uint256[] _weights)",
 ]);
@@ -227,12 +237,13 @@ server.registerTool(
   "prepare_vote_calldata",
   {
     description:
-      "Build unsigned transaction calldata for Aerodrome Voter.vote() from an allocation " +
-      "(veAERO NFT id + pool weights). Returns { to, data, value } for the host wallet " +
-      "(e.g. Base MCP send/send_calls) to review, sign and submit — this server never signs. " +
-      "Note: votes can only be cast once per epoch per veNFT, and not in the final hour before epoch flip.",
+      `Build unsigned transaction calldata for ${PRESET.displayName} Voter.vote() from an allocation ` +
+      `(${PRESET.veTokenSymbol} NFT id + pool weights). Returns { to, data, value } for the host wallet ` +
+      `(e.g. Base MCP send/send_calls on Base, or the equivalent for ${PRESET.networkName}) to review, sign ` +
+      "and submit — this server never signs. Note: votes can only be cast once per epoch per veNFT, and " +
+      "not in the final hour before epoch flip.",
     inputSchema: {
-      veNftId: z.number().int().min(1).describe("veAERO NFT token id that holds the voting power"),
+      veNftId: z.number().int().min(1).describe(`${PRESET.veTokenSymbol} NFT token id that holds the voting power`),
       allocations: z
         .array(
           z.object({
@@ -263,10 +274,10 @@ server.registerTool(
       to: ADDRESSES.voter,
       data,
       value: "0",
-      description: `Vote with veAERO #${veNftId} across ${allocations.length} pools: ${allocations
+      description: `Vote with ${PRESET.veTokenSymbol} #${veNftId} across ${allocations.length} pools: ${allocations
         .map((a) => `${a.weightPct}% → ${a.pool.slice(0, 10)}…`)
         .join(", ")}`,
-      note: "Review pools and weights, then submit via your wallet (Base MCP send_calls) with user approval.",
+      note: `Review pools and weights, then submit via your wallet (e.g. Base MCP send_calls on Base, or the equivalent for ${PRESET.networkName}) with user approval.`,
     });
   },
 );
@@ -280,7 +291,12 @@ server.registerTool(
       "and README). Same shape as prepare_vote_calldata. Fails with a clear error if contracts aren't live " +
       "yet — use prepare_vote_calldata for the classic Voter.vote() flow until then.",
     inputSchema: {
-      veNftId: z.number().int().min(1).optional().describe("veAERO NFT id, if the live mechanism requires one"),
+      veNftId: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe(`${PRESET.veTokenSymbol} NFT id, if the live mechanism requires one`),
       allocations: z
         .array(
           z.object({
@@ -313,20 +329,29 @@ server.registerTool(
   "predictive_allocation_status",
   {
     description:
-      "Status of the direct Predictive Allocation submission path (Aerodrome's September 2026 mechanism " +
-      "replacing weekly gauge voting). Reports whether live contracts are wired into this server.",
+      "Status of the direct Predictive Allocation submission path (Aerodrome-specific: Dromos Labs' " +
+      "September 2026 mechanism replacing weekly gauge voting). Reports whether live contracts are wired " +
+      `into this server, and — since this server is currently configured for ${PRESET.displayName} — ` +
+      "whether the mechanism even applies to the configured protocol.",
     inputSchema: {},
   },
   async () => {
+    const applicable = PRESET.protocol === "aerodrome";
     return json({
-      live: adapter.isLive(),
+      applicableToConfiguredProtocol: applicable,
+      live: applicable && adapter.isLive(),
       mechanism:
         "Predictive Allocation: real-time incentive allocation based on predicted future demand, " +
-        "replacing weekly veAERO gauge voting (Dromos Labs, launching September 2026 with the Aero merger).",
-      currentPath: adapter.isLive()
-        ? "Direct submission available via prepare_submission."
-        : "Contracts not yet published. Use predict_demand + recommend_allocation for the signal, and " +
-          "prepare_vote_calldata for the classic Voter.vote() flow in the meantime.",
+        "replacing weekly veAERO gauge voting (Dromos Labs, announced for Aerodrome, launching September " +
+        "2026 with the Aero merger). No equivalent mechanism has been announced for Velodrome.",
+      currentPath: !applicable
+        ? `This server is configured for ${PRESET.displayName}, which Predictive Allocation doesn't target. ` +
+          "Use predict_demand + recommend_allocation for the demand signal, and prepare_vote_calldata for " +
+          "the classic Voter.vote() flow."
+        : adapter.isLive()
+          ? "Direct submission available via prepare_submission."
+          : "Contracts not yet published. Use predict_demand + recommend_allocation for the signal, and " +
+            "prepare_vote_calldata for the classic Voter.vote() flow in the meantime.",
     });
   },
 );

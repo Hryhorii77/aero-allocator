@@ -1,18 +1,87 @@
-// Aerodrome Sugar deployments on Base (chain 8453).
-// Source: velodrome-finance/sugar deployments/base.env
-export const ADDRESSES = {
-  lpSugar: "0x69dD9db6d8f8E7d83887A704f447b1a584b599A1",
-  rewardsSugar: "0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678",
-  veSugar: "0x4d6A741cEE6A8cC5632B2d948C050303F6246D24",
-  voter: "0x16613524e02ad97eDfeF371bC883F2F5d6C480A5",
-  aero: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-} as const;
+import { base, optimism, type Chain } from "viem/chains";
 
-// publicnode sustains the heavy Sugar scan (~70 x 500-pool eth_calls) without
-// rate limiting; mainnet.base.org throttles it into minutes of backoff.
-export const BASE_RPC_URL = process.env.BASE_RPC_URL ?? "https://base-rpc.publicnode.com";
+export type Protocol = "aerodrome" | "velodrome";
 
-// Aerodrome epochs: 1 week, starting Thursday 00:00 UTC (unix ts % WEEK == 0).
+export interface ProtocolPreset {
+  protocol: Protocol;
+  /** Display name for the protocol (e.g. "Aerodrome", "Velodrome"). */
+  displayName: string;
+  /** Reward/governance token symbol (e.g. "AERO", "VELO"). */
+  tokenSymbol: string;
+  /** Display name for the ve-NFT governance token (e.g. "veAERO", "veVELO"). */
+  veTokenSymbol: string;
+  /** Conventional chain name for prose (viem's Chain.name is technically correct but reads oddly, e.g. "OP Mainnet"). */
+  networkName: string;
+  chain: Chain;
+  defaultRpcUrl: string;
+  addresses: {
+    lpSugar: `0x${string}`;
+    rewardsSugar: `0x${string}`;
+    veSugar: `0x${string}`;
+    voter: `0x${string}`;
+    /** Native reward/governance token (AERO or VELO) — used to price staking emissions. */
+    rewardToken: `0x${string}`;
+  };
+}
+
+// Both are Sugar/ve(3,3) deployments from the same lineage (Aerodrome is a
+// Velodrome fork); addresses sourced from velodrome-finance/sugar's
+// deployments/{base,optimism}.env, reward-token addresses cross-checked
+// against DefiLlama + CoinGecko.
+const PRESETS: Record<Protocol, ProtocolPreset> = {
+  aerodrome: {
+    protocol: "aerodrome",
+    displayName: "Aerodrome",
+    tokenSymbol: "AERO",
+    veTokenSymbol: "veAERO",
+    networkName: "Base",
+    chain: base,
+    defaultRpcUrl: "https://base-rpc.publicnode.com",
+    addresses: {
+      lpSugar: "0x69dD9db6d8f8E7d83887A704f447b1a584b599A1",
+      rewardsSugar: "0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678",
+      veSugar: "0x4d6A741cEE6A8cC5632B2d948C050303F6246D24",
+      voter: "0x16613524e02ad97eDfeF371bC883F2F5d6C480A5",
+      rewardToken: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+    },
+  },
+  velodrome: {
+    protocol: "velodrome",
+    displayName: "Velodrome",
+    tokenSymbol: "VELO",
+    veTokenSymbol: "veVELO",
+    networkName: "Optimism",
+    chain: optimism,
+    defaultRpcUrl: "https://mainnet.optimism.io",
+    addresses: {
+      lpSugar: "0x347512180804A8B40AA7525AE932a31198F074aA",
+      rewardsSugar: "0x62CCFB2496f49A80B0184AD720379B529E9152fB",
+      veSugar: "0xFE0a44d356a9F52c9F1bE0ba0f0877d986438c9C",
+      voter: "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+      rewardToken: "0x9560e827aF36c94D2Ac33a39bCe1fe78631088dB",
+    },
+  },
+};
+
+/** Pure so tests can exercise selection without stubbing process.env + resetting modules. */
+export function resolveProtocol(env: string | undefined): Protocol {
+  return env === "velodrome" ? "velodrome" : "aerodrome";
+}
+
+export const PROTOCOL: Protocol = resolveProtocol(process.env.AERO_PROTOCOL);
+export const PRESET: ProtocolPreset = PRESETS[PROTOCOL];
+
+export const ADDRESSES = PRESET.addresses;
+export const CHAIN = PRESET.chain;
+
+// RPC_URL is protocol-agnostic and always wins if set. BASE_RPC_URL is kept
+// for backward compatibility with existing aerodrome (the default) configs.
+export const RPC_URL =
+  process.env.RPC_URL ??
+  (PROTOCOL === "aerodrome" ? process.env.BASE_RPC_URL : undefined) ??
+  PRESET.defaultRpcUrl;
+
+// Epochs: 1 week, starting Thursday 00:00 UTC (unix ts % WEEK == 0) — shared across the Velodrome family.
 export const WEEK = 7 * 24 * 60 * 60;
 
 export function epochStart(ts: number): number {
