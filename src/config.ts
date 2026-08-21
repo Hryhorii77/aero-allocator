@@ -5,6 +5,7 @@ export const ADDRESSES = {
   rewardsSugar: "0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678",
   veSugar: "0x4d6A741cEE6A8cC5632B2d948C050303F6246D24",
   voter: "0x16613524e02ad97eDfeF371bC883F2F5d6C480A5",
+  aero: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
 } as const;
 
 // publicnode sustains the heavy Sugar scan (~70 x 500-pool eth_calls) without

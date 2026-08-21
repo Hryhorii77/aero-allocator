@@ -1,4 +1,4 @@
-import { SETTINGS, currentEpochStart, epochProgress } from "./config.js";
+import { SETTINGS, WEEK, currentEpochStart, epochProgress } from "./config.js";
 import { fetchHistories, scanPools, splitCurrentEpoch } from "./data.js";
 import type {
   AllocationObjective,
@@ -453,6 +453,96 @@ export function simulateBribeImpact(
       "voters actually move. That makes this a theoretical ceiling, not a forecast — real single-epoch vote " +
       "shifts from one bribe will be much smaller. Use it to compare candidate pools (which is cheapest to move " +
       "per dollar), not to predict an absolute vote count.",
+  };
+}
+
+const EPOCHS_PER_YEAR = (365 * 24 * 60 * 60) / WEEK;
+
+export interface LpDepositOpportunity {
+  pool: string;
+  symbol: string;
+  poolType: PoolInfo["poolType"];
+  stakedTvlUsd: number;
+  /** Deterministic: this epoch's emission rate is already fixed by last epoch's votes. */
+  currentEpochAprPct: number;
+  /** Forecasted from emissions history the same way predict_demand forecasts fees. */
+  predictedNextEpochAprPct: number;
+  predictedNextEpochEmissionsUsd: number;
+  emissionsTrendUsdPerEpoch: number;
+  /** Heuristic (history depth + variance) — not yet backtested/calibrated like fee-forecast confidence. */
+  confidence: number;
+  note: string;
+}
+
+export interface LpDepositReport {
+  generatedAt: string;
+  aeroPriceUsd: number;
+  opportunities: LpDepositOpportunity[];
+  methodology: string;
+}
+
+/**
+ * Rank pools by forward-looking staking (gauge) yield for LPs deciding
+ * where to deposit and stake liquidity — deliberately NOT trading-fee
+ * revenue: on Aerodrome, fees (and bribes) accrue to veAERO voters, not to
+ * liquidity stakers, so ranking LPs by predictedFeesUsd would point them at
+ * the wrong number entirely. Stakers instead earn AERO emissions pro-rata
+ * to staked TVL; predictedNextEpochAprPct forecasts next-epoch emissions
+ * from each pool's emissions history with the same EWMA+trend model
+ * forecastFees uses for fees, then annualizes against current staked TVL.
+ * currentEpochAprPct needs no forecast at all — the live epoch's emission
+ * rate is already fixed by votes cast before it started.
+ */
+export function recommendLpDeposits(
+  snapshot: MarketSnapshot,
+  aeroPriceUsd: number,
+  opts?: { maxPools?: number; minStakedTvlUsd?: number },
+): LpDepositReport {
+  if (aeroPriceUsd <= 0) {
+    throw new Error("aeroPriceUsd must be a positive AERO/USD spot price.");
+  }
+  const maxPools = opts?.maxPools ?? 20;
+  const minStakedTvlUsd = opts?.minStakedTvlUsd ?? 1000;
+
+  const opportunities: LpDepositOpportunity[] = snapshot.forecasts
+    .filter((f) => f.pool.gaugeAlive && f.pool.stakedTvlUsd >= minStakedTvlUsd)
+    .map((f) => {
+      const { completed } = splitCurrentEpoch(f.history);
+      // e.emissions is a per-second rate (see EpochStats), not a per-epoch total — scale by WEEK first.
+      // Reuses forecastFees' EWMA+trend math on total AERO/epoch instead of USD/epoch fees — same
+      // forecasting problem, different series.
+      const { predicted, trend, confidence } = forecastFees(completed.map((e) => e.emissions * WEEK));
+      const predictedNextEpochEmissionsUsd = predicted * aeroPriceUsd;
+      const currentEpochEmissionsUsd = (f.pool.emissionsPerSec / 1e18) * WEEK * aeroPriceUsd;
+
+      return {
+        pool: f.pool.lp,
+        symbol: f.pool.symbol,
+        poolType: f.pool.poolType,
+        stakedTvlUsd: round2(f.pool.stakedTvlUsd),
+        currentEpochAprPct: round2((currentEpochEmissionsUsd / f.pool.stakedTvlUsd) * EPOCHS_PER_YEAR * 100),
+        predictedNextEpochAprPct: round2((predictedNextEpochEmissionsUsd / f.pool.stakedTvlUsd) * EPOCHS_PER_YEAR * 100),
+        predictedNextEpochEmissionsUsd: round2(predictedNextEpochEmissionsUsd),
+        emissionsTrendUsdPerEpoch: round2(trend * aeroPriceUsd),
+        confidence,
+        note:
+          `Staking yield from AERO emissions only. This pool's trading fees (predicted ` +
+          `$${Math.round(f.predictedFeesUsd).toLocaleString()}/epoch) accrue to veAERO voters, not stakers — ` +
+          "see recommend_allocation or recommend_bribe_placement for the voter/briber side.",
+      };
+    })
+    .sort((a, b) => b.predictedNextEpochAprPct - a.predictedNextEpochAprPct)
+    .slice(0, maxPools);
+
+  return {
+    generatedAt: new Date(snapshot.generatedAt).toISOString(),
+    aeroPriceUsd,
+    opportunities,
+    methodology:
+      "predictedNextEpochAprPct forecasts next-epoch AERO emissions from completed-epoch history (EWMA + " +
+      "damped trend, same model predict_demand uses for fees), annualized against current staked TVL. " +
+      "currentEpochAprPct instead uses this epoch's already-fixed live emission rate — deterministic, no " +
+      "forecast error. Both use the current AERO spot price and ignore dilution from your own deposit.",
   };
 }
 

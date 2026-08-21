@@ -21,6 +21,7 @@ export interface PoolInfo {
 export interface EpochStats {
   ts: number;
   votes: number;
+  /** That epoch's AERO emission RATE per second (matches PoolInfo.emissionsPerSec), not a per-epoch total — multiply by WEEK to get total AERO emitted. */
   emissions: number;
   feesUsd: number;
   bribesUsd: number;

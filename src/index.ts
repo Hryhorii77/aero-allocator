@@ -4,8 +4,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
 import { ADDRESSES } from "./config.js";
-import { fetchEpochHistory, scanPools } from "./data.js";
-import { applyConfidenceCalibration, getMarketSnapshot, recommendAllocation, simulateBribeImpact, summarizeHistory } from "./scoring.js";
+import { fetchEpochHistory, getAeroPriceUsd, scanPools } from "./data.js";
+import {
+  applyConfidenceCalibration,
+  getMarketSnapshot,
+  recommendAllocation,
+  recommendLpDeposits,
+  simulateBribeImpact,
+  summarizeHistory,
+} from "./scoring.js";
 import { getBacktestReport } from "./backtest.js";
 import { adapter } from "./adapters/predictive-allocation.js";
 
@@ -178,6 +185,32 @@ server.registerTool(
     const snap = await calibratedSnapshot(refresh);
     try {
       return json(simulateBribeImpact(snap, pool, bribeBudgetUsd, maxWeightPct / 100));
+    } catch (e) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  "recommend_lp_deposit",
+  {
+    description:
+      "Forward-looking staking-yield ranking for LPs deciding where to deposit and stake liquidity — " +
+      "deliberately NOT trading-fee revenue: on Aerodrome, fees and bribes accrue to veAERO voters, not to " +
+      "liquidity stakers (see recommend_allocation), so this ranks by predicted AERO emissions instead, the " +
+      "actual staker reward. predictedNextEpochAprPct forecasts next-epoch emissions from each pool's " +
+      "emissions history the same way predict_demand forecasts fees; currentEpochAprPct uses this epoch's " +
+      "already-fixed live emission rate (no forecast error).",
+    inputSchema: {
+      maxPools: z.number().int().min(1).max(60).default(20),
+      minStakedTvlUsd: z.number().min(0).default(1000).describe("Minimum staked TVL for a pool to be ranked"),
+      refresh: z.boolean().default(false),
+    },
+  },
+  async ({ maxPools, minStakedTvlUsd, refresh }) => {
+    const [snap, aeroPriceUsd] = await Promise.all([getMarketSnapshot(refresh), getAeroPriceUsd()]);
+    try {
+      return json(recommendLpDeposits(snap, aeroPriceUsd, { maxPools, minStakedTvlUsd }));
     } catch (e) {
       return err(e instanceof Error ? e.message : String(e));
     }

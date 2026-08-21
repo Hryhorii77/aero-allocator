@@ -268,6 +268,12 @@ export async function fetchHistories(
   return out;
 }
 
+/** Current AERO spot price in USD, for valuing staking (gauge) emissions. */
+export async function getAeroPriceUsd(): Promise<number> {
+  const prices = await getPrices([ADDRESSES.aero]);
+  return prices.get(ADDRESSES.aero.toLowerCase())?.priceUsd ?? 0;
+}
+
 /** Split history into [inProgressEpoch | null, completedEpochs newest-first]. */
 export function splitCurrentEpoch(history: EpochStats[]): {
   current: EpochStats | null;

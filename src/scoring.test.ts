@@ -3,12 +3,14 @@ import {
   applyConfidenceCalibration,
   forecastFees,
   recommendAllocation,
+  recommendLpDeposits,
   simulateBribeImpact,
   summarizeHistory,
   type ConfidenceCalibrationBucket,
   type MarketSnapshot,
 } from "./scoring.js";
-import type { PoolForecast, PoolInfo } from "./types.js";
+import { WEEK, currentEpochStart } from "./config.js";
+import type { EpochStats, PoolForecast, PoolInfo } from "./types.js";
 
 describe("forecastFees", () => {
   it("returns all zeros for an empty series", () => {
@@ -292,6 +294,85 @@ describe("applyConfidenceCalibration", () => {
   it("is a no-op for an empty calibration curve", () => {
     const snapshot = snapshotOf([makeForecast({ confidence: 0.42 })]);
     expect(applyConfidenceCalibration(snapshot, [])).toBe(snapshot);
+  });
+});
+
+describe("recommendLpDeposits", () => {
+  // `emissions` here is the per-second rate (matches EpochStats' real semantics), not a per-epoch total.
+  function completedEpoch(epochsAgo: number, emissionsPerSec: number): EpochStats {
+    return { ts: currentEpochStart() - epochsAgo * WEEK, votes: 0, emissions: emissionsPerSec, feesUsd: 0, bribesUsd: 0 };
+  }
+
+  it("throws for a non-positive AERO price", () => {
+    const snapshot = snapshotOf([makeForecast()]);
+    expect(() => recommendLpDeposits(snapshot, 0)).toThrow(/positive AERO\/USD/);
+    expect(() => recommendLpDeposits(snapshot, -1)).toThrow(/positive AERO\/USD/);
+  });
+
+  it("excludes pools with a dead gauge or below the staked-TVL floor", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ pool: { stakedTvlUsd: 100_000 } }),
+      makeForecast({ pool: { stakedTvlUsd: 100_000, gaugeAlive: false } }),
+      makeForecast({ pool: { stakedTvlUsd: 100 } }), // below default 1000 floor
+    ]);
+    const report = recommendLpDeposits(snapshot, 1, { minStakedTvlUsd: 1000 });
+    expect(report.opportunities).toHaveLength(1);
+  });
+
+  it("computes currentEpochAprPct deterministically from the live emission rate, independent of history", () => {
+    const weekPerYear = (365 * 24 * 60 * 60) / WEEK;
+    const emissionsPerSec = 10; // raw units include the 18-decimal scale
+    const snapshot = snapshotOf([
+      makeForecast({ pool: { stakedTvlUsd: 1_000_000, emissionsPerSec: emissionsPerSec * 1e18 } }),
+    ]);
+    const report = recommendLpDeposits(snapshot, 2 /* aeroPriceUsd */, { minStakedTvlUsd: 0 });
+    const expectedEmissionsUsd = emissionsPerSec * WEEK * 2;
+    const expectedAprPct = (expectedEmissionsUsd / 1_000_000) * weekPerYear * 100;
+    expect(report.opportunities[0].currentEpochAprPct).toBeCloseTo(expectedAprPct, 4);
+  });
+
+  it("forecasts predictedNextEpochAprPct from completed-epoch emissions history, scaled by epoch length", () => {
+    const ratePerSec = 0.1;
+    const snapshot = snapshotOf([
+      makeForecast({
+        pool: { stakedTvlUsd: 1_000_000, emissionsPerSec: 0 },
+        history: [completedEpoch(1, ratePerSec), completedEpoch(2, ratePerSec), completedEpoch(3, ratePerSec)],
+      }),
+    ]);
+    const report = recommendLpDeposits(snapshot, 1, { minStakedTvlUsd: 0 });
+    // Flat rate history -> forecast ~ratePerSec next epoch -> total AERO = ratePerSec * WEEK.
+    expect(report.opportunities[0].predictedNextEpochEmissionsUsd).toBeCloseTo(ratePerSec * WEEK, 0);
+    expect(report.opportunities[0].predictedNextEpochAprPct).toBeGreaterThan(0);
+  });
+
+  it("sorts opportunities by predictedNextEpochAprPct descending", () => {
+    const snapshot = snapshotOf([
+      makeForecast({
+        pool: { stakedTvlUsd: 1_000_000 },
+        history: [completedEpoch(1, 10), completedEpoch(2, 10)],
+      }),
+      makeForecast({
+        pool: { stakedTvlUsd: 1_000_000 },
+        history: [completedEpoch(1, 1000), completedEpoch(2, 1000)],
+      }),
+    ]);
+    const report = recommendLpDeposits(snapshot, 1, { minStakedTvlUsd: 0 });
+    expect(report.opportunities[0].predictedNextEpochAprPct).toBeGreaterThan(
+      report.opportunities[1].predictedNextEpochAprPct,
+    );
+  });
+
+  it("notes that fees accrue to voters, not stakers", () => {
+    const snapshot = snapshotOf([makeForecast({ pool: { stakedTvlUsd: 100_000 }, predictedFeesUsd: 5_000 })]);
+    const report = recommendLpDeposits(snapshot, 1, { minStakedTvlUsd: 0 });
+    expect(report.opportunities[0].note).toMatch(/accrue to veAERO voters, not stakers/);
+    expect(report.opportunities[0].note).toContain("5,000");
+  });
+
+  it("respects maxPools", () => {
+    const snapshot = snapshotOf(Array.from({ length: 5 }, () => makeForecast({ pool: { stakedTvlUsd: 100_000 } })));
+    const report = recommendLpDeposits(snapshot, 1, { maxPools: 2, minStakedTvlUsd: 0 });
+    expect(report.opportunities).toHaveLength(2);
   });
 });
 
