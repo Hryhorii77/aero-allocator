@@ -11,7 +11,8 @@
     "./scoring": "./dist/scoring.js",
     "./data": "./dist/data.js",
     "./config": "./dist/config.js",
-    "./types": "./dist/types.js"
+    "./types": "./dist/types.js",
+    "./backtest": "./dist/backtest.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

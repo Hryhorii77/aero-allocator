@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getMarketSnapshot } from "aero-allocator/scoring";
 import { currentEpochStart, epochProgress } from "aero-allocator/config";
+import { calibratedSnapshot } from "@/lib/snapshot";
 
 export async function GET(req: Request) {
   const refresh = new URL(req.url).searchParams.get("refresh") === "1";
-  const snap = await getMarketSnapshot(refresh);
+  const snap = await calibratedSnapshot(refresh);
   return NextResponse.json({
     generatedAt: snap.generatedAt,
     epochStart: currentEpochStart(),
