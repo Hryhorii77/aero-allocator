@@ -5,7 +5,7 @@ import { encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
 import { ADDRESSES } from "./config.js";
 import { fetchEpochHistory, scanPools } from "./data.js";
-import { getMarketSnapshot, recommendAllocation, summarizeHistory } from "./scoring.js";
+import { getMarketSnapshot, recommendAllocation, simulateBribeImpact, summarizeHistory } from "./scoring.js";
 import { getBacktestReport } from "./backtest.js";
 import { adapter } from "./adapters/predictive-allocation.js";
 
@@ -133,6 +133,38 @@ server.registerTool(
   async ({ objective, maxPools, votingPowerVe, maxWeightPct, refresh }) => {
     const snap = await getMarketSnapshot(refresh);
     return json(recommendAllocation(snap, objective, maxPools, votingPowerVe, maxWeightPct / 100));
+  },
+);
+
+server.registerTool(
+  "recommend_bribe_placement",
+  {
+    description:
+      "For a team/protocol deciding where to spend a bribe budget (not a voter deciding how to vote): " +
+      "estimate how much veAERO vote share a bribe would pull toward one pool. Models a full re-optimization " +
+      "of the market's active voting power by payout (votes scale with the square root of pool payout), so a " +
+      "bribe dollar pulls disproportionately more on cheap/low-payout pools than on already-large ones — an " +
+      "optimistic upper bound, since real voters re-vote slowly. Also reports which other pools lose the most " +
+      "votes as the market rebalances.",
+    inputSchema: {
+      pool: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe("Pool (lp) address to bribe"),
+      bribeBudgetUsd: z.number().min(1).describe("Bribe budget in USD to add to this pool"),
+      maxWeightPct: z
+        .number()
+        .min(5)
+        .max(100)
+        .default(35)
+        .describe("Per-pool concentration cap used by the underlying water-fill model, in percent"),
+      refresh: z.boolean().default(false),
+    },
+  },
+  async ({ pool, bribeBudgetUsd, maxWeightPct, refresh }) => {
+    const snap = await getMarketSnapshot(refresh);
+    try {
+      return json(simulateBribeImpact(snap, pool, bribeBudgetUsd, maxWeightPct / 100));
+    } catch (e) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
   },
 );
 

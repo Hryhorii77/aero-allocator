@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forecastFees, recommendAllocation, summarizeHistory, type MarketSnapshot } from "./scoring.js";
+import { forecastFees, recommendAllocation, simulateBribeImpact, summarizeHistory, type MarketSnapshot } from "./scoring.js";
 import type { PoolForecast, PoolInfo } from "./types.js";
 
 describe("forecastFees", () => {
@@ -186,6 +186,71 @@ describe("recommendAllocation — voter_roi", () => {
     );
     const rec = recommendAllocation(snapshot, "voter_roi", 3, 10_000);
     expect(rec.allocations).toHaveLength(3);
+  });
+});
+
+describe("simulateBribeImpact", () => {
+  it("throws for a pool not in the snapshot", () => {
+    const snapshot = snapshotOf([makeForecast({ predictedFeesUsd: 10_000, currentVotes: 1_000 })]);
+    expect(() => simulateBribeImpact(snapshot, "0x" + "9".repeat(40), 1_000)).toThrow(/not an eligible/);
+  });
+
+  it("throws when there is no eligible voting power to simulate against", () => {
+    const snapshot = snapshotOf([makeForecast({ predictedFeesUsd: 10_000, currentVotes: 0 })]);
+    const pool = snapshot.forecasts[0].pool.lp;
+    expect(() => simulateBribeImpact(snapshot, pool, 1_000)).toThrow(/No eligible voting power/);
+  });
+
+  it("reports zero gain and a null $/vote for a zero bribe", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictedFeesUsd: 10_000, currentVotes: 1_000 }),
+      makeForecast({ predictedFeesUsd: 10_000, currentVotes: 1_000 }),
+    ]);
+    const pool = snapshot.forecasts[0].pool.lp;
+    const sim = simulateBribeImpact(snapshot, pool, 0);
+    expect(sim.voteGain).toBe(0);
+    expect(sim.usdPer1kIncrementalVotes).toBeNull();
+  });
+
+  it("pulls votes toward the bribed pool and dilutes the rest, conserving total votes", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictedFeesUsd: 1_000, currentVotes: 10_000 }), // target: cheap, under-voted
+      makeForecast({ predictedFeesUsd: 50_000, currentVotes: 10_000 }),
+      makeForecast({ predictedFeesUsd: 50_000, currentVotes: 10_000 }),
+    ]);
+    const pool = snapshot.forecasts[0].pool.lp;
+    // Uncapped, so the whole market can rebalance without hitting the per-pool floor.
+    const sim = simulateBribeImpact(snapshot, pool, 20_000, 1);
+
+    expect(sim.voteGain).toBeGreaterThan(0);
+    expect(sim.projectedVotes).toBeGreaterThan(sim.baselineVotes);
+    expect(sim.usdPer1kIncrementalVotes).toBeGreaterThan(0);
+    expect(sim.diluted.length).toBeGreaterThan(0);
+    expect(sim.diluted.every((d) => d.voteLoss > 0)).toBe(true);
+
+    // Votes are reallocated, not created: what the target gains, the rest lose (within the top-3 cutoff here since there are only 2 other pools).
+    const totalDiluted = sim.diluted.reduce((s, d) => s + d.voteLoss, 0);
+    expect(totalDiluted).toBeCloseTo(sim.voteGain, -1);
+  });
+
+  it("gives a bigger vote pull to a cheaper (lower-payout) pool than an expensive one, for the same budget", () => {
+    // Votes water-fill ∝ √rewardsUsd, so the same $ bribe moves a low-payout
+    // pool's √R much more (in relative and absolute terms) than a
+    // high-payout one — a bribe dollar goes further on a small pool.
+    const base = () =>
+      snapshotOf([
+        makeForecast({ predictedFeesUsd: 2_000, currentVotes: 1_000 }), // cheap
+        makeForecast({ predictedFeesUsd: 200_000, currentVotes: 1_000 }), // expensive
+        makeForecast({ predictedFeesUsd: 50_000, currentVotes: 1_000 }), // filler
+      ]);
+
+    const cheapSnap = base();
+    const gainCheap = simulateBribeImpact(cheapSnap, cheapSnap.forecasts[0].pool.lp, 5_000, 1).voteGain;
+
+    const expensiveSnap = base();
+    const gainExpensive = simulateBribeImpact(expensiveSnap, expensiveSnap.forecasts[1].pool.lp, 5_000, 1).voteGain;
+
+    expect(gainCheap).toBeGreaterThan(gainExpensive);
   });
 });
 

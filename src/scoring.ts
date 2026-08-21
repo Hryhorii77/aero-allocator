@@ -220,6 +220,29 @@ function waterfillCapped(
  * shrinks its per-vote payout). Pools below the reward-capacity floor are
  * excluded so thin dust pools can't top the ranking.
  */
+interface VoterRoiCandidate {
+  f: PoolForecast;
+  /** Expected next-epoch pool payout (fees blended by confidence + current bribes), USD. */
+  rewardsUsd: number;
+}
+
+/**
+ * Eligible pools with their expected payout for the voter_roi objective:
+ * predicted fees blended toward the last realized epoch by forecast
+ * confidence (a shaky forecast shouldn't outrank a pool's demonstrated
+ * payout), plus incentives already posted. Shared by recommendAllocation
+ * and simulateBribeImpact so both reason about the same market.
+ */
+function voterRoiCandidates(snapshot: MarketSnapshot, minRewardsUsd = SETTINGS.minVoterRewardCapacityUsd): VoterRoiCandidate[] {
+  return snapshot.forecasts
+    .filter((f) => f.pool.gaugeAlive && f.confidence > 0)
+    .map((f) => ({
+      f,
+      rewardsUsd: f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd + f.currentBribesUsd,
+    }))
+    .filter((c) => c.rewardsUsd >= minRewardsUsd);
+}
+
 export function recommendAllocation(
   snapshot: MarketSnapshot,
   objective: AllocationObjective,
@@ -242,18 +265,7 @@ export function recommendAllocation(
         rationale: rationaleFor(f, "demand"),
       }));
   } else {
-    // Expected next-epoch voter rewards: predicted fees blended toward the
-    // last realized epoch by forecast confidence (a shaky forecast shouldn't
-    // outrank a pool's demonstrated payout), plus incentives already posted.
-    const candidates = eligible
-      .map((f) => ({
-        f,
-        rewardsUsd:
-          f.confidence * f.predictedFeesUsd +
-          (1 - f.confidence) * f.lastEpochFeesUsd +
-          f.currentBribesUsd,
-      }))
-      .filter((c) => c.rewardsUsd >= SETTINGS.minVoterRewardCapacityUsd);
+    const candidates = voterRoiCandidates(snapshot);
 
     const votes = waterfillCapped(
       candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: c.f.currentVotes })),
@@ -313,6 +325,101 @@ export function recommendAllocation(
     ...(objective === "voter_roi" && { votingPowerVe }),
     allocations,
     summary,
+  };
+}
+
+export interface BribeImpactSimulation {
+  pool: string;
+  symbol: string;
+  bribeBudgetUsd: number;
+  baselineVotes: number;
+  projectedVotes: number;
+  voteGain: number;
+  baselineVoteSharePct: number;
+  projectedVoteSharePct: number;
+  voteShareGainPct: number;
+  /** Effective cost per 1,000 incremental votes attracted (matches rewardPer1kVotesUsd elsewhere); null if the bribe attracted ~0 votes. */
+  usdPer1kIncrementalVotes: number | null;
+  /** Pools that lose the most votes to this bribe, as the market rebalances. */
+  diluted: Array<{ pool: string; symbol: string; voteLoss: number }>;
+  assumptions: string;
+}
+
+/**
+ * Estimate the vote-share a bribe would pull toward `targetPool`, for a team
+ * or protocol deciding where to spend a bribe budget rather than a veAERO
+ * holder deciding how to vote.
+ *
+ * Treats the market's total active voting power as fully reallocatable
+ * (existingVotes=0 for every pool — see waterfillVotes) and re-optimizes it
+ * from scratch by payout, both with and without the bribe added to the
+ * target pool's rewardsUsd; the difference is the bribe's pull. Since
+ * water-filling gives votes ∝ √rewardsUsd, the marginal $/vote is highest
+ * on lower-payout pools — a bribe dollar goes further on a small pool than
+ * a saturated one, which matches how real bribe markets behave. This is a
+ * theoretical ceiling (instant, frictionless, whole-market reallocation),
+ * not a forecast — treat it as a way to *compare* candidate pools, not to
+ * predict a literal vote count. See `assumptions` on the result.
+ */
+export function simulateBribeImpact(
+  snapshot: MarketSnapshot,
+  targetPool: string,
+  bribeBudgetUsd: number,
+  maxWeightFraction = 0.35,
+): BribeImpactSimulation {
+  // No reward-capacity floor here (unlike recommendAllocation): the whole
+  // point is to see pools the bribe itself could bring into contention.
+  const candidates = voterRoiCandidates(snapshot, 0);
+  const totalVotingPower = candidates.reduce((s, c) => s + c.f.currentVotes, 0);
+  if (totalVotingPower <= 0) {
+    throw new Error("No eligible voting power in the current snapshot to simulate against.");
+  }
+
+  const targetIdx = candidates.findIndex((c) => c.f.pool.lp.toLowerCase() === targetPool.toLowerCase());
+  if (targetIdx === -1) {
+    throw new Error(`Pool ${targetPool} is not an eligible gauge-alive pool in the current snapshot.`);
+  }
+
+  const baseline = waterfillCapped(
+    candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: 0 })),
+    totalVotingPower,
+    maxWeightFraction,
+  );
+  const bumped = waterfillCapped(
+    candidates.map((c, i) => ({
+      rewardsUsd: i === targetIdx ? c.rewardsUsd + bribeBudgetUsd : c.rewardsUsd,
+      existingVotes: 0,
+    })),
+    totalVotingPower,
+    maxWeightFraction,
+  );
+
+  const voteGain = bumped[targetIdx] - baseline[targetIdx];
+  const diluted = candidates
+    .map((c, i) => ({ pool: c.f.pool.lp, symbol: c.f.pool.symbol, voteLoss: baseline[i] - bumped[i] }))
+    .filter((d, i) => i !== targetIdx && d.voteLoss > 0.5)
+    .sort((a, b) => b.voteLoss - a.voteLoss)
+    .slice(0, 3);
+
+  const target = candidates[targetIdx].f;
+  return {
+    pool: target.pool.lp,
+    symbol: target.pool.symbol,
+    bribeBudgetUsd: round2(bribeBudgetUsd),
+    baselineVotes: Math.round(baseline[targetIdx]),
+    projectedVotes: Math.round(bumped[targetIdx]),
+    voteGain: Math.round(voteGain),
+    baselineVoteSharePct: round2((baseline[targetIdx] / totalVotingPower) * 100),
+    projectedVoteSharePct: round2((bumped[targetIdx] / totalVotingPower) * 100),
+    voteShareGainPct: round2((voteGain / totalVotingPower) * 100),
+    usdPer1kIncrementalVotes: voteGain > 0.5 ? round2((bribeBudgetUsd / voteGain) * 1000) : null,
+    diluted,
+    assumptions:
+      `Models a full, instant, frictionless re-optimization of the market's ${Math.round(totalVotingPower).toLocaleString()} ` +
+      "active votes by payout alone (votes ∝ √rewardsUsd), ignoring who currently holds them or how fast real " +
+      "voters actually move. That makes this a theoretical ceiling, not a forecast — real single-epoch vote " +
+      "shifts from one bribe will be much smaller. Use it to compare candidate pools (which is cheapest to move " +
+      "per dollar), not to predict an absolute vote count.",
   };
 }
 
