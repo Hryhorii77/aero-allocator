@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyConfidenceCalibration,
+  detectVoteSwings,
   forecastFees,
   recommendAllocation,
   recommendLpDeposits,
@@ -9,7 +10,7 @@ import {
   type ConfidenceCalibrationBucket,
   type MarketSnapshot,
 } from "./scoring.js";
-import { WEEK, currentEpochStart } from "./config.js";
+import { WEEK, currentEpochStart, epochProgress } from "./config.js";
 import type { EpochStats, PoolForecast, PoolInfo } from "./types.js";
 
 describe("forecastFees", () => {
@@ -373,6 +374,144 @@ describe("recommendLpDeposits", () => {
     const snapshot = snapshotOf(Array.from({ length: 5 }, () => makeForecast({ pool: { stakedTvlUsd: 100_000 } })));
     const report = recommendLpDeposits(snapshot, 1, { maxPools: 2, minStakedTvlUsd: 0 });
     expect(report.opportunities).toHaveLength(2);
+  });
+});
+
+describe("detectVoteSwings", () => {
+  const progress = epochProgress();
+
+  function completedEpoch(epochsAgo: number, votes: number, bribesUsd: number): EpochStats {
+    return { ts: currentEpochStart() - epochsAgo * WEEK, votes, emissions: 0, feesUsd: 0, bribesUsd };
+  }
+  function inProgressEpoch(votes: number, bribesUsd: number): EpochStats {
+    return { ts: currentEpochStart(), votes, emissions: 0, feesUsd: 0, bribesUsd };
+  }
+
+  it("excludes pools with a dead gauge", () => {
+    const snapshot = snapshotOf([
+      makeForecast({
+        pool: { gaugeAlive: false },
+        history: [inProgressEpoch(1000, 1000), completedEpoch(1, 1000, 1000)],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(0);
+    expect(report.fallers).toHaveLength(0);
+  });
+
+  it("excludes pools with no in-progress epoch or no completed history to baseline against", () => {
+    const noCurrent = snapshotOf([makeForecast({ history: [completedEpoch(1, 1000, 1000)] })]);
+    expect(detectVoteSwings(noCurrent).risers).toHaveLength(0);
+
+    const noBaseline = snapshotOf([makeForecast({ history: [inProgressEpoch(1000, 1000)] })]);
+    expect(detectVoteSwings(noBaseline).risers).toHaveLength(0);
+  });
+
+  it("flags a brand-new bribe (no prior baseline) with a null ratio, not a bogus number", () => {
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(1000, 5000), // a bribe just appeared this epoch
+          completedEpoch(1, 1000, 0),
+          completedEpoch(2, 1000, 0),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(1);
+    expect(report.risers[0].bribeSpikeRatio).toBeNull();
+    expect(report.risers[0].rationale).toMatch(/New bribe/);
+  });
+
+  it("computes bribeSpikeRatio against a pace-adjusted baseline", () => {
+    // Flat $1000/epoch baseline; current epoch is already running at 2x the expected-so-far pace.
+    const expectedSoFar = 1000 * progress;
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(1000, expectedSoFar * 2),
+          completedEpoch(1, 1000, 1000),
+          completedEpoch(2, 1000, 1000),
+          completedEpoch(3, 1000, 1000),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(1);
+    expect(report.risers[0].bribeSpikeRatio).toBeCloseTo(2, 1);
+  });
+
+  it("computes a negative voteSwingPct for a pool losing votes vs its normal pace", () => {
+    const expectedVotesSoFar = 1000 * progress;
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(expectedVotesSoFar * 0.5, 0),
+          completedEpoch(1, 1000, 0),
+          completedEpoch(2, 1000, 0),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.fallers).toHaveLength(1);
+    expect(report.fallers[0].voteSwingPct).toBeCloseTo(-50, 0);
+  });
+
+  it("excludes pools whose bribes/votes are on-pace from risers/fallers", () => {
+    const expectedSoFar = 1000 * progress;
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(expectedSoFar, expectedSoFar), // exactly on pace
+          completedEpoch(1, 1000, 1000),
+          completedEpoch(2, 1000, 1000),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(0);
+    expect(report.fallers).toHaveLength(0);
+  });
+
+  it("sorts risers with brand-new bribes first, then by spike ratio descending", () => {
+    const expectedSoFar = 1000 * progress;
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(1000, expectedSoFar * 1.5), // 1.5x pace, has a baseline
+          completedEpoch(1, 1000, 1000),
+          completedEpoch(2, 1000, 1000),
+        ],
+      }),
+      makeForecast({
+        history: [
+          inProgressEpoch(1000, 5000), // brand new, no baseline
+          completedEpoch(1, 1000, 0),
+          completedEpoch(2, 1000, 0),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(2);
+    expect(report.risers[0].bribeSpikeRatio).toBeNull();
+    expect(report.risers[1].bribeSpikeRatio).not.toBeNull();
+  });
+
+  it("respects maxPools", () => {
+    const expectedSoFar = 1000 * progress;
+    const snapshot = snapshotOf(
+      Array.from({ length: 5 }, () =>
+        makeForecast({
+          history: [
+            inProgressEpoch(1000, expectedSoFar * 3),
+            completedEpoch(1, 1000, 1000),
+            completedEpoch(2, 1000, 1000),
+          ],
+        }),
+      ),
+    );
+    const report = detectVoteSwings(snapshot, { maxPools: 2 });
+    expect(report.risers).toHaveLength(2);
   });
 });
 

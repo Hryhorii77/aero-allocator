@@ -549,6 +549,121 @@ export function recommendLpDeposits(
   };
 }
 
+export interface VoteSwingSignal {
+  pool: string;
+  symbol: string;
+  currentBribesUsd: number;
+  expectedBribesSoFarUsd: number;
+  /** currentBribesUsd / expectedBribesSoFarUsd; null when a bribe appeared with no meaningful baseline to ratio against. */
+  bribeSpikeRatio: number | null;
+  currentVotes: number;
+  expectedVotesSoFar: number;
+  /** (currentVotes - expectedVotesSoFar) / expectedVotesSoFar * 100; negative = losing votes vs its normal trajectory. */
+  voteSwingPct: number;
+  rationale: string;
+}
+
+export interface VoteSwingReport {
+  generatedAt: string;
+  epochProgressPct: number;
+  /** Pools whose current-epoch bribes are running well above their own historical trend — an early signal, since votes often follow. */
+  risers: VoteSwingSignal[];
+  /** Pools whose current-epoch votes are running well below their own historical trend — the effect, once the crowd has reacted. */
+  fallers: VoteSwingSignal[];
+  methodology: string;
+}
+
+const BRIBE_SPIKE_FLOOR_USD = 50;
+
+/**
+ * Detect pools where the in-progress epoch is running well off each pool's
+ * own historical trend in bribes or votes — the "an incentivized pool is
+ * suddenly drawing votes away from regular pools right before lock" pattern
+ * voters watch for in the final hours of an epoch.
+ *
+ * For each pool, forecasts a full-epoch baseline from completed-epoch
+ * history (same EWMA+trend model forecastFees uses for fees), scales it by
+ * how much of the epoch has elapsed to get an expected-so-far value, then
+ * compares the actual in-progress value against that. Bribes are the early
+ * signal (a bribe can appear in one transaction); votes are the effect,
+ * since voters take time to react to it. Most meaningful late in the epoch,
+ * when "expected so far" is close to the full-epoch baseline.
+ */
+export function detectVoteSwings(
+  snapshot: MarketSnapshot,
+  opts?: { maxPools?: number },
+): VoteSwingReport {
+  const maxPools = opts?.maxPools ?? 10;
+  const progress = Math.min(1, Math.max(epochProgress(), 0.01));
+
+  const signals: VoteSwingSignal[] = [];
+  for (const f of snapshot.forecasts) {
+    if (!f.pool.gaugeAlive) continue;
+    const { current, completed } = splitCurrentEpoch(f.history);
+    if (!current || completed.length === 0) continue;
+
+    const expectedFullBribes = forecastFees(completed.map((e) => e.bribesUsd)).predicted;
+    const expectedFullVotes = forecastFees(completed.map((e) => e.votes)).predicted;
+    const expectedBribesSoFarUsd = expectedFullBribes * progress;
+    const expectedVotesSoFar = expectedFullVotes * progress;
+
+    const bribeSpikeRatio =
+      expectedBribesSoFarUsd < BRIBE_SPIKE_FLOOR_USD
+        ? null
+        : round2(current.bribesUsd / Math.max(expectedBribesSoFarUsd, BRIBE_SPIKE_FLOOR_USD));
+    const voteSwingPct = round2(((current.votes - expectedVotesSoFar) / Math.max(expectedVotesSoFar, 1)) * 100);
+
+    signals.push({
+      pool: f.pool.lp,
+      symbol: f.pool.symbol,
+      currentBribesUsd: round2(current.bribesUsd),
+      expectedBribesSoFarUsd: round2(expectedBribesSoFarUsd),
+      bribeSpikeRatio,
+      currentVotes: Math.round(current.votes),
+      expectedVotesSoFar: Math.round(expectedVotesSoFar),
+      voteSwingPct,
+      rationale:
+        bribeSpikeRatio === null && current.bribesUsd >= BRIBE_SPIKE_FLOOR_USD
+          ? `New bribe (~$${Math.round(current.bribesUsd).toLocaleString()}) with no comparable prior-epoch baseline.`
+          : `Bribes running ${bribeSpikeRatio === null ? "flat" : `${bribeSpikeRatio}x`} expected pace; votes ` +
+            `${voteSwingPct >= 0 ? "+" : ""}${voteSwingPct}% vs this pool's normal trajectory at ` +
+            `${round2(progress * 100)}% through the epoch.`,
+    });
+  }
+
+  const risers = [...signals]
+    .sort((a, b) => {
+      if (a.bribeSpikeRatio === null && b.bribeSpikeRatio === null) return b.currentBribesUsd - a.currentBribesUsd;
+      if (a.bribeSpikeRatio === null) return -1;
+      if (b.bribeSpikeRatio === null) return 1;
+      return b.bribeSpikeRatio - a.bribeSpikeRatio;
+    })
+    .filter(
+      (s) =>
+        (s.bribeSpikeRatio === null && s.currentBribesUsd >= BRIBE_SPIKE_FLOOR_USD) ||
+        (s.bribeSpikeRatio !== null && s.bribeSpikeRatio > 1),
+    )
+    .slice(0, maxPools);
+
+  const fallers = [...signals]
+    .sort((a, b) => a.voteSwingPct - b.voteSwingPct)
+    .filter((s) => s.voteSwingPct < 0)
+    .slice(0, maxPools);
+
+  return {
+    generatedAt: new Date(snapshot.generatedAt).toISOString(),
+    epochProgressPct: round2(progress * 100),
+    risers,
+    fallers,
+    methodology:
+      "Forecasts a full-epoch baseline per pool from completed-epoch history (EWMA + damped trend), scales " +
+      "it by epoch progress for an expected-so-far value, and compares against the actual in-progress epoch. " +
+      "bribeSpikeRatio > 1 means bribes are running ahead of the pool's normal pace; negative voteSwingPct " +
+      "means votes are running behind it. Early in an epoch this is noisy (little data to compare against); " +
+      "it sharpens as the epoch progresses toward lock.",
+  };
+}
+
 function rationaleFor(f: PoolForecast, kind: "demand" | "roi"): string {
   const trend =
     f.feeTrendUsdPerEpoch > 0

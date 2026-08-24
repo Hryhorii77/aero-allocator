@@ -7,6 +7,7 @@ import { ADDRESSES, PRESET } from "./config.js";
 import { fetchEpochHistory, getRewardTokenPriceUsd, scanPools } from "./data.js";
 import {
   applyConfidenceCalibration,
+  detectVoteSwings,
   getMarketSnapshot,
   recommendAllocation,
   recommendLpDeposits,
@@ -223,6 +224,26 @@ server.registerTool(
     } catch (e) {
       return err(e instanceof Error ? e.message : String(e));
     }
+  },
+);
+
+server.registerTool(
+  "detect_vote_swings",
+  {
+    description:
+      "Flag pools where the in-progress epoch is running well off its own historical trend in bribes or " +
+      "votes — the 'an incentivized pool is suddenly drawing votes away from regular pools right before " +
+      "lock' pattern. risers: bribes running ahead of the pool's normal pace (the early signal — a bribe " +
+      "can appear in one transaction). fallers: votes running behind the pool's normal pace (the effect, " +
+      "once other voters have reacted). Most useful late in the epoch, close to vote lock; noisy early on.",
+    inputSchema: {
+      maxPools: z.number().int().min(1).max(30).default(10),
+      refresh: z.boolean().default(false),
+    },
+  },
+  async ({ maxPools, refresh }) => {
+    const snap = await getMarketSnapshot(refresh);
+    return json(detectVoteSwings(snap, { maxPools }));
   },
 );
 
