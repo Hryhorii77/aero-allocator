@@ -139,14 +139,16 @@ server.registerTool(
   "recommend_allocation",
   {
     description:
-      `Produce a concrete incentive-allocation recommendation across ${PRESET.displayName} pools. ` +
-      "objective=protocol_efficiency allocates proportional to predicted next-epoch fee demand " +
-      "(the Predictive-Allocation-style ideal). objective=voter_roi maximizes the expected next-epoch reward " +
-      `for votingPowerVe ${PRESET.veTokenSymbol}, accounting for self-dilution (your votes shrink the ` +
-      `per-vote payout), so pass the voter's real ${PRESET.veTokenSymbol} amount for sized weights. Returns ` +
-      "weights that sum to 100%.",
+      `Produce a concrete incentive-allocation recommendation across ${PRESET.displayName} pools. Three ` +
+      "objectives, three different questions: protocol_efficiency = the market-wide ideal (weights ∝ " +
+      "predicted next-epoch fee demand) — a benchmark, not personalized. voter_roi = maximizes YOUR expected " +
+      `reward for votingPowerVe ${PRESET.veTokenSymbol}, accounting for self-dilution (your votes shrink the ` +
+      `per-vote payout) — pass your real ${PRESET.veTokenSymbol} amount for sized weights; this is the one ` +
+      "to use for 'where should I actually vote'. edge_hunter = chases the biggest, most-trustworthy " +
+      "mispricings (predictiveEdge × confidence) rather than raw demand or dilution-optimal ROI — not " +
+      "dilution-aware, pairs well with voter_roi to size the result. Returns weights that sum to 100%.",
     inputSchema: {
-      objective: z.enum(["protocol_efficiency", "voter_roi"]).default("voter_roi"),
+      objective: z.enum(["protocol_efficiency", "voter_roi", "edge_hunter"]).default("voter_roi"),
       maxPools: z.number().int().min(2).max(20).default(8),
       votingPowerVe: z
         .number()

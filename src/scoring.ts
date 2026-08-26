@@ -297,6 +297,24 @@ export function recommendAllocation(
         weight: f.predictedDemandShare,
         rationale: rationaleFor(f, "demand"),
       }));
+  } else if (objective === "edge_hunter") {
+    // Chase the biggest, most-trustworthy mispricings rather than raw demand
+    // (protocol_efficiency) or dilution-optimal ROI (voter_roi): only
+    // positive edge counts (under-incentivized — a "buy" signal), scaled
+    // down by how much the forecast behind it is actually trusted. Not
+    // dilution-aware; pair with voter_roi to size a real vote.
+    scored = eligible
+      .filter((f) => f.predictiveEdge > 0)
+      .map((f) => ({ f, score: f.predictiveEdge * f.confidence }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxPools)
+      .map(({ f, score }) => ({
+        f,
+        weight: score,
+        rationale:
+          `edge ${round2(f.predictiveEdge * 100)}pp × confidence ${f.confidence} = score ${round2(score * 100)}; ` +
+          rationaleFor(f, "demand"),
+      }));
   } else {
     const candidates = voterRoiCandidates(snapshot);
 
@@ -346,9 +364,13 @@ export function recommendAllocation(
       ? `Allocate proportional to predicted next-epoch fee demand across ${allocations.length} pools. ` +
         `Largest mispricing: ${topEdge?.pool.symbol ?? "n/a"} is under-incentivized by ` +
         `${round2((topEdge?.predictiveEdge ?? 0) * 100)}pp of vote share vs predicted demand.`
-      : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} ${PRESET.veTokenSymbol} across ${allocations.length} pools ` +
-        `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
-        `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).`;
+      : objective === "edge_hunter"
+        ? `Ranked by predictive_edge × confidence across ${allocations.length} pools — the biggest, most-trustworthy ` +
+          "mispricings between predicted demand and current votes, not raw demand or dilution-optimal ROI. Not " +
+          `dilution-aware: pair with voter_roi to size an actual vote for your ${PRESET.veTokenSymbol} amount.`
+        : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} ${PRESET.veTokenSymbol} across ${allocations.length} pools ` +
+          `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
+          `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).`;
 
   return {
     objective,

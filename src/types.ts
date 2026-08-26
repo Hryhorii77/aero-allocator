@@ -52,7 +52,7 @@ export interface PoolForecast {
   confidence: number;
 }
 
-export type AllocationObjective = "protocol_efficiency" | "voter_roi";
+export type AllocationObjective = "protocol_efficiency" | "voter_roi" | "edge_hunter";
 
 export interface AllocationRecommendation {
   objective: AllocationObjective;

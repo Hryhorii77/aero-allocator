@@ -17,7 +17,7 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `scan_pools` | Gauge-enabled pools with live TVL, staked TVL, fee tier |
 | `pool_history` | Per-epoch votes, emissions, fees (USD), bribes (USD) for one pool |
 | `predict_demand` | Next-epoch fee forecast per pool + **predictiveEdgePct** (predicted demand share − current vote share) |
-| `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand) or `voter_roi` (dilution-aware optimal split of your veAERO) |
+| `recommend_allocation` | Weighted allocation: `protocol_efficiency` (∝ predicted demand), `voter_roi` (dilution-aware optimal split of your veAERO — the one for "where should I vote"), or `edge_hunter` (biggest trustworthy mispricings) |
 | `recommend_bribe_placement` | For teams/protocols spending a bribe budget (not voters): estimated vote-share pull per pool, and who gets diluted |
 | `recommend_lp_deposit` | For LPs deciding where to stake liquidity: forward-looking AERO-emissions APR per pool (not fee revenue — see below) |
 | `detect_vote_swings` | Pools whose in-progress epoch is running well off its own trend in bribes (risers) or votes (fallers) — the "an incentivized pool is draining regular pools right before lock" pattern |
@@ -112,10 +112,11 @@ For each candidate pool (top N by staked TVL above a TVL floor):
 3. Forecast next-epoch fees = EWMA (α=0.45) + ½ × linear trend, floored at 0. Confidence scores from history depth and variance.
 4. `predictiveEdge` = predicted fee-demand share − current vote share. Positive edge → under-incentivized pool: exactly what a prediction-market allocator should reward.
 
-Two allocation objectives:
+Three allocation objectives — each answers a different question, and they can disagree sharply:
 
-- **protocol_efficiency** — weights ∝ predicted demand share. This is the Predictive Allocation ideal; useful for treasuries/protocols directing incentives and for benchmarking the live mechanism once it ships.
-- **voter_roi** — maximize your expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Output includes the expected USD reward per pool after self-dilution.
+- **protocol_efficiency** — weights ∝ predicted demand share. This is the Predictive Allocation ideal; a market-wide benchmark, not personalized — useful for treasuries/protocols directing incentives and for benchmarking the live mechanism once it ships. **Not** a personal voting recommendation: it doesn't know your veAERO amount or account for dilution.
+- **voter_roi** — maximize *your* expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Output includes the expected USD reward per pool after self-dilution. **This is the one to use for "where should I actually vote"** — but only if you pass your real veAERO amount; the default (10,000) can produce a meaningfully different split than what's optimal for a much larger or smaller holder.
+- **edge_hunter** — ranks pools by `predictiveEdge × confidence`: the biggest, most-trustworthy mispricings between predicted demand and current votes, rather than raw demand (protocol_efficiency) or dilution-optimal ROI (voter_roi). Only positive edge counts (under-incentivized — the "buy" signal); a big edge from a low-confidence forecast can rank below a smaller edge the model actually trusts. Not dilution-aware — pair it with `voter_roi` to size a real vote once you've picked targets.
 
 `recommend_bribe_placement` flips this around for teams/protocols spending a bribe budget instead of voters: it re-runs the same water-fill over the market's entire active voting power, with and without the bribe added to one pool's payout, and reports the vote-share delta. Votes water-fill ∝ √payout, so a bribe dollar pulls disproportionately more on a cheap pool than an already-large one. This models an instant, frictionless, whole-market reallocation, so it's a theoretical ceiling, not a forecast — useful for *comparing* candidate pools, not for predicting a literal vote count.
 

@@ -200,6 +200,55 @@ describe("recommendAllocation — voter_roi", () => {
   });
 });
 
+describe("recommendAllocation — edge_hunter", () => {
+  it("weights proportional to predictiveEdge × confidence and sums to 100%", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictiveEdge: 0.1, confidence: 1 }),
+      makeForecast({ predictiveEdge: 0.05, confidence: 1 }),
+      makeForecast({ predictiveEdge: 0.02, confidence: 1 }),
+    ]);
+    const rec = recommendAllocation(snapshot, "edge_hunter");
+    const total = rec.allocations.reduce((s, a) => s + a.weightPct, 0);
+    expect(total).toBeCloseTo(100, 0);
+    expect(rec.allocations[0].weightPct).toBeGreaterThan(rec.allocations[1].weightPct);
+    expect(rec.allocations[1].weightPct).toBeGreaterThan(rec.allocations[2].weightPct);
+  });
+
+  it("excludes pools with zero or negative predictiveEdge (not under-incentivized)", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictiveEdge: 0.05 }), // under-incentivized: a real edge-hunting target
+      makeForecast({ predictiveEdge: -0.03 }), // over-incentivized
+      makeForecast({ predictiveEdge: 0 }), // flat
+    ]);
+    const rec = recommendAllocation(snapshot, "edge_hunter");
+    expect(rec.allocations).toHaveLength(1);
+  });
+
+  it("lets a smaller edge with higher confidence outrank a bigger edge with low confidence", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictiveEdge: 0.1, confidence: 0.2 }), // score 0.02
+      makeForecast({ predictiveEdge: 0.03, confidence: 0.9 }), // score 0.027
+    ]);
+    const rec = recommendAllocation(snapshot, "edge_hunter");
+    expect(rec.allocations[0].predictiveEdgePct).toBeCloseTo(3, 0);
+    expect(rec.allocations[1].predictiveEdgePct).toBeCloseTo(10, 0);
+  });
+
+  it("respects maxPools", () => {
+    const snapshot = snapshotOf(
+      Array.from({ length: 8 }, (_, i) => makeForecast({ predictiveEdge: 0.01 * (i + 1) })),
+    );
+    const rec = recommendAllocation(snapshot, "edge_hunter", 3);
+    expect(rec.allocations).toHaveLength(3);
+  });
+
+  it("is not dilution-aware — reports no expectedRewardUsd (that's voter_roi's job)", () => {
+    const snapshot = snapshotOf([makeForecast({ predictiveEdge: 0.05 })]);
+    const rec = recommendAllocation(snapshot, "edge_hunter");
+    expect(rec.allocations[0].expectedRewardUsd).toBeUndefined();
+  });
+});
+
 describe("simulateBribeImpact", () => {
   it("throws for a pool not in the snapshot", () => {
     const snapshot = snapshotOf([makeForecast({ predictedFeesUsd: 10_000, currentVotes: 1_000 })]);
