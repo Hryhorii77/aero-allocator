@@ -185,7 +185,7 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 | `RPC_URL` | protocol default | Dedicated RPC, either protocol — always wins if set |
 | `BASE_RPC_URL` | `https://base-rpc.publicnode.com` | Legacy alias for `RPC_URL`, honored when `AERO_PROTOCOL=aerodrome` |
 | `AERO_MIN_TVL_USD` | `50000` | Candidate pool TVL floor |
-| `AERO_MAX_CANDIDATES` | `60` | Pools receiving full epoch-history analysis |
+| `AERO_MAX_CANDIDATES` | `300` | Pools receiving full epoch-history analysis, ranked by staked TVL. Comfortably above the ~260 pools that currently clear `AERO_MIN_TVL_USD` — a lower value silently excludes small-but-high-APR pools from every ranked tool, regardless of how good their yield is |
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
 

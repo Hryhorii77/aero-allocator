@@ -104,8 +104,11 @@ export const SETTINGS = {
   poolPageSize: 500,
   /** Minimum staked TVL (USD) for a pool to be considered a candidate. */
   minTvlUsd: Number(process.env.AERO_MIN_TVL_USD ?? 50_000),
-  /** How many top candidate pools get full epoch-history analysis. */
-  maxCandidates: Number(process.env.AERO_MAX_CANDIDATES ?? 60),
+  /** How many top candidate pools (by staked TVL) get full epoch-history analysis. Comfortably above the
+   * ~260 pools that currently clear minTvlUsd, so pools aren't silently excluded by TVL rank alone —
+   * confirmed live that fetching history for all of them costs only ~10s, negligible against the pool-scan
+   * itself (~1min, separately cached). Raise further if the pool count above minTvlUsd grows past this. */
+  maxCandidates: Number(process.env.AERO_MAX_CANDIDATES ?? 300),
   /** Epochs of history to fetch per pool. */
   historyEpochs: 8,
   /** Concurrency for per-pool RPC calls. */
