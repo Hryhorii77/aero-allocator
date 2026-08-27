@@ -152,6 +152,20 @@ describe("recommendAllocation — protocol_efficiency", () => {
 });
 
 describe("recommendAllocation — voter_roi", () => {
+  it("labels the rationale's payout as predicted, alongside the trailing last-epoch figure", () => {
+    // A pool whose forecast diverges a lot from last epoch (e.g. one outlier
+    // historical epoch skewing the trend) should never read as if the
+    // predicted payout IS last epoch's number — that's the exact confusion
+    // a user hit comparing our output to Aerodrome's trailing fees display.
+    const snapshot = snapshotOf([
+      makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4 }),
+    ]);
+    const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
+    expect(rec.allocations[0].rationale).toMatch(/predicted pool payout/);
+    expect(rec.allocations[0].rationale).toContain("$487");
+    expect(rec.allocations[0].rationale).not.toContain("pool pays ~$");
+  });
+
   it("excludes pools below the minimum reward-capacity floor", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 100_000, lastEpochFeesUsd: 100_000 }),

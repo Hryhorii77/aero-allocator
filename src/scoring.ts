@@ -334,7 +334,8 @@ export function recommendAllocation(
           expectedRewardUsd: round2(expected),
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
-            `(pool pays ~$${Math.round(c.rewardsUsd).toLocaleString()}, has ${c.f.currentVotes.toLocaleString()} votes); ` +
+            `(predicted pool payout ~$${Math.round(c.rewardsUsd).toLocaleString()}, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} ` +
+            `fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes); ` +
             rationaleFor(c.f, "roi"),
         };
       })
