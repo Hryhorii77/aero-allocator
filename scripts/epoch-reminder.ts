@@ -4,6 +4,11 @@
 // off their normal pace (the "incentivized pool draining regular pools
 // right before lock" pattern), and a protocol_efficiency allocation as a
 // concrete reference split. Run with: npm run epoch-reminder
+//
+// If AERO_DISCORD_WEBHOOK_URL is set, also posts the same summary to Discord
+// — see .github/workflows/epoch-reminder.yml for the scheduled version that
+// fires a few times in the final hours before each epoch's lock, so this is
+// actionable without anyone polling for it.
 import { detectVoteSwings, getMarketSnapshot, recommendAllocation } from "../src/scoring.js";
 import { currentEpochStart, epochProgress, WEEK } from "../src/config.js";
 
@@ -48,4 +53,71 @@ const rec = recommendAllocation(snap, "protocol_efficiency", 8);
 console.log(`\nReference allocation (protocol_efficiency): ${rec.summary}`);
 for (const a of rec.allocations) {
   console.log(`  ${a.weightPct.toFixed(1).padStart(5)}%  ${a.symbol}`);
+}
+
+const webhookUrl = process.env.AERO_DISCORD_WEBHOOK_URL;
+if (webhookUrl) {
+  const urgent = hoursLeft <= 6;
+  const fields = [
+    {
+      name: "Biggest mispricings",
+      value: mispriced
+        .slice(0, 5)
+        .map((f) => {
+          const dir = f.predictiveEdge > 0 ? "under-incentivized" : "over-incentivized";
+          return `**${f.pool.symbol}** ${f.predictiveEdge > 0 ? "+" : ""}${(f.predictiveEdge * 100).toFixed(2)}pp (${dir})`;
+        })
+        .join("\n"),
+    },
+    ...(swings.risers.length > 0
+      ? [
+          {
+            name: "Bribes running ahead of pace",
+            value: swings.risers
+              .slice(0, 3)
+              .map((r) => `**${r.symbol}** ${r.bribeSpikeRatio === null ? "new bribe" : `${r.bribeSpikeRatio}x pace`}`)
+              .join("\n"),
+          },
+        ]
+      : []),
+    ...(swings.fallers.length > 0
+      ? [
+          {
+            name: "Votes running behind pace",
+            value: swings.fallers.slice(0, 3).map((f) => `**${f.symbol}** ${f.voteSwingPct}%`).join("\n"),
+          },
+        ]
+      : []),
+    {
+      name: "Reference allocation (protocol_efficiency)",
+      value: rec.allocations
+        .slice(0, 5)
+        .map((a) => `${a.weightPct.toFixed(1)}% ${a.symbol}`)
+        .join("\n"),
+    },
+  ];
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        embeds: [
+          {
+            title: `Aero Allocator — epoch flips in ${hoursLeft.toFixed(1)}h`,
+            description: `${(epochProgress() * 100).toFixed(1)}% of the current epoch elapsed. Vote lock is the final hour before Thursday 00:00 UTC.`,
+            color: urgent ? 0xe74c3c : 0xf39c12,
+            fields,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.error(`\nDiscord webhook failed: HTTP ${res.status} ${await res.text()}`);
+    } else {
+      console.log("\nPosted summary to Discord.");
+    }
+  } catch (e) {
+    console.error(`\nDiscord webhook failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }

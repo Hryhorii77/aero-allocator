@@ -1,0 +1,30 @@
+name: Epoch Reminder
+
+# Epochs flip weekly at Thursday 00:00 UTC (WEEK-aligned to the Unix epoch,
+# which itself started on a Thursday). These times land in the final hours
+# before lock, which is when detect_vote_swings' signal is most meaningful
+# and re-voting is still possible — see scripts/epoch-reminder.ts.
+on:
+  schedule:
+    - cron: "0 12 * * 3" # Wed 12:00 UTC — ~12h out
+    - cron: "0 18 * * 3" # Wed 18:00 UTC — ~6h out
+    - cron: "30 22 * * 3" # Wed 22:30 UTC — ~1.5h out
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run epoch-reminder
+        env:
+          AERO_DISCORD_WEBHOOK_URL: ${{ secrets.AERO_DISCORD_WEBHOOK_URL }}
+          RPC_URL: ${{ secrets.RPC_URL }}

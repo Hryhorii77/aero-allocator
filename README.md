@@ -191,6 +191,19 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 | `AERO_MAX_CANDIDATES` | `300` | Pools receiving full epoch-history analysis, ranked by staked TVL. Comfortably above the ~260 pools that currently clear `AERO_MIN_TVL_USD` — a lower value silently excludes small-but-high-APR pools from every ranked tool, regardless of how good their yield is |
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
+| `AERO_DISCORD_WEBHOOK_URL` | unset | If set, `npm run epoch-reminder` also posts its summary to this Discord webhook — see [Epoch reminders](#epoch-reminders) |
+
+## Epoch reminders
+
+`npm run epoch-reminder` (`scripts/epoch-reminder.ts`) prints time-to-flip, the biggest predictive-edge
+mispricings, any `detect_vote_swings` signals, and a `protocol_efficiency` reference allocation — a
+snapshot of what's worth re-voting into or out of before lock. Set `AERO_DISCORD_WEBHOOK_URL` and it also
+posts the same summary as a Discord embed, so this is actionable without anyone polling for it.
+
+`.github/workflows/epoch-reminder.yml` runs it on a schedule three times in the final hours before each
+epoch's Thursday 00:00 UTC lock (12h, 6h, and 1.5h out) via `workflow_dispatch`-triggerable cron. Set the
+`AERO_DISCORD_WEBHOOK_URL` repo secret (and optionally `RPC_URL`, for a dedicated endpoint instead of the
+public default) to enable it on your fork.
 
 ## Contracts used
 
