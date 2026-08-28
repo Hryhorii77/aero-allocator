@@ -1,8 +1,12 @@
 import { parseAbi } from "viem";
 
-export const VOTER_ADDRESS = "0x16613524e02ad97eDfeF371bC883F2F5d6C480A5" as const;
-export const VE_SUGAR_ADDRESS = "0x4d6A741cEE6A8cC5632B2d948C050303F6246D24" as const;
+// Contract addresses are NOT hardcoded here — see useProtocolAddresses in
+// @/lib/protocol, which fetches them from /api/protocol (server-side
+// PRESET, single source of truth) so the right protocol's addresses are
+// always used, regardless of which deployment this is.
 
+// Both Aerodrome and Velodrome share the same Sugar/ve(3,3) contract
+// pattern (Aerodrome is a Velodrome fork), so these ABIs are protocol-agnostic.
 export const voterAbi = parseAbi([
   "function vote(uint256 _tokenId, address[] _poolVote, uint256[] _weights)",
 ]);

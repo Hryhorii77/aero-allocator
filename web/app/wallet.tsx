@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   useAccount,
   useConnect,
@@ -10,8 +11,34 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { base } from "wagmi/chains";
-import { VOTER_ADDRESS, VE_SUGAR_ADDRESS, voterAbi, veSugarAbi } from "@/lib/voter";
+import { voterAbi, veSugarAbi } from "@/lib/voter";
+import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
+
+interface ProtocolAddresses {
+  protocol: Protocol;
+  voterAddress: `0x${string}`;
+  veSugarAddress: `0x${string}`;
+}
+
+/** Fetches the vote/veNFT contract addresses from the server's PRESET (single source of truth). */
+function useProtocolAddresses() {
+  return useQuery({
+    queryKey: ["protocol-addresses"],
+    queryFn: async (): Promise<ProtocolAddresses> => {
+      const res = await fetch("/api/protocol");
+      if (!res.ok) throw new Error(`/api/protocol: HTTP ${res.status}`);
+      const data: ProtocolAddresses = await res.json();
+      if (data.protocol !== PROTOCOL) {
+        console.warn(
+          `NEXT_PUBLIC_AERO_PROTOCOL (${PROTOCOL}) doesn't match the server's AERO_PROTOCOL (${data.protocol}) — ` +
+            "set both to the same value for this deployment.",
+        );
+      }
+      return data;
+    },
+    staleTime: Infinity,
+  });
+}
 
 export function ConnectButton() {
   const { address, isConnected } = useAccount();
@@ -74,16 +101,17 @@ export function VotePanel({
   const { switchChain } = useSwitchChain();
   const [manualId, setManualId] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
+  const { data: addresses } = useProtocolAddresses();
 
-  // Auto-detect the wallet's veAERO NFTs; deployed Sugar versions have
+  // Auto-detect the wallet's veNFTs; deployed Sugar versions have
   // diverged from source before, so failure just falls back to manual entry.
   const { data: veNfts, isError: detectFailed } = useReadContract({
-    address: VE_SUGAR_ADDRESS,
+    address: addresses?.veSugarAddress,
     abi: veSugarAbi,
     functionName: "byAccount",
     args: address ? [address] : undefined,
-    chainId: base.id,
-    query: { enabled: !!address, retry: 1 },
+    chainId: DISPLAY_PRESET.chain.id,
+    query: { enabled: !!address && !!addresses, retry: 1 },
   });
 
   const options: VeNftOption[] = useMemo(
@@ -100,12 +128,12 @@ export function VotePanel({
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
   const castVote = () => {
-    if (!tokenId || allocations.length === 0) return;
+    if (!tokenId || allocations.length === 0 || !addresses) return;
     writeContract({
-      address: VOTER_ADDRESS,
+      address: addresses.voterAddress,
       abi: voterAbi,
       functionName: "vote",
-      chainId: base.id,
+      chainId: DISPLAY_PRESET.chain.id,
       args: [
         BigInt(tokenId),
         allocations.map((a) => a.pool as `0x${string}`),
@@ -117,18 +145,18 @@ export function VotePanel({
   if (!isConnected) {
     return (
       <p className="mt-3 text-xs text-neutral-500">
-        Connect a wallet to cast this allocation as your veAERO vote.
+        Connect a wallet to cast this allocation as your {DISPLAY_PRESET.veTokenSymbol} vote.
       </p>
     );
   }
 
-  if (chainId !== base.id) {
+  if (chainId !== DISPLAY_PRESET.chain.id) {
     return (
       <button
-        onClick={() => switchChain({ chainId: base.id })}
+        onClick={() => switchChain({ chainId: DISPLAY_PRESET.chain.id })}
         className="mt-3 rounded-lg border border-amber-800 bg-amber-950/40 px-3 py-1.5 text-sm text-amber-300 hover:border-amber-600"
       >
-        switch to Base to vote
+        switch to {DISPLAY_PRESET.networkName} to vote
       </button>
     );
   }
@@ -142,7 +170,7 @@ export function VotePanel({
             onChange={(e) => setSelectedId(e.target.value)}
             className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
           >
-            <option value="">select veAERO NFT</option>
+            <option value="">select {DISPLAY_PRESET.veTokenSymbol} NFT</option>
             {options.map((o) => (
               <option key={o.id.toString()} value={o.id.toString()}>
                 #{o.id.toString()} · {Math.round(Number(o.votingAmount) / 1e18).toLocaleString()} votes
@@ -161,14 +189,14 @@ export function VotePanel({
         )}
         <button
           onClick={castVote}
-          disabled={!tokenId || signing || confirming || allocations.length === 0}
+          disabled={!tokenId || signing || confirming || allocations.length === 0 || !addresses}
           className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm text-white hover:bg-emerald-600 disabled:opacity-40"
         >
           {signing ? "confirm in wallet…" : confirming ? "confirming…" : "cast vote"}
         </button>
         {txHash && (
           <a
-            href={`https://basescan.org/tx/${txHash}`}
+            href={`${DISPLAY_PRESET.chain.blockExplorers?.default.url}/tx/${txHash}`}
             target="_blank"
             rel="noreferrer"
             className={`font-mono text-xs ${confirmed ? "text-emerald-400" : "text-neutral-400"} hover:underline`}

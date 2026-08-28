@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ConnectButton, VotePanel } from "./wallet";
+import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
+
+const SIBLING_URL = process.env.NEXT_PUBLIC_SIBLING_URL;
 
 interface PoolRow {
   lp: string;
@@ -229,23 +232,19 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      // Snapshot first so the engine cache is warm, then everything else reuses it.
-      const snapRes = await fetch(`/api/snapshot${refresh ? "?refresh=1" : ""}`);
-      if (!snapRes.ok) throw new Error(`snapshot: HTTP ${snapRes.status}`);
-      const snap: Snapshot = await snapRes.json();
+      // One route, one snapshot build server-side — each app/api/*/route.ts
+      // is its own serverless function once deployed, so fetching this in
+      // pieces would cost one independent cold snapshot build per route.
+      const res = await fetch(`/api/dashboard?votingPower=${votingPower}${refresh ? "&refresh=1" : ""}`);
+      if (!res.ok) throw new Error(`dashboard: HTTP ${res.status}`);
+      const data = await res.json();
+      const snap: Snapshot = { generatedAt: data.generatedAt, epochStart: data.epochStart, epochProgressPct: data.epochProgressPct, pools: data.pools };
       setSnapshot(snap);
-      const [v, p, e, lp, vs] = await Promise.all([
-        fetch(`/api/allocation?objective=voter_roi&votingPower=${votingPower}`).then((r) => r.json()),
-        fetch(`/api/allocation?objective=protocol_efficiency`).then((r) => r.json()),
-        fetch(`/api/allocation?objective=edge_hunter`).then((r) => r.json()),
-        fetch(`/api/lp-deposit`).then((r) => r.json()),
-        fetch(`/api/vote-swings`).then((r) => r.json()),
-      ]);
-      setVoterAlloc(v);
-      setProtoAlloc(p);
-      setEdgeAlloc(e);
-      setLpDeposits(lp);
-      setVoteSwings(vs);
+      setVoterAlloc(data.voterAlloc);
+      setProtoAlloc(data.protoAlloc);
+      setEdgeAlloc(data.edgeAlloc);
+      setLpDeposits(data.lpDeposits);
+      setVoteSwings(data.voteSwings);
       if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -262,8 +261,9 @@ export default function Dashboard() {
   const recomputeVoter = async () => {
     setAllocLoading(true);
     try {
-      const res = await fetch(`/api/allocation?objective=voter_roi&votingPower=${votingPower}`);
-      setVoterAlloc(await res.json());
+      const res = await fetch(`/api/dashboard?votingPower=${votingPower}`);
+      const data = await res.json();
+      setVoterAlloc(data.voterAlloc);
     } finally {
       setAllocLoading(false);
     }
@@ -293,13 +293,22 @@ export default function Dashboard() {
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">
-            Aero <span className="text-sky-400">Allocator</span>
+            {DISPLAY_PRESET.displayName} <span className="text-sky-400">Allocator</span>
           </h1>
           <p className="mt-1 text-sm text-neutral-400">
-            Next-epoch fee-demand forecast for Aerodrome on Base — reward where demand is going, not where it was.
+            Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} —
+            reward where demand is going, not where it was.
           </p>
         </div>
         <div className="flex items-center gap-4">
+          {SIBLING_URL && (
+            <a
+              href={SIBLING_URL}
+              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-500 hover:text-white"
+            >
+              switch to {SIBLING_PRESET.displayName}
+            </a>
+          )}
           {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
           {snapshot && (
             <div className="text-right">
@@ -335,7 +344,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 px-6 py-16 text-center">
           <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-neutral-700 border-t-sky-400" />
           <p className="text-sm text-neutral-400">
-            Building live snapshot from Base — scanning ~34k pools and 8 epochs of history.
+            Building live snapshot from {DISPLAY_PRESET.networkName} — scanning all pools and 8 epochs of history.
           </p>
           <p className="mt-1 text-xs text-neutral-500">Cold start takes about a minute; then it&apos;s cached.</p>
         </div>
@@ -419,7 +428,7 @@ export default function Dashboard() {
                     onChange={(e) => setVotingPower(Number(e.target.value))}
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
-                  <span className="text-xs text-neutral-500">veAERO</span>
+                  <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
                   <button
                     onClick={recomputeVoter}
                     disabled={allocLoading}
@@ -543,8 +552,8 @@ export default function Dashboard() {
               </table>
             </div>
             <p className="mt-2 text-xs text-neutral-500">
-              For LPs staking liquidity — ranked by forecast AERO-emissions APR, not trading fees (those accrue
-              to veAERO voters, not stakers).
+              For LPs staking liquidity — ranked by forecast {DISPLAY_PRESET.tokenSymbol}-emissions APR, not
+              trading fees (those accrue to {DISPLAY_PRESET.veTokenSymbol} voters, not stakers).
             </p>
           </section>
 
@@ -670,7 +679,8 @@ export default function Dashboard() {
 
           <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
             <span>
-              Live data: Aerodrome Sugar contracts on Base + DefiLlama prices · snapshot{" "}
+              Live data: {DISPLAY_PRESET.displayName} Sugar contracts on {DISPLAY_PRESET.networkName} + DefiLlama
+              prices · snapshot{" "}
               {new Date(snapshot.generatedAt).toLocaleTimeString()}
             </span>
             <a

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
+import { DISPLAY_PRESET } from "@/lib/protocol";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,9 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aero Allocator — predicted hot pools on Aerodrome",
+  title: `${DISPLAY_PRESET.displayName} Allocator — predicted hot pools`,
   description:
-    "Live forecast of next-epoch fee demand across Aerodrome pools on Base, with dilution-aware veAERO allocation recommendations.",
+    `Live forecast of next-epoch fee demand across ${DISPLAY_PRESET.displayName} pools on ${DISPLAY_PRESET.networkName}, ` +
+    `with dilution-aware ${DISPLAY_PRESET.veTokenSymbol} allocation recommendations.`,
 };
 
 export default function RootLayout({

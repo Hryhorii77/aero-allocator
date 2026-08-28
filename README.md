@@ -65,21 +65,30 @@ RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; ot
 
 ### Dashboard
 
-A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly) — currently Aerodrome/Base only:
+A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
 
 ```bash
 npm run build                 # engine dist/ used by the web app
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence), plus interactive
-Voter ROI (enter your veAERO) and Protocol Efficiency allocation panels. First load builds the
-onchain snapshot (~1 min), then it's cached.
+Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence); interactive Voter
+ROI, Protocol Efficiency, and Edge Hunter allocation panels; an LP staking-yield table; a vote-swings
+(risers/fallers) panel; and a bribe-placement simulator. First load builds the onchain snapshot
+(~1 min), then it's cached.
 
-Connect a wallet (injected or Coinbase Wallet, Base chain) to cast the Voter ROI allocation as a
-real vote: your veAERO NFTs are auto-detected via VeSugar (manual id entry as fallback) and the
-"cast vote" button submits `Voter.vote()` with the recommended weights — you sign in your wallet;
-the app never holds keys.
+Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation as a real vote: your
+veNFTs are auto-detected via VeSugar (manual id entry as fallback) and the "cast vote" button submits
+`Voter.vote()` with the recommended weights — you sign in your wallet; the app never holds keys.
+
+**Multi-protocol**: like the MCP server, one web deployment serves one protocol, fixed at build time
+by `AERO_PROTOCOL` (server) and `NEXT_PUBLIC_AERO_PROTOCOL` (client — must be set to the same value;
+a console warning fires if they ever drift). Contract addresses used in the vote transaction always
+come from the server's `PRESET` via `/api/protocol`, never duplicated client-side, so a mismatched
+`NEXT_PUBLIC_AERO_PROTOCOL` can produce wrong labels but never a wrong-contract vote. To run both
+protocols side by side, deploy `web/` twice with different `AERO_PROTOCOL`/`NEXT_PUBLIC_AERO_PROTOCOL`
+pairs and set `NEXT_PUBLIC_SIBLING_URL` on each to the other's URL — a "switch to {other protocol}"
+link then appears in the header.
 
 Register with Claude Code:
 
@@ -226,7 +235,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
-- [ ] Dashboard (`web/`) multi-protocol support (currently Aerodrome/Base only)
+- [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
 
 ## Disclaimer
 

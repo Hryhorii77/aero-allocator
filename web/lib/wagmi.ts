@@ -1,12 +1,12 @@
 import { createConfig, http } from "wagmi";
-import { base } from "wagmi/chains";
 import { coinbaseWallet, injected } from "wagmi/connectors";
+import { DISPLAY_PRESET } from "./protocol";
 
 export const wagmiConfig = createConfig({
-  chains: [base],
-  connectors: [injected(), coinbaseWallet({ appName: "Aero Allocator" })],
+  chains: [DISPLAY_PRESET.chain],
+  connectors: [injected(), coinbaseWallet({ appName: `${DISPLAY_PRESET.displayName} Allocator` })],
   transports: {
-    [base.id]: http("https://base-rpc.publicnode.com"),
+    [DISPLAY_PRESET.chain.id]: http(DISPLAY_PRESET.defaultRpcUrl),
   },
   ssr: true,
 });
