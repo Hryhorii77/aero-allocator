@@ -65,6 +65,8 @@ RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; ot
 
 ### Dashboard
 
+**Live**: https://aero-allocator.vercel.app (Aerodrome/Base)
+
 A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
 
 ```bash
@@ -89,6 +91,31 @@ come from the server's `PRESET` via `/api/protocol`, never duplicated client-sid
 protocols side by side, deploy `web/` twice with different `AERO_PROTOCOL`/`NEXT_PUBLIC_AERO_PROTOCOL`
 pairs and set `NEXT_PUBLIC_SIBLING_URL` on each to the other's URL — a "switch to {other protocol}"
 link then appears in the header.
+
+#### Deploying to Vercel
+
+The dashboard depends on the engine package via a local `file:..` reference, which needs some
+non-default project settings to build correctly on Vercel — the framework's zero-config detection
+doesn't handle this monorepo shape out of the box:
+
+| Setting | Value | Why |
+|---|---|---|
+| Root Directory | `web` | Vercel's Next.js detection checks *this* directory's `package.json` for a `next` dependency — pointing it at the repo root (which has no `next` dep) fails detection entirely |
+| Install Command | `npm install` (default) | Must be a real install, not a no-op — Vercel checks the installed Next.js version immediately after this step, before running Build Command |
+| Build Command | `cd .. && npm install --include=dev && npm run build && cd web && npm run build` | Builds the engine's `dist/` first (needs `--include=dev` for `typescript`/`@types/node`, which a plain `npm install` can skip in Vercel's build environment), then the Next.js app that depends on it |
+| Output Directory | default (`.next`) | Resolved *relative to Root Directory* — do not prefix with `web/` (that double-counts and fails with "output directory not found") |
+
+Root Directory isn't exposed as a `vercel` CLI flag; set it via the dashboard (Project Settings →
+General) or the API (`PATCH /v9/projects/{id}` with `{"rootDirectory": "web"}`). Env vars (`RPC_URL`,
+`AERO_PROTOCOL`, `NEXT_PUBLIC_AERO_PROTOCOL`, optionally `NEXT_PUBLIC_SIBLING_URL`) go in Project
+Settings → Environment Variables, per environment (Production/Preview). A dedicated RPC (Alchemy,
+Infura) is strongly recommended over the public default — it's the difference between a ~20s and a
+~1min cold snapshot build, which matters against Vercel's function timeout (60s ceiling on Hobby).
+
+Vercel's Deployment Protection (an SSO auth wall) is on by default for all deployments including
+production. To make production public while keeping preview deployments protected, set
+`ssoProtection.deploymentType` to `"preview"` via the API (also not a dashboard toggle at the time of
+writing).
 
 Register with Claude Code:
 
@@ -236,6 +263,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
 - [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
+- [x] Dashboard deployed live (Vercel, Aerodrome/Base) — see [Deploying to Vercel](#deploying-to-vercel)
 
 ## Disclaimer
 
