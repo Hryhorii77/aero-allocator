@@ -22,6 +22,8 @@ interface PoolRow {
   confidence: number;
 }
 
+type PoolSortKey = "predictedFeesUsd" | "lastEpochFeesUsd" | "feeTrendUsdPerEpoch" | "edgePct" | "rewardPer1kVotesUsd" | "confidence";
+
 interface Snapshot {
   generatedAt: number;
   epochStart: number;
@@ -185,6 +187,31 @@ function WeightBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: PoolSortKey;
+  sort: { key: PoolSortKey; dir: "asc" | "desc" };
+  onSort: (key: PoolSortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className="px-4 py-2.5 text-right">
+      <button
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-neutral-300 ${active ? "text-neutral-200" : ""}`}
+      >
+        {label}
+        <span className="w-2.5 text-[10px]">{active ? (sort.dir === "desc" ? "▼" : "▲") : ""}</span>
+      </button>
+    </th>
+  );
+}
+
 function AllocationRows({
   allocations,
   color,
@@ -227,6 +254,12 @@ export default function Dashboard() {
   const [bribeResult, setBribeResult] = useState<BribeSimResult | null>(null);
   const [bribeLoading, setBribeLoading] = useState(false);
   const [bribeError, setBribeError] = useState<string | null>(null);
+  const [poolSort, setPoolSort] = useState<{ key: PoolSortKey; dir: "asc" | "desc" }>({
+    key: "predictedFeesUsd",
+    dir: "desc",
+  });
+  const togglePoolSort = (key: PoolSortKey) =>
+    setPoolSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
 
   const loadAll = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -286,7 +319,9 @@ export default function Dashboard() {
     }
   };
 
-  const pools = snapshot?.pools.filter((p) => p.predictedFeesUsd > 0).slice(0, 20) ?? [];
+  const pools = [...(snapshot?.pools.filter((p) => p.predictedFeesUsd > 0) ?? [])]
+    .sort((a, b) => (poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key]))
+    .slice(0, 20);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
@@ -361,13 +396,13 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
                     <th className="px-4 py-2.5">pool</th>
-                    <th className="px-4 py-2.5 text-right">predicted fees</th>
-                    <th className="px-4 py-2.5 text-right">last epoch</th>
-                    <th className="px-4 py-2.5 text-right">trend/epoch</th>
+                    <SortHeader label="predicted fees" sortKey="predictedFeesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader label="last epoch" sortKey="lastEpochFeesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader label="trend/epoch" sortKey="feeTrendUsdPerEpoch" sort={poolSort} onSort={togglePoolSort} />
                     <th className="px-4 py-2.5 text-right">votes vs demand</th>
-                    <th className="px-4 py-2.5 text-right">edge</th>
-                    <th className="px-4 py-2.5 text-right">$/1k votes</th>
-                    <th className="px-4 py-2.5">conf</th>
+                    <SortHeader label="edge" sortKey="edgePct" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader label="$/1k votes" sortKey="rewardPer1kVotesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader label="conf" sortKey="confidence" sort={poolSort} onSort={togglePoolSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -410,7 +445,8 @@ export default function Dashboard() {
             </div>
             <p className="mt-2 text-xs text-neutral-500">
               Edge = predicted fee-demand share − current vote share. Positive edge means the pool is
-              under-incentivized relative to where trading demand is heading.
+              under-incentivized relative to where trading demand is heading. Click a column header to sort —
+              top 20 pools by that column, not just a reorder of the top 20 by fees.
             </p>
           </section>
 
