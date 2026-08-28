@@ -65,7 +65,7 @@ RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; ot
 
 ### Dashboard
 
-**Live**: https://aero-allocator.vercel.app (Aerodrome/Base)
+**Live**: https://aero-allocator.vercel.app (Aerodrome/Base) · https://aero-allocator-velodrome.vercel.app (Velodrome/Optimism) — each links to the other via a header switcher
 
 A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
 
@@ -263,7 +263,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
 - [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
-- [x] Dashboard deployed live (Vercel, Aerodrome/Base) — see [Deploying to Vercel](#deploying-to-vercel)
+- [x] Dashboard deployed live, both protocols (Vercel, cross-linked) — see [Deploying to Vercel](#deploying-to-vercel)
 
 ## Disclaimer
 
