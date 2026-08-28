@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { simulateBribeImpact } from "aero-allocator/scoring";
 import { calibratedSnapshot } from "@/lib/snapshot";
 
+// A cold snapshot build can take close to a minute; this route can trigger
+// one on its own (bribe simulation is on-demand, not part of the main
+// dashboard load — see api/dashboard/route.ts). 60s is the ceiling on
+// Vercel's Hobby plan; raise if on Pro/Enterprise and still hitting it.
+export const maxDuration = 60;
+
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const pool = params.get("pool");
