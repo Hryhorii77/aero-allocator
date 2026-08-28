@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ConnectButton, VotePanel } from "./wallet";
 
 interface PoolRow {
@@ -26,19 +26,65 @@ interface Snapshot {
   pools: PoolRow[];
 }
 
+interface AllocationRow {
+  pool: string;
+  symbol: string;
+  weightPct: number;
+  currentVoteSharePct: number;
+  predictedDemandSharePct: number;
+  predictiveEdgePct: number;
+  expectedRewardUsd?: number;
+  confidence: number;
+}
+
 interface Allocation {
   objective: string;
   summary: string;
   votingPowerVe?: number;
-  allocations: Array<{
-    pool: string;
-    symbol: string;
-    weightPct: number;
-    currentVoteSharePct: number;
-    predictedDemandSharePct: number;
-    expectedRewardUsd?: number;
-    confidence: number;
-  }>;
+  allocations: AllocationRow[];
+}
+
+interface LpOpportunity {
+  pool: string;
+  symbol: string;
+  poolType: string;
+  stakedTvlUsd: number;
+  currentEpochAprPct: number;
+  predictedNextEpochAprPct: number;
+  emissionsTrendUsdPerEpoch: number;
+  confidence: number;
+}
+
+interface LpDepositReport {
+  rewardTokenSymbol: string;
+  opportunities: LpOpportunity[];
+}
+
+interface VoteSwingSignal {
+  pool: string;
+  symbol: string;
+  currentBribesUsd: number;
+  bribeSpikeRatio: number | null;
+  voteSwingPct: number;
+  rationale: string;
+}
+
+interface VoteSwingReport {
+  epochProgressPct: number;
+  risers: VoteSwingSignal[];
+  fallers: VoteSwingSignal[];
+}
+
+interface BribeSimResult {
+  pool: string;
+  symbol: string;
+  bribeBudgetUsd: number;
+  baselineVoteSharePct: number;
+  projectedVoteSharePct: number;
+  voteShareGainPct: number;
+  usdPer1kIncrementalVotes: number | null;
+  diluted: Array<{ pool: string; symbol: string; voteLoss: number }>;
+  assumptions: string;
 }
 
 const usd = (n: number) =>
@@ -136,29 +182,71 @@ function WeightBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 
+function AllocationRows({
+  allocations,
+  color,
+  right,
+}: {
+  allocations: AllocationRow[];
+  color: string;
+  right: (a: AllocationRow) => ReactNode;
+}) {
+  return (
+    <div className="space-y-2.5">
+      {allocations.map((a) => (
+        <div key={a.pool} className="flex items-center gap-3">
+          <span className="w-40 truncate text-sm text-neutral-200" title={a.symbol}>
+            {a.symbol}
+          </span>
+          <WeightBar pct={a.weightPct} color={color} />
+          <span className="w-14 text-right font-mono text-sm text-neutral-100">{a.weightPct.toFixed(1)}%</span>
+          {right(a)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [voterAlloc, setVoterAlloc] = useState<Allocation | null>(null);
   const [protoAlloc, setProtoAlloc] = useState<Allocation | null>(null);
+  const [edgeAlloc, setEdgeAlloc] = useState<Allocation | null>(null);
+  const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
+  const [voteSwings, setVoteSwings] = useState<VoteSwingReport | null>(null);
   const [votingPower, setVotingPower] = useState(10000);
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [bribePool, setBribePool] = useState("");
+  const [bribeBudget, setBribeBudget] = useState(5000);
+  const [bribeResult, setBribeResult] = useState<BribeSimResult | null>(null);
+  const [bribeLoading, setBribeLoading] = useState(false);
+  const [bribeError, setBribeError] = useState<string | null>(null);
+
   const loadAll = useCallback(async (refresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      // Snapshot first so the engine cache is warm, then both allocations reuse it.
+      // Snapshot first so the engine cache is warm, then everything else reuses it.
       const snapRes = await fetch(`/api/snapshot${refresh ? "?refresh=1" : ""}`);
       if (!snapRes.ok) throw new Error(`snapshot: HTTP ${snapRes.status}`);
-      setSnapshot(await snapRes.json());
-      const [v, p] = await Promise.all([
+      const snap: Snapshot = await snapRes.json();
+      setSnapshot(snap);
+      const [v, p, e, lp, vs] = await Promise.all([
         fetch(`/api/allocation?objective=voter_roi&votingPower=${votingPower}`).then((r) => r.json()),
         fetch(`/api/allocation?objective=protocol_efficiency`).then((r) => r.json()),
+        fetch(`/api/allocation?objective=edge_hunter`).then((r) => r.json()),
+        fetch(`/api/lp-deposit`).then((r) => r.json()),
+        fetch(`/api/vote-swings`).then((r) => r.json()),
       ]);
       setVoterAlloc(v);
       setProtoAlloc(p);
+      setEdgeAlloc(e);
+      setLpDeposits(lp);
+      setVoteSwings(vs);
+      if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -178,6 +266,23 @@ export default function Dashboard() {
       setVoterAlloc(await res.json());
     } finally {
       setAllocLoading(false);
+    }
+  };
+
+  const simulateBribe = async () => {
+    if (!bribePool || bribeBudget <= 0) return;
+    setBribeLoading(true);
+    setBribeError(null);
+    try {
+      const res = await fetch(`/api/bribe?pool=${bribePool}&bribeBudgetUsd=${bribeBudget}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      setBribeResult(body);
+    } catch (e) {
+      setBribeError(e instanceof Error ? e.message : String(e));
+      setBribeResult(null);
+    } finally {
+      setBribeLoading(false);
     }
   };
 
@@ -300,11 +405,11 @@ export default function Dashboard() {
             </p>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          <section className="mb-10 grid gap-6 lg:grid-cols-3">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-medium text-white">
-                  Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware optimal split</span>
+                  Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
                 </h3>
                 <div className="flex items-center gap-2">
                   <input
@@ -312,7 +417,7 @@ export default function Dashboard() {
                     min={1}
                     value={votingPower}
                     onChange={(e) => setVotingPower(Number(e.target.value))}
-                    className="w-28 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
+                    className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                   <span className="text-xs text-neutral-500">veAERO</span>
                   <button
@@ -326,22 +431,15 @@ export default function Dashboard() {
               </div>
               {voterAlloc && (
                 <>
-                  <div className="space-y-2.5">
-                    {voterAlloc.allocations.map((a) => (
-                      <div key={a.pool} className="flex items-center gap-3">
-                        <span className="w-44 truncate text-sm text-neutral-200" title={a.symbol}>
-                          {a.symbol}
-                        </span>
-                        <WeightBar pct={a.weightPct} color="bg-sky-500" />
-                        <span className="w-14 text-right font-mono text-sm text-neutral-100">
-                          {a.weightPct.toFixed(1)}%
-                        </span>
-                        <span className="w-20 text-right font-mono text-xs text-emerald-400">
-                          {a.expectedRewardUsd !== undefined ? `+${usd(a.expectedRewardUsd)}` : ""}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <AllocationRows
+                    allocations={voterAlloc.allocations}
+                    color="bg-sky-500"
+                    right={(a) => (
+                      <span className="w-20 text-right font-mono text-xs text-emerald-400">
+                        {a.expectedRewardUsd !== undefined ? `+${usd(a.expectedRewardUsd)}` : ""}
+                      </span>
+                    )}
+                  />
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
                   </p>
@@ -353,30 +451,219 @@ export default function Dashboard() {
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <h3 className="mb-4 font-medium text-white">
                 Protocol efficiency{" "}
-                <span className="text-xs font-normal text-neutral-500">allocate ∝ predicted demand</span>
+                <span className="text-xs font-normal text-neutral-500">allocate ∝ demand</span>
               </h3>
               {protoAlloc && (
                 <>
-                  <div className="space-y-2.5">
-                    {protoAlloc.allocations.map((a) => (
-                      <div key={a.pool} className="flex items-center gap-3">
-                        <span className="w-44 truncate text-sm text-neutral-200" title={a.symbol}>
-                          {a.symbol}
-                        </span>
-                        <WeightBar pct={a.weightPct} color="bg-violet-500" />
-                        <span className="w-14 text-right font-mono text-sm text-neutral-100">
-                          {a.weightPct.toFixed(1)}%
-                        </span>
-                        <span className="w-20 text-right font-mono text-xs text-neutral-500">
-                          now {a.currentVoteSharePct.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <AllocationRows
+                    allocations={protoAlloc.allocations}
+                    color="bg-violet-500"
+                    right={(a) => (
+                      <span className="w-20 text-right font-mono text-xs text-neutral-500">
+                        now {a.currentVoteSharePct.toFixed(1)}%
+                      </span>
+                    )}
+                  />
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {protoAlloc.summary}
                   </p>
                 </>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+              <h3 className="mb-4 font-medium text-white">
+                Edge hunter <span className="text-xs font-normal text-neutral-500">biggest trustworthy mispricings</span>
+              </h3>
+              {edgeAlloc && edgeAlloc.allocations.length > 0 ? (
+                <>
+                  <AllocationRows
+                    allocations={edgeAlloc.allocations}
+                    color="bg-amber-500"
+                    right={(a) => <EdgeBadge edge={a.predictiveEdgePct} />}
+                  />
+                  <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
+                    {edgeAlloc.summary}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-neutral-500">No positive-edge pools right now.</p>
+              )}
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
+              LP staking yield {lpDeposits && <span className="text-neutral-600">({lpDeposits.rewardTokenSymbol} emissions, not fees)</span>}
+            </h2>
+            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
+                    <th className="px-4 py-2.5">pool</th>
+                    <th className="px-4 py-2.5 text-right">staked TVL</th>
+                    <th className="px-4 py-2.5 text-right">current APR</th>
+                    <th className="px-4 py-2.5 text-right">predicted APR</th>
+                    <th className="px-4 py-2.5 text-right">trend/epoch</th>
+                    <th className="px-4 py-2.5">conf</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lpDeposits?.opportunities.map((o) => (
+                    <tr key={o.pool} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
+                      <td className="px-4 py-2.5">
+                        <span className="font-medium text-neutral-100">{o.symbol}</span>
+                        <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(o.stakedTvlUsd)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
+                        {o.currentEpochAprPct.toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-emerald-400">
+                        {o.predictedNextEpochAprPct.toFixed(1)}%
+                      </td>
+                      <td
+                        className={`px-4 py-2.5 text-right font-mono ${
+                          o.emissionsTrendUsdPerEpoch > 0
+                            ? "text-emerald-400"
+                            : o.emissionsTrendUsdPerEpoch < 0
+                              ? "text-rose-400"
+                              : "text-neutral-500"
+                        }`}
+                      >
+                        {o.emissionsTrendUsdPerEpoch > 0 ? "▲" : o.emissionsTrendUsdPerEpoch < 0 ? "▼" : "–"}{" "}
+                        {usd(Math.abs(o.emissionsTrendUsdPerEpoch))}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <ConfidenceBar value={o.confidence} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">
+              For LPs staking liquidity — ranked by forecast AERO-emissions APR, not trading fees (those accrue
+              to veAERO voters, not stakers).
+            </p>
+          </section>
+
+          <section className="mb-10 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+              <h3 className="mb-4 font-medium text-white">
+                Vote swings <span className="text-xs font-normal text-neutral-500">risers</span>
+              </h3>
+              <div className="space-y-3">
+                {voteSwings && voteSwings.risers.length > 0 ? (
+                  voteSwings.risers.map((s) => (
+                    <div key={s.pool} className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-neutral-100">{s.symbol}</span>
+                        <span className="font-mono text-xs text-emerald-400">
+                          {s.bribeSpikeRatio !== null ? `${s.bribeSpikeRatio}x pace` : "new bribe"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-neutral-500">No bribe pace anomalies right now.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+              <h3 className="mb-4 font-medium text-white">
+                Vote swings <span className="text-xs font-normal text-neutral-500">fallers</span>
+              </h3>
+              <div className="space-y-3">
+                {voteSwings && voteSwings.fallers.length > 0 ? (
+                  voteSwings.fallers.map((s) => (
+                    <div key={s.pool} className="rounded-lg border border-rose-900/60 bg-rose-950/20 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-neutral-100">{s.symbol}</span>
+                        <span className="font-mono text-xs text-rose-400">{s.voteSwingPct.toFixed(1)}%</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-neutral-500">No pools running behind their normal vote pace.</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">Bribe placement</h2>
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-neutral-500">target pool</label>
+                  <select
+                    value={bribePool}
+                    onChange={(e) => setBribePool(e.target.value)}
+                    className="w-56 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
+                  >
+                    {pools.map((p) => (
+                      <option key={p.lp} value={p.lp}>
+                        {p.symbol}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-neutral-500">bribe budget (USD)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={bribeBudget}
+                    onChange={(e) => setBribeBudget(Number(e.target.value))}
+                    className="w-32 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={simulateBribe}
+                  disabled={bribeLoading || !bribePool}
+                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
+                >
+                  {bribeLoading ? "simulating…" : "simulate"}
+                </button>
+              </div>
+
+              {bribeError && <p className="mt-3 text-sm text-rose-400">{bribeError}</p>}
+
+              {bribeResult && (
+                <div className="mt-4 border-t border-neutral-800 pt-4">
+                  <div className="flex flex-wrap gap-6">
+                    <div>
+                      <div className="font-mono text-xs text-neutral-500">vote share</div>
+                      <div className="font-mono text-sm text-neutral-100">
+                        {bribeResult.baselineVoteSharePct.toFixed(2)}% → {bribeResult.projectedVoteSharePct.toFixed(2)}%{" "}
+                        <span className="text-emerald-400">(+{bribeResult.voteShareGainPct.toFixed(2)}pp)</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-xs text-neutral-500">$ / 1k incremental votes</div>
+                      <div className="font-mono text-sm text-neutral-100">
+                        {bribeResult.usdPer1kIncrementalVotes !== null ? `$${bribeResult.usdPer1kIncrementalVotes.toFixed(2)}` : "n/a"}
+                      </div>
+                    </div>
+                  </div>
+                  {bribeResult.diluted.length > 0 && (
+                    <div className="mt-3">
+                      <div className="mb-1 font-mono text-xs text-neutral-500">most diluted</div>
+                      <div className="flex flex-wrap gap-2">
+                        {bribeResult.diluted.map((d) => (
+                          <span key={d.pool} className="rounded bg-neutral-800 px-2 py-1 font-mono text-xs text-neutral-300">
+                            {d.symbol} −{Math.round(d.voteLoss).toLocaleString()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="mt-3 text-xs leading-relaxed text-neutral-500">{bribeResult.assumptions}</p>
+                </div>
               )}
             </div>
           </section>
