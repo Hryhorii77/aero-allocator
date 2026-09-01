@@ -27,6 +27,7 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `prepare_submission` | Unsigned calldata for direct Predictive Allocation submission, once wired up — see [Predictive Allocation adapter](#predictive-allocation-adapter) |
 | `predictive_allocation_status` | Whether direct Predictive Allocation submission is wired up yet |
 | `backtest_summary` | Walk-forward accuracy of the demand forecast vs. realized fees and a naive baseline — see [Forecast accuracy](#forecast-accuracy) |
+| `realized_performance` | Your logged `voter_roi` recommendations vs. what actually happened, once each epoch completes — a track record, not a backtest — see [Realized performance tracking](#realized-performance-tracking) |
 
 **This server never holds keys or signs anything.** Execution is the host agent's job, behind explicit user approval.
 
@@ -279,6 +280,28 @@ by this script, the GitHub Actions workflow, or any server. You still connect yo
 the transaction yourself; automation only removes the "remember to check and compute this every week"
 part, not the signing.
 
+### Realized performance tracking
+
+Every time `epoch-reminder` runs with `AERO_VOTING_POWER` set, it also logs that `voter_roi`
+recommendation to `data/voter-roi-log.jsonl` — one entry per epoch (idempotently overwritten across the
+schedule's three runs, so the log always reflects whichever run was closest to lock, the most accurate
+one). `.github/workflows/epoch-reminder.yml` commits this file back to the repo automatically when it
+changes.
+
+`npm run realized-performance` (or the `realized_performance` MCP tool) then compares each logged epoch
+that's since completed against what actually happened: realized reward per pool uses the *exact same*
+formula `recommend_allocation` used to predict it — `R·v/(E+v)` — just with the epoch's final, actual
+fees/bribes/votes instead of forecasts. This needs no new on-chain fetching: the pool's actual outcome for
+any given epoch is already sitting in the same `RewardsSugar.epochsByAddress` history the engine reads for
+everything else — as long as reconciliation happens within that history's 8-epoch window of the epoch
+completing (`SETTINGS.historyEpochs`, not currently env-configurable), not months later.
+
+This is a different question from `backtest_summary`: that validates the *forecast model* by replaying
+history; this is a track record of *your actual recommendations* going forward. One caveat: the tool
+can't know whether you actually followed a given logged recommendation — the "actual votes" figure it
+reconciles against is the pool's whole recorded total for that epoch, which may or may not already
+include yours.
+
 ## Contracts used
 
 Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
@@ -303,6 +326,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
 - [x] Dashboard deployed live, both protocols (Vercel, cross-linked) — see [Deploying to Vercel](#deploying-to-vercel)
 - [x] Semi-automated voting: epoch-reminder posts your personal split with a one-click approve link — see [One-click voting from the alert](#one-click-voting-from-the-alert)
+- [x] Realized-vs-recommended tracking: `realized_performance` compares logged recommendations against actual outcomes — see [Realized performance tracking](#realized-performance-tracking)
 
 ## Disclaimer
 

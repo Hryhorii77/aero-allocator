@@ -17,8 +17,18 @@
 // wallet-connect ready. This is deliberately "prepare + one-click approve,"
 // not unattended signing: no private key is ever held by this script or
 // any server — you still connect your own wallet and confirm.
+//
+// That same personalized recommendation also gets logged to
+// data/voter-roi-log.jsonl (one entry per epoch, overwritten on each
+// scheduled run within the epoch so the log reflects the run closest to
+// lock) — see `npm run realized-performance` / the realized_performance
+// MCP tool for comparing it against what actually happened once the epoch
+// completes.
 import { detectVoteSwings, getMarketSnapshot, recommendAllocation } from "../src/scoring.js";
-import { currentEpochStart, epochProgress, WEEK } from "../src/config.js";
+import { currentEpochStart, epochProgress, WEEK, PROTOCOL } from "../src/config.js";
+import { upsertRecommendationLog } from "../src/tracking-log.js";
+
+const round2 = (x: number) => Math.round(x * 100) / 100;
 
 const nextFlip = currentEpochStart() + WEEK;
 const hoursLeft = (nextFlip - Date.now() / 1000) / 3600;
@@ -70,6 +80,22 @@ if (myVote) {
   for (const a of myVote.allocations) {
     console.log(`  ${a.weightPct.toFixed(1).padStart(5)}%  ${a.symbol}`);
   }
+
+  upsertRecommendationLog({
+    epochStart: currentEpochStart(),
+    generatedAt: new Date().toISOString(),
+    protocol: PROTOCOL,
+    votingPowerVe: votingPower,
+    allocations: myVote.allocations.map((a) => ({
+      pool: a.pool,
+      symbol: a.symbol,
+      weightPct: a.weightPct,
+      votesAllocated: round2((votingPower * a.weightPct) / 100),
+      expectedRewardUsd: a.expectedRewardUsd ?? 0,
+    })),
+    totalExpectedRewardUsd: round2(myVote.allocations.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0)),
+  });
+  console.log(`Logged to data/voter-roi-log.jsonl for epoch ${currentEpochStart()}.`);
 }
 
 const dashboardUrl = process.env.AERO_DASHBOARD_URL;

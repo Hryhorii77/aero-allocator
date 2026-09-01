@@ -15,6 +15,8 @@ import {
   summarizeHistory,
 } from "./scoring.js";
 import { getBacktestReport } from "./backtest.js";
+import { computeRealizedPerformance } from "./tracking.js";
+import { readRecommendationLog } from "./tracking-log.js";
 import { adapter } from "./adapters/predictive-allocation.js";
 
 const server = new McpServer({
@@ -404,6 +406,33 @@ server.registerTool(
   },
   async ({ refresh, maxPools }) => {
     return json(await getBacktestReport({ force: refresh, maxPools }));
+  },
+);
+
+server.registerTool(
+  "realized_performance",
+  {
+    description:
+      "Compares your logged voter_roi recommendations against what actually happened, for every logged " +
+      "epoch that's since completed. Different from backtest_summary: that validates the fee-demand " +
+      "model against historical data; this is a track record of your actual recommendations — realized " +
+      "reward per pool uses the exact same formula (R·v/(E+v)) that predicted it, just with the epoch's " +
+      "final, actual fees/bribes/votes instead of forecasts. Only has data once epoch-reminder has been " +
+      "run with AERO_VOTING_POWER set (locally, or via the scheduled workflow) for at least one now-" +
+      "completed epoch — see the README's 'One-click voting from the alert' section. Empty results just " +
+      "mean nothing's been logged yet, not an error.",
+    inputSchema: {},
+  },
+  async () => {
+    const log = readRecommendationLog();
+    if (log.length === 0) {
+      return json({
+        results: [],
+        note: "No logged recommendations yet — run epoch-reminder with AERO_VOTING_POWER set to start building a track record.",
+      });
+    }
+    const snap = await getMarketSnapshot();
+    return json({ results: computeRealizedPerformance(log, snap) });
   },
 );
 
