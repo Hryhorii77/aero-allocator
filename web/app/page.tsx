@@ -25,6 +25,22 @@ interface PoolRow {
 type PoolSortKey = "predictedFeesUsd" | "lastEpochFeesUsd" | "feeTrendUsdPerEpoch" | "edgePct" | "rewardPer1kVotesUsd" | "confidence";
 type LpSortKey = "stakedTvlUsd" | "currentEpochAprPct" | "predictedNextEpochAprPct" | "emissionsTrendUsdPerEpoch" | "confidence";
 
+const POOL_SORT_KEYS: PoolSortKey[] = [
+  "predictedFeesUsd",
+  "lastEpochFeesUsd",
+  "feeTrendUsdPerEpoch",
+  "edgePct",
+  "rewardPer1kVotesUsd",
+  "confidence",
+];
+const LP_SORT_KEYS: LpSortKey[] = [
+  "stakedTvlUsd",
+  "currentEpochAprPct",
+  "predictedNextEpochAprPct",
+  "emissionsTrendUsdPerEpoch",
+  "confidence",
+];
+
 interface Snapshot {
   generatedAt: number;
   epochStart: number;
@@ -95,6 +111,50 @@ interface BribeSimResult {
 
 const usd = (n: number) =>
   n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
+  if (rows.length === 0) return;
+  const headers = Object.keys(rows[0]);
+  const escape = (v: string | number) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportAllocationCsv(objective: string, allocations: AllocationRow[]) {
+  downloadCsv(
+    `aero-allocator-${objective}-${new Date().toISOString().slice(0, 10)}.csv`,
+    allocations.map((a) => ({
+      pool: a.pool,
+      symbol: a.symbol,
+      weightPct: a.weightPct,
+      currentVoteSharePct: a.currentVoteSharePct,
+      predictedDemandSharePct: a.predictedDemandSharePct,
+      predictiveEdgePct: a.predictiveEdgePct,
+      expectedRewardUsd: a.expectedRewardUsd ?? "",
+      confidence: a.confidence,
+    })),
+  );
+}
+
+function ExportCsvButton({ objective, allocations }: { objective: string; allocations: AllocationRow[] }) {
+  return (
+    <button
+      onClick={() => exportAllocationCsv(objective, allocations)}
+      className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:border-neutral-500 hover:text-white"
+    >
+      export CSV
+    </button>
+  );
+}
 
 function EdgeBadge({ edge }: { edge: number }) {
   const positive = edge > 0.05;
@@ -245,7 +305,17 @@ export default function Dashboard() {
   const [edgeAlloc, setEdgeAlloc] = useState<Allocation | null>(null);
   const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
   const [voteSwings, setVoteSwings] = useState<VoteSwingReport | null>(null);
-  const [votingPower, setVotingPower] = useState(10000);
+  // Read from the URL (if shared) so loadAll's very first fetch already
+  // uses the right value — the alternative (fetch once with the default,
+  // then again with the URL's value once an effect runs) is a real race:
+  // whichever of the two responses lands last wins. Safe to read
+  // window here — this state never renders anything until `snapshot` is
+  // set (client-only), so there's nothing for SSR/hydration to mismatch.
+  const [votingPower, setVotingPower] = useState(() => {
+    if (typeof window === "undefined") return 10000;
+    const vp = Number(new URLSearchParams(window.location.search).get("vp"));
+    return vp > 0 ? vp : 10000;
+  });
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +337,34 @@ export default function Dashboard() {
   });
   const toggleLpSort = (key: LpSortKey) =>
     setLpSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
+
+  // Read sort choice from the URL once on mount, so a shared link (e.g.
+  // "sorted by edge") opens showing the same view. votingPower's own
+  // useState initializer above already handles the vp param — doing it
+  // there instead of here means loadAll's one fetch uses the right value
+  // from the start, rather than this needing a second, racing fetch.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sortKey = params.get("sort");
+    if (sortKey && POOL_SORT_KEYS.includes(sortKey as PoolSortKey)) {
+      setPoolSort({ key: sortKey as PoolSortKey, dir: params.get("dir") === "asc" ? "asc" : "desc" });
+    }
+    const lpSortKey = params.get("lpSort");
+    if (lpSortKey && LP_SORT_KEYS.includes(lpSortKey as LpSortKey)) {
+      setLpSort({ key: lpSortKey as LpSortKey, dir: params.get("lpDir") === "asc" ? "asc" : "desc" });
+    }
+  }, []);
+
+  // Keep the URL in sync so the current view is always shareable.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("sort", poolSort.key);
+    params.set("dir", poolSort.dir);
+    params.set("lpSort", lpSort.key);
+    params.set("lpDir", lpSort.dir);
+    params.set("vp", String(votingPower));
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }, [poolSort, lpSort, votingPower]);
 
   const loadAll = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -483,6 +581,7 @@ export default function Dashboard() {
                   >
                     {allocLoading ? "…" : "recompute"}
                   </button>
+                  {voterAlloc && <ExportCsvButton objective="voter_roi" allocations={voterAlloc.allocations} />}
                 </div>
               </div>
               {voterAlloc && (
@@ -505,10 +604,13 @@ export default function Dashboard() {
             </div>
 
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <h3 className="mb-4 font-medium text-white">
-                Protocol efficiency{" "}
-                <span className="text-xs font-normal text-neutral-500">allocate ∝ demand</span>
-              </h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-medium text-white">
+                  Protocol efficiency{" "}
+                  <span className="text-xs font-normal text-neutral-500">allocate ∝ demand</span>
+                </h3>
+                {protoAlloc && <ExportCsvButton objective="protocol_efficiency" allocations={protoAlloc.allocations} />}
+              </div>
               {protoAlloc && (
                 <>
                   <AllocationRows
@@ -528,9 +630,15 @@ export default function Dashboard() {
             </div>
 
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <h3 className="mb-4 font-medium text-white">
-                Edge hunter <span className="text-xs font-normal text-neutral-500">biggest trustworthy mispricings</span>
-              </h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-medium text-white">
+                  Edge hunter{" "}
+                  <span className="text-xs font-normal text-neutral-500">biggest trustworthy mispricings</span>
+                </h3>
+                {edgeAlloc && edgeAlloc.allocations.length > 0 && (
+                  <ExportCsvButton objective="edge_hunter" allocations={edgeAlloc.allocations} />
+                )}
+              </div>
               {edgeAlloc && edgeAlloc.allocations.length > 0 ? (
                 <>
                   <AllocationRows
