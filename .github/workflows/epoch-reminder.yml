@@ -28,3 +28,9 @@ jobs:
         env:
           AERO_DISCORD_WEBHOOK_URL: ${{ secrets.AERO_DISCORD_WEBHOOK_URL }}
           RPC_URL: ${{ secrets.RPC_URL }}
+          # Both optional — set them to get a personal voter_roi split (not
+          # just the market-wide reference allocation) with a one-click
+          # "approve in the dashboard" link. Neither enables unattended
+          # signing: no private key is ever held by this workflow.
+          AERO_VOTING_POWER: ${{ secrets.AERO_VOTING_POWER }}
+          AERO_DASHBOARD_URL: ${{ vars.AERO_DASHBOARD_URL }}

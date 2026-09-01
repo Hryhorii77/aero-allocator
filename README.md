@@ -252,6 +252,8 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
 | `AERO_DISCORD_WEBHOOK_URL` | unset | If set, `npm run epoch-reminder` also posts its summary to this Discord webhook — see [Epoch reminders](#epoch-reminders) |
+| `AERO_VOTING_POWER` | unset | Your veAERO amount — if set, the epoch-reminder Discord post includes your personal `voter_roi` split, not just the market-wide reference — see [One-click voting from the alert](#one-click-voting-from-the-alert) |
+| `AERO_DASHBOARD_URL` | unset | Your dashboard deployment's URL — if also set, the Discord post links straight into it with that allocation pre-loaded |
 
 ## Epoch reminders
 
@@ -264,6 +266,18 @@ posts the same summary as a Discord embed, so this is actionable without anyone 
 epoch's Thursday 00:00 UTC lock (12h, 6h, and 1.5h out) via `workflow_dispatch`-triggerable cron. Set the
 `AERO_DISCORD_WEBHOOK_URL` repo secret (and optionally `RPC_URL`, for a dedicated endpoint instead of the
 public default) to enable it on your fork.
+
+### One-click voting from the alert
+
+Set `AERO_VOTING_POWER` (your veAERO amount) and the post also includes your personal `voter_roi` split,
+not just the market-wide `protocol_efficiency` reference. Set `AERO_DASHBOARD_URL` too (your dashboard
+deployment's URL) and the alert becomes a clickable link straight into it with that allocation pre-loaded
+(via the `?vp=` param — see [Deploying to Vercel](#deploying-to-vercel)), wallet-connect ready.
+
+This is deliberately "prepare + one-click approve," not unattended signing — no private key is ever held
+by this script, the GitHub Actions workflow, or any server. You still connect your own wallet and confirm
+the transaction yourself; automation only removes the "remember to check and compute this every week"
+part, not the signing.
 
 ## Contracts used
 
@@ -288,6 +302,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
 - [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
 - [x] Dashboard deployed live, both protocols (Vercel, cross-linked) — see [Deploying to Vercel](#deploying-to-vercel)
+- [x] Semi-automated voting: epoch-reminder posts your personal split with a one-click approve link — see [One-click voting from the alert](#one-click-voting-from-the-alert)
 
 ## Disclaimer
 

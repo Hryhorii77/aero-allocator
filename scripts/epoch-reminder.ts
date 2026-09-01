@@ -9,6 +9,14 @@
 // — see .github/workflows/epoch-reminder.yml for the scheduled version that
 // fires a few times in the final hours before each epoch's lock, so this is
 // actionable without anyone polling for it.
+//
+// If AERO_VOTING_POWER is also set, the Discord post includes your personal
+// voter_roi split (not just the market-wide protocol_efficiency reference)
+// — and if AERO_DASHBOARD_URL is set too, a one-click link straight into
+// the dashboard with that allocation pre-loaded (via the ?vp= URL param),
+// wallet-connect ready. This is deliberately "prepare + one-click approve,"
+// not unattended signing: no private key is ever held by this script or
+// any server — you still connect your own wallet and confirm.
 import { detectVoteSwings, getMarketSnapshot, recommendAllocation } from "../src/scoring.js";
 import { currentEpochStart, epochProgress, WEEK } from "../src/config.js";
 
@@ -55,6 +63,18 @@ for (const a of rec.allocations) {
   console.log(`  ${a.weightPct.toFixed(1).padStart(5)}%  ${a.symbol}`);
 }
 
+const votingPower = Number(process.env.AERO_VOTING_POWER);
+const myVote = votingPower > 0 ? recommendAllocation(snap, "voter_roi", 8, votingPower) : null;
+if (myVote) {
+  console.log(`\nYour vote (${votingPower.toLocaleString()} veAERO): ${myVote.summary}`);
+  for (const a of myVote.allocations) {
+    console.log(`  ${a.weightPct.toFixed(1).padStart(5)}%  ${a.symbol}`);
+  }
+}
+
+const dashboardUrl = process.env.AERO_DASHBOARD_URL;
+const voteLink = myVote && dashboardUrl ? `${dashboardUrl.replace(/\/$/, "")}/?vp=${votingPower}` : null;
+
 const webhookUrl = process.env.AERO_DISCORD_WEBHOOK_URL;
 if (webhookUrl) {
   const urgent = hoursLeft <= 6;
@@ -95,6 +115,14 @@ if (webhookUrl) {
         .map((a) => `${a.weightPct.toFixed(1)}% ${a.symbol}`)
         .join("\n"),
     },
+    ...(myVote
+      ? [
+          {
+            name: `Your vote (${votingPower.toLocaleString()} veAERO)${voteLink ? " — click below to approve" : ""}`,
+            value: myVote.allocations.map((a) => `${a.weightPct.toFixed(1)}% ${a.symbol}`).join("\n"),
+          },
+        ]
+      : []),
   ];
 
   try {
@@ -105,7 +133,11 @@ if (webhookUrl) {
         embeds: [
           {
             title: `Aero Allocator — epoch flips in ${hoursLeft.toFixed(1)}h`,
-            description: `${(epochProgress() * 100).toFixed(1)}% of the current epoch elapsed. Vote lock is the final hour before Thursday 00:00 UTC.`,
+            url: voteLink ?? undefined,
+            description:
+              `${(epochProgress() * 100).toFixed(1)}% of the current epoch elapsed. Vote lock is the final hour ` +
+              `before Thursday 00:00 UTC.` +
+              (voteLink ? `\n\n**[Open dashboard with your vote pre-loaded](${voteLink})** — connect your wallet and click "cast vote" to approve.` : ""),
             color: urgent ? 0xe74c3c : 0xf39c12,
             fields,
           },
