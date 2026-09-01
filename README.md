@@ -137,6 +137,8 @@ Or in any MCP client config:
 }
 ```
 
+This is a standard MCP server, not Claude-specific — the same config (in whatever format the client expects) works with Gemini CLI, Cursor, Windsurf, or any other MCP-capable agent, not just the Claude/Bankr ones named above.
+
 Example agent flow:
 
 > "Predict demand for the top Aerodrome pools, recommend a voter_roi allocation across 8 pools, then prepare the vote calldata for my veAERO #12345 and submit it with my Base wallet."

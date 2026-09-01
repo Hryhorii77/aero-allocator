@@ -23,6 +23,7 @@ interface PoolRow {
 }
 
 type PoolSortKey = "predictedFeesUsd" | "lastEpochFeesUsd" | "feeTrendUsdPerEpoch" | "edgePct" | "rewardPer1kVotesUsd" | "confidence";
+type LpSortKey = "stakedTvlUsd" | "currentEpochAprPct" | "predictedNextEpochAprPct" | "emissionsTrendUsdPerEpoch" | "confidence";
 
 interface Snapshot {
   generatedAt: number;
@@ -187,16 +188,16 @@ function WeightBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 
-function SortHeader({
+function SortHeader<K extends string>({
   label,
   sortKey,
   sort,
   onSort,
 }: {
   label: string;
-  sortKey: PoolSortKey;
-  sort: { key: PoolSortKey; dir: "asc" | "desc" };
-  onSort: (key: PoolSortKey) => void;
+  sortKey: K;
+  sort: { key: K; dir: "asc" | "desc" };
+  onSort: (key: K) => void;
 }) {
   const active = sort.key === sortKey;
   return (
@@ -260,6 +261,12 @@ export default function Dashboard() {
   });
   const togglePoolSort = (key: PoolSortKey) =>
     setPoolSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
+  const [lpSort, setLpSort] = useState<{ key: LpSortKey; dir: "asc" | "desc" }>({
+    key: "predictedNextEpochAprPct",
+    dir: "desc",
+  });
+  const toggleLpSort = (key: LpSortKey) =>
+    setLpSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
 
   const loadAll = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -322,6 +329,10 @@ export default function Dashboard() {
   const pools = [...(snapshot?.pools.filter((p) => p.predictedFeesUsd > 0) ?? [])]
     .sort((a, b) => (poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key]))
     .slice(0, 20);
+
+  const lpOpportunities = [...(lpDeposits?.opportunities ?? [])].sort((a, b) =>
+    lpSort.dir === "desc" ? b[lpSort.key] - a[lpSort.key] : a[lpSort.key] - b[lpSort.key],
+  );
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
@@ -546,15 +557,25 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
                     <th className="px-4 py-2.5">pool</th>
-                    <th className="px-4 py-2.5 text-right">staked TVL</th>
-                    <th className="px-4 py-2.5 text-right">current APR</th>
-                    <th className="px-4 py-2.5 text-right">predicted APR</th>
-                    <th className="px-4 py-2.5 text-right">trend/epoch</th>
-                    <th className="px-4 py-2.5">conf</th>
+                    <SortHeader label="staked TVL" sortKey="stakedTvlUsd" sort={lpSort} onSort={toggleLpSort} />
+                    <SortHeader label="current APR" sortKey="currentEpochAprPct" sort={lpSort} onSort={toggleLpSort} />
+                    <SortHeader
+                      label="predicted APR"
+                      sortKey="predictedNextEpochAprPct"
+                      sort={lpSort}
+                      onSort={toggleLpSort}
+                    />
+                    <SortHeader
+                      label="trend/epoch"
+                      sortKey="emissionsTrendUsdPerEpoch"
+                      sort={lpSort}
+                      onSort={toggleLpSort}
+                    />
+                    <SortHeader label="conf" sortKey="confidence" sort={lpSort} onSort={toggleLpSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {lpDeposits?.opportunities.map((o) => (
+                  {lpOpportunities.map((o) => (
                     <tr key={o.pool} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
                       <td className="px-4 py-2.5">
                         <span className="font-medium text-neutral-100">{o.symbol}</span>
