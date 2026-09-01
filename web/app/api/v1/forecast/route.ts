@@ -3,6 +3,7 @@ import { withX402 } from "@x402/next";
 import { getAddress } from "viem";
 import { buildFullForecast } from "@/lib/snapshot";
 import { x402Server, BASE_MAINNET_CAIP2 } from "@/lib/x402";
+import { PRESET } from "aero-allocator/config";
 
 // Same 60s ceiling as api/dashboard — this hits the same snapshot build.
 export const maxDuration = 60;
@@ -44,9 +45,9 @@ export const GET = x402Configured
           payTo: getAddress(payToEnv!),
         },
         description:
-          "Full Aerodrome forecast: predicted hot pools, three allocation objectives (protocol_efficiency, " +
-          "voter_roi, edge_hunter), LP staking yield, and vote-swing signals — same data as the free " +
-          "dashboard, for programmatic access without self-hosting.",
+          `Full ${PRESET.displayName} forecast: predicted hot pools, three allocation objectives ` +
+          "(protocol_efficiency, voter_roi, edge_hunter), LP staking yield, and vote-swing signals — same " +
+          "data as the free dashboard, for programmatic access without self-hosting.",
       },
       x402Server,
     )
