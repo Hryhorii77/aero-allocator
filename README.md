@@ -143,6 +143,28 @@ Example agent flow:
 
 > "Predict demand for the top Aerodrome pools, recommend a voter_roi allocation across 8 pools, then prepare the vote calldata for my veAERO #12345 and submit it with my Base wallet."
 
+## Paid API (x402)
+
+`GET /api/v1/forecast` on the dashboard deployment is a pay-per-call mirror of the free dashboard's data
+(predicted hot pools, all three allocation objectives, LP staking yield, vote-swing signals) — same engine,
+same numbers, priced at **$0.05/call in USDC on Base mainnet** via the [x402
+protocol](https://www.x402.org/), for agents or treasuries that want programmatic access without
+self-hosting the MCP server and their own RPC. The free dashboard and MCP server are unaffected — this is
+an additional way to get at the data, not a paywall on the existing ones.
+
+Standard x402 flow: a request without an `X-PAYMENT` header gets `402` with the price; a request with a
+valid one is verified by Coinbase's CDP facilitator before the handler runs, and settled on-chain only
+after a successful response — a failed request is never charged.
+
+Requires three env vars to activate; without all three the route serves a clean `501` rather than
+accepting misrouted or unverifiable payments:
+
+| Var | | |
+|---|---|---|
+| `X402_PAYTO_ADDRESS` | Base address you control | Where payments land — never generated or held by this codebase |
+| `CDP_API_KEY_ID` | From [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/) | Coinbase Developer Platform API key |
+| `CDP_API_KEY_SECRET` | Same place | Paired secret |
+
 ## How the forecast works
 
 For each candidate pool (top N by staked TVL above a TVL floor):
@@ -260,7 +282,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
-- [ ] x402-monetized hosted endpoint (pay-per-forecast in USDC via Bankr)
+- [x] x402-monetized hosted endpoint — `/api/v1/forecast`, pay-per-forecast in USDC on Base, see [Paid API (x402)](#paid-api-x402)
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
