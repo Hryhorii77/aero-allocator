@@ -62,7 +62,7 @@ Aerodrome (Base) and Velodrome (Optimism) are the same ve(3,3) lineage — Aerod
 
 `AERO_PROTOCOL` defaults to `aerodrome` (unchanged behavior if unset). Register both entries to run them side by side — each is a separate process with its own RPC client and caches. Tool descriptions, ve-token naming (`veAERO`/`veVELO`), and reward-token naming (`AERO`/`VELO`) all switch automatically with the configured protocol; `predictive_allocation_status` correctly reports the mechanism as not applicable when running Velodrome, since Dromos Labs' announcement is Aerodrome-specific.
 
-RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; otherwise `BASE_RPC_URL` is honored for backward compatibility when running Aerodrome; otherwise each protocol falls back to a public default (`base-rpc.publicnode.com` / `mainnet.optimism.io`).
+RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; otherwise `BASE_RPC_URL` is honored for backward compatibility when running Aerodrome; otherwise each protocol falls back to a public default (`base-rpc.publicnode.com` / `mainnet.optimism.io`). Every deployment also gets automatic failover to a second public RPC (`RPC_URL_FALLBACK`, overridable) if the primary goes down outright, not just rate-limited.
 
 ### Dashboard
 
@@ -250,6 +250,7 @@ With all four set, `prepare_submission` builds real calldata; `predictive_alloca
 | `AERO_PROTOCOL` | `aerodrome` | `aerodrome` (Base) or `velodrome` (Optimism) — see [Multi-protocol](#multi-protocol-aerodrome--velodrome) |
 | `RPC_URL` | protocol default | Dedicated RPC, either protocol — always wins if set |
 | `BASE_RPC_URL` | `https://base-rpc.publicnode.com` | Legacy alias for `RPC_URL`, honored when `AERO_PROTOCOL=aerodrome` |
+| `RPC_URL_FALLBACK` | protocol default | Automatic failover if `RPC_URL` goes down (not just rate-limited) — a second, independently-operated public RPC per protocol; override if you have a dedicated backup |
 | `AERO_MIN_TVL_USD` | `50000` | Candidate pool TVL floor |
 | `AERO_MAX_CANDIDATES` | `300` | Pools receiving full epoch-history analysis, ranked by staked TVL. Comfortably above the ~260 pools that currently clear `AERO_MIN_TVL_USD` — a lower value silently excludes small-but-high-APR pools from every ranked tool, regardless of how good their yield is |
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |

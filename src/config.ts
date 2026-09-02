@@ -14,6 +14,8 @@ export interface ProtocolPreset {
   networkName: string;
   chain: Chain;
   defaultRpcUrl: string;
+  /** A second, independently-operated public RPC — used as an automatic failover if defaultRpcUrl (or a configured RPC_URL) is down, not just rate-limited. */
+  fallbackRpcUrl: string;
   addresses: {
     lpSugar: `0x${string}`;
     rewardsSugar: `0x${string}`;
@@ -37,6 +39,7 @@ const PRESETS: Record<Protocol, ProtocolPreset> = {
     networkName: "Base",
     chain: base,
     defaultRpcUrl: "https://base-rpc.publicnode.com",
+    fallbackRpcUrl: "https://mainnet.base.org",
     addresses: {
       lpSugar: "0x69dD9db6d8f8E7d83887A704f447b1a584b599A1",
       rewardsSugar: "0x1b121EfDaF4ABb8785a315C51D29BCE0552A7678",
@@ -53,6 +56,7 @@ const PRESETS: Record<Protocol, ProtocolPreset> = {
     networkName: "Optimism",
     chain: optimism,
     defaultRpcUrl: "https://mainnet.optimism.io",
+    fallbackRpcUrl: "https://optimism.publicnode.com",
     addresses: {
       lpSugar: "0x347512180804A8B40AA7525AE932a31198F074aA",
       rewardsSugar: "0x62CCFB2496f49A80B0184AD720379B529E9152fB",
@@ -80,6 +84,13 @@ export const RPC_URL =
   process.env.RPC_URL ??
   (PROTOCOL === "aerodrome" ? process.env.BASE_RPC_URL : undefined) ??
   PRESET.defaultRpcUrl;
+
+// Automatic failover if RPC_URL is down (not just rate-limited) — see
+// data.ts's makeClient, which wires both into a viem fallback transport.
+// Defaults to a different, independently-operated public RPC than
+// defaultRpcUrl, so even a zero-config deployment gets real redundancy;
+// override explicitly if you have a second dedicated provider.
+export const RPC_URL_FALLBACK = process.env.RPC_URL_FALLBACK ?? PRESET.fallbackRpcUrl;
 
 // Epochs: 1 week, starting Thursday 00:00 UTC (unix ts % WEEK == 0) — shared across the Velodrome family.
 export const WEEK = 7 * 24 * 60 * 60;

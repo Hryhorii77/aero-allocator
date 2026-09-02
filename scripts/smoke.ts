@@ -28,3 +28,9 @@ for (const objective of ["voter_roi", "protocol_efficiency"] as const) {
     console.log(`  ${a.weightPct.toFixed(1).padStart(5)}%  ${a.symbol.padEnd(38)} ${a.rationale}`);
   }
 }
+
+// The RPC client's fallback transport (see data.ts) polls in the
+// background to keep its health ranking current — harmless for a
+// long-lived MCP server or serverless function, but it would otherwise
+// keep this CLI script's event loop alive forever after it's done.
+process.exit(0);

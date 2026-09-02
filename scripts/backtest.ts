@@ -37,3 +37,9 @@ for (const w of report.worstMisses) {
       `actual $${w.actualFeesUsd.toLocaleString().padStart(10)}  err $${w.absErrorUsd.toLocaleString()}`,
   );
 }
+
+// The RPC client's fallback transport (see data.ts) polls in the
+// background to keep its health ranking current — harmless for a
+// long-lived MCP server or serverless function, but it would otherwise
+// keep this CLI script's event loop alive forever after it's done.
+process.exit(0);

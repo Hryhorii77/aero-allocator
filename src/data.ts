@@ -1,13 +1,29 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { lpSugarAbi, rewardsSugarAbi } from "./abi.js";
-import { ADDRESSES, CHAIN, RPC_URL, SETTINGS, currentEpochStart } from "./config.js";
+import { ADDRESSES, CHAIN, RPC_URL, RPC_URL_FALLBACK, SETTINGS, currentEpochStart } from "./config.js";
 import { getPrices, sumRewardsUsd, type TokenPrice } from "./prices.js";
 import type { EpochStats, PoolInfo } from "./types.js";
 
 function makeClient() {
   return createPublicClient({
     chain: CHAIN,
-    transport: http(RPC_URL, { batch: true, retryCount: 3 }),
+    // rank:true is load-bearing, not cosmetic — without it, a dead RPC_URL
+    // gets retried on *every single call* (confirmed live: ~42s per call
+    // with a genuinely unreachable primary, since viem's fallback tries
+    // transports in list order per-request with no memory between calls).
+    // Ranking health-checks in the background and steers subsequent calls
+    // toward whichever transport is actually responding, so only the first
+    // few calls pay the outage's latency cost. retryCount is low per
+    // transport since data.ts's own withRetry() is the outer retry layer
+    // for transient (rate-limit) failures — this is about not stacking two
+    // slow backoff loops for the "actually down" case.
+    transport: fallback(
+      [
+        http(RPC_URL, { batch: true, retryCount: 1 }),
+        http(RPC_URL_FALLBACK, { batch: true, retryCount: 1 }),
+      ],
+      { rank: true },
+    ),
   });
 }
 
