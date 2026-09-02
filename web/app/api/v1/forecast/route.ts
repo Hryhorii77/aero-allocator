@@ -5,6 +5,7 @@ import { buildFullForecast } from "@/lib/snapshot";
 import { x402Server, BASE_MAINNET_CAIP2 } from "@/lib/x402";
 import { PRESET } from "aero-allocator/config";
 import { withApiErrorHandling } from "@/lib/api-error";
+import { logX402Usage } from "@/lib/x402-usage";
 
 // Same 60s ceiling as api/dashboard — this hits the same snapshot build.
 export const maxDuration = 60;
@@ -18,7 +19,11 @@ const handler = withApiErrorHandling<NextRequest>("v1/forecast", async (req) => 
   const params = req.nextUrl.searchParams;
   const refresh = params.get("refresh") === "1";
   const votingPower = Math.max(1, Number(params.get("votingPower") ?? 10000) || 10000);
-  return NextResponse.json(await buildFullForecast(votingPower, refresh));
+  const forecast = await buildFullForecast(votingPower, refresh);
+  // Only after buildFullForecast succeeds — see logX402Usage's own comment
+  // for why this stays in lockstep with what actually gets settled.
+  logX402Usage({ refresh, votingPower });
+  return NextResponse.json(forecast);
 });
 
 // Paid mirror of api/dashboard, for agents/treasuries that want programmatic
