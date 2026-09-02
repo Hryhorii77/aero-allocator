@@ -21,7 +21,7 @@
     "backtest": "tsx scripts/backtest.ts",
     "epoch-reminder": "tsx scripts/epoch-reminder.ts",
     "realized-performance": "tsx scripts/realized-performance.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "test": "vitest run"
   },
   "keywords": [
