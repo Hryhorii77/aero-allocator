@@ -13,8 +13,40 @@ export interface TokenPrice {
   symbol: string;
 }
 
-const cache = new Map<string, { value: TokenPrice | null; at: number }>();
+interface CacheEntry {
+  value: TokenPrice | null;
+  at: number;
+}
+
+const cache = new Map<string, CacheEntry>();
 const PRICE_TTL_MS = 5 * 60 * 1000;
+// If DefiLlama is down, a still-recent stale price beats treating the
+// token as worthless (every caller here treats a missing price as $0 —
+// see sumRewardsUsd and data.ts's scanPools — which would silently zero
+// out TVL/reward figures for every affected pool on a bad request).
+// Staleness has a ceiling, though: past this, a wrong-but-confident number
+// is worse than an honestly-missing one.
+const STALE_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
+
+type LlamaCoins = Record<string, { price: number; decimals?: number; symbol?: string }>;
+
+/** Public API, occasionally rate-limits/blips — a couple of retries clears most transient failures before falling back to cache. */
+async function fetchChunk(chunk: string[]): Promise<LlamaCoins> {
+  const key = chunk.map((a) => `${LLAMA_CHAIN}:${a}`).join(",");
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(LLAMA_URL + key);
+      if (!res.ok) throw new Error(`DefiLlama price request failed: ${res.status} ${res.statusText}`);
+      const body = (await res.json()) as { coins: LlamaCoins };
+      return body.coins;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
+  }
+  throw lastErr;
+}
 
 export async function getPrices(addresses: string[]): Promise<Map<string, TokenPrice | null>> {
   const result = new Map<string, TokenPrice | null>();
@@ -33,21 +65,35 @@ export async function getPrices(addresses: string[]): Promise<Map<string, TokenP
 
   for (let i = 0; i < missing.length; i += BATCH) {
     const chunk = missing.slice(i, i + BATCH);
-    const key = chunk.map((a) => `${LLAMA_CHAIN}:${a}`).join(",");
-    const res = await fetch(LLAMA_URL + key);
-    if (!res.ok) {
-      throw new Error(`DefiLlama price request failed: ${res.status} ${res.statusText}`);
-    }
-    const body = (await res.json()) as {
-      coins: Record<string, { price: number; decimals?: number; symbol?: string }>;
-    };
-    for (const addr of chunk) {
-      const coin = body.coins[`${LLAMA_CHAIN}:${addr}`];
-      const value: TokenPrice | null = coin
-        ? { priceUsd: coin.price, decimals: coin.decimals ?? 18, symbol: coin.symbol ?? "?" }
-        : null;
-      cache.set(addr, { value, at: now });
-      result.set(addr, value);
+    try {
+      const coins = await fetchChunk(chunk);
+      for (const addr of chunk) {
+        const coin = coins[`${LLAMA_CHAIN}:${addr}`];
+        const value: TokenPrice | null = coin
+          ? { priceUsd: coin.price, decimals: coin.decimals ?? 18, symbol: coin.symbol ?? "?" }
+          : null;
+        cache.set(addr, { value, at: now });
+        result.set(addr, value);
+      }
+    } catch (e) {
+      // DefiLlama unreachable/erroring after retries — degrade instead of
+      // failing the entire snapshot build (every tool/route needs this).
+      // Serve a still-recent stale price where one exists; fall back to
+      // "unknown" (-> $0 to callers) for tokens never priced or too stale
+      // to trust. Cache entries are left untouched (not re-stamped as
+      // fresh), so they keep aging toward STALE_FALLBACK_MAX_AGE_MS if the
+      // outage continues.
+      console.error(
+        JSON.stringify({
+          level: "error",
+          source: "prices",
+          message: `DefiLlama fetch failed for ${chunk.length} token(s), falling back to cache: ${e instanceof Error ? e.message : String(e)}`,
+        }),
+      );
+      for (const addr of chunk) {
+        const stale = cache.get(addr);
+        result.set(addr, stale && now - stale.at < STALE_FALLBACK_MAX_AGE_MS ? stale.value : null);
+      }
     }
   }
 
