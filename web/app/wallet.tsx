@@ -12,7 +12,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { voterAbi, veSugarAbi } from "@/lib/voter";
+import { voterAbi, veSugarAbi, buildVoteArgs } from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
 
 interface ProtocolAddresses {
@@ -128,13 +128,6 @@ export function VotePanel({
   const { writeContract, data: txHash, isPending: signing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const voteArgs = (id: string) =>
-    [
-      BigInt(id),
-      allocations.map((a) => a.pool as `0x${string}`),
-      allocations.map((a) => BigInt(Math.round(a.weightPct * 100))),
-    ] as const;
-
   const castVote = () => {
     if (!tokenId || allocations.length === 0 || !addresses) return;
     writeContract({
@@ -142,7 +135,7 @@ export function VotePanel({
       abi: voterAbi,
       functionName: "vote",
       chainId: DISPLAY_PRESET.chain.id,
-      args: voteArgs(tokenId),
+      args: buildVoteArgs(tokenId, allocations),
     });
   };
 
@@ -151,7 +144,7 @@ export function VotePanel({
 
   const copyCalldata = async () => {
     if (!calldataId || allocations.length === 0) return;
-    const data = encodeFunctionData({ abi: voterAbi, functionName: "vote", args: voteArgs(calldataId) });
+    const data = encodeFunctionData({ abi: voterAbi, functionName: "vote", args: buildVoteArgs(calldataId, allocations) });
     await navigator.clipboard.writeText(data);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

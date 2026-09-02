@@ -109,18 +109,25 @@ interface BribeSimResult {
   assumptions: string;
 }
 
-const usd = (n: number) =>
+export const usd = (n: number) =>
   n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
-function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
-  if (rows.length === 0) return;
+// Split from downloadCsv so the string-building (header order, quoting of
+// values containing commas/quotes/newlines) has a direct unit test —
+// downloadCsv itself is just DOM/Blob plumbing around this.
+export function toCsv(rows: Array<Record<string, string | number>>): string {
+  if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
   const escape = (v: string | number) => {
     const s = String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
+  if (rows.length === 0) return;
+  const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -188,7 +195,7 @@ function ConfidenceBar({ value }: { value: number }) {
 
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
 
-function formatCountdown(ms: number): string {
+export function formatCountdown(ms: number): string {
   if (ms <= 0) return "epoch just flipped";
   const totalMin = Math.floor(ms / 60_000);
   const d = Math.floor(totalMin / (24 * 60));
