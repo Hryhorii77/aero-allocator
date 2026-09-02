@@ -155,7 +155,9 @@ an additional way to get at the data, not a paywall on the existing ones.
 
 Standard x402 flow: a request without an `X-PAYMENT` header gets `402` with the price; a request with a
 valid one is verified by Coinbase's CDP facilitator before the handler runs, and settled on-chain only
-after a successful response — a failed request is never charged.
+after a successful response — a failed request is never charged. [`SKILL.md`](SKILL.md#instant-access-hosted-no-setup--x402)
+has a copy-pasteable client example (`@x402/fetch`) for calling this directly from an agent — no clone,
+no RPC key, no MCP registration.
 
 Requires three env vars to activate; without all three the route serves a clean `501` rather than
 accepting misrouted or unverifiable payments:
