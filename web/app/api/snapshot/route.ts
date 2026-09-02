@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { currentEpochStart, epochProgress } from "aero-allocator/config";
 import { calibratedSnapshot } from "@/lib/snapshot";
+import { withApiErrorHandling } from "@/lib/api-error";
 
-export async function GET(req: Request) {
+export const GET = withApiErrorHandling("snapshot", async (req: Request) => {
   const refresh = new URL(req.url).searchParams.get("refresh") === "1";
   const snap = await calibratedSnapshot(refresh);
   return NextResponse.json({
@@ -25,4 +26,4 @@ export async function GET(req: Request) {
       confidence: f.confidence,
     })),
   });
-}
+});

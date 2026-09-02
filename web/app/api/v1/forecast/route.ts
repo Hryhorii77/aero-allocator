@@ -4,16 +4,22 @@ import { getAddress } from "viem";
 import { buildFullForecast } from "@/lib/snapshot";
 import { x402Server, BASE_MAINNET_CAIP2 } from "@/lib/x402";
 import { PRESET } from "aero-allocator/config";
+import { withApiErrorHandling } from "@/lib/api-error";
 
 // Same 60s ceiling as api/dashboard — this hits the same snapshot build.
 export const maxDuration = 60;
 
-const handler = async (req: NextRequest) => {
+// withApiErrorHandling here (not just relying on withX402's own error path)
+// matters more than elsewhere: this request already paid, so a thrown error
+// after verification should log with full context — it's a real
+// non-settlement (x402 only settles on <400) that's worth investigating,
+// not silent.
+const handler = withApiErrorHandling<NextRequest>("v1/forecast", async (req) => {
   const params = req.nextUrl.searchParams;
   const refresh = params.get("refresh") === "1";
   const votingPower = Math.max(1, Number(params.get("votingPower") ?? 10000) || 10000);
   return NextResponse.json(await buildFullForecast(votingPower, refresh));
-};
+});
 
 // Paid mirror of api/dashboard, for agents/treasuries that want programmatic
 // access to the forecast without self-hosting the MCP server + their own

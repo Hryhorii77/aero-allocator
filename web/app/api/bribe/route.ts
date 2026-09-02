@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { simulateBribeImpact } from "aero-allocator/scoring";
 import { calibratedSnapshot } from "@/lib/snapshot";
+import { withApiErrorHandling } from "@/lib/api-error";
 
 // A cold snapshot build can take close to a minute; this route can trigger
 // one on its own (bribe simulation is on-demand, not part of the main
@@ -8,7 +9,7 @@ import { calibratedSnapshot } from "@/lib/snapshot";
 // Vercel's Hobby plan; raise if on Pro/Enterprise and still hitting it.
 export const maxDuration = 60;
 
-export async function GET(req: Request) {
+export const GET = withApiErrorHandling("bribe", async (req: Request) => {
   const params = new URL(req.url).searchParams;
   const pool = params.get("pool");
   const bribeBudgetUsd = Number(params.get("bribeBudgetUsd"));
@@ -21,9 +22,12 @@ export async function GET(req: Request) {
   }
 
   const snap = await calibratedSnapshot();
+  // simulateBribeImpact throws on an expected application-level condition
+  // (e.g. pool not found in the current snapshot) — a 400, not a bug worth
+  // the structured error log withApiErrorHandling emits for 500s.
   try {
     return NextResponse.json(simulateBribeImpact(snap, pool, bribeBudgetUsd));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
   }
-}
+});
