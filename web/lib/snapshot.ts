@@ -33,11 +33,20 @@ export async function calibratedSnapshot(refresh = false): Promise<MarketSnapsho
  * snapshot build, just gated differently.
  */
 export async function buildFullForecast(votingPower: number, refresh = false) {
-  const [snap, rawSnap, rewardTokenPriceUsd] = await Promise.all([
-    calibratedSnapshot(refresh),
+  // getMarketSnapshot(refresh) fetched once and reused for both the
+  // calibrated and raw views — calling calibratedSnapshot(refresh) here too
+  // (as this used to) would independently re-invoke getMarketSnapshot with
+  // force=true, which bypasses the cache-check unconditionally and starts a
+  // second full RPC scan + DefiLlama price fetch in parallel with this one,
+  // doubling load on every `refresh=1` request for no benefit (same data).
+  const [rawSnap, calibration, rewardTokenPriceUsd] = await Promise.all([
     getMarketSnapshot(refresh),
+    getBacktestReport()
+      .then((r) => r.confidenceCalibration)
+      .catch(() => undefined),
     getRewardTokenPriceUsd(),
   ]);
+  const snap = calibration ? applyConfidenceCalibration(rawSnap, calibration) : rawSnap;
 
   return {
     generatedAt: snap.generatedAt,

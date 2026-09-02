@@ -374,8 +374,8 @@ export default function Dashboard() {
       // is its own serverless function once deployed, so fetching this in
       // pieces would cost one independent cold snapshot build per route.
       const res = await fetch(`/api/dashboard?votingPower=${votingPower}${refresh ? "&refresh=1" : ""}`);
-      if (!res.ok) throw new Error(`dashboard: HTTP ${res.status}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `dashboard: HTTP ${res.status}`);
       const snap: Snapshot = { generatedAt: data.generatedAt, epochStart: data.epochStart, epochProgressPct: data.epochProgressPct, pools: data.pools };
       setSnapshot(snap);
       setVoterAlloc(data.voterAlloc);
