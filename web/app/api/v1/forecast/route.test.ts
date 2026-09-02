@@ -51,4 +51,18 @@ describe("GET /api/v1/forecast", () => {
     const res = await GET(new NextRequest("http://localhost/api/v1/forecast"));
     expect(res.status).toBe(501);
   });
+
+  it("degrades to 501 (not a module-load crash) when X402_PAYTO_ADDRESS is set but malformed", async () => {
+    vi.stubEnv("X402_PAYTO_ADDRESS", "0x1234"); // too short to be a real address
+    vi.stubEnv("CDP_API_KEY_ID", "some-id");
+    vi.stubEnv("CDP_API_KEY_SECRET", "some-secret");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { GET } = await import("./route");
+    const res = await GET(new NextRequest("http://localhost/api/v1/forecast"));
+
+    expect(res.status).toBe(501);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
 });

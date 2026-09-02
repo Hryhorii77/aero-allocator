@@ -36,8 +36,29 @@ const handler = withApiErrorHandling<NextRequest>("v1/forecast", async (req) => 
 // address or crashing with a raw 500 (the facilitator's own initialize()
 // call fails hard, with no built-in fallback, if CDP_API_KEY_ID/SECRET
 // aren't valid — confirmed by testing without them).
+//
+// getAddress() is wrapped in its own try/catch (not just relying on
+// x402Configured's truthiness check) because it throws on anything that
+// isn't a well-formed address — a truncated or typo'd X402_PAYTO_ADDRESS
+// would otherwise crash this entire route (every request, paid or not)
+// with a raw unhandled exception at module-evaluation time, defeating the
+// graceful-501 degradation this whole block exists for.
 const payToEnv = process.env.X402_PAYTO_ADDRESS;
-const x402Configured = !!payToEnv && !!process.env.CDP_API_KEY_ID && !!process.env.CDP_API_KEY_SECRET;
+let payToAddress: `0x${string}` | null = null;
+if (payToEnv) {
+  try {
+    payToAddress = getAddress(payToEnv);
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        route: "v1/forecast",
+        message: `X402_PAYTO_ADDRESS is set but not a valid address: ${e instanceof Error ? e.message : String(e)}`,
+      }),
+    );
+  }
+}
+const x402Configured = !!payToAddress && !!process.env.CDP_API_KEY_ID && !!process.env.CDP_API_KEY_SECRET;
 
 export const GET = x402Configured
   ? withX402(
@@ -47,8 +68,8 @@ export const GET = x402Configured
           scheme: "exact",
           price: "$0.05",
           network: BASE_MAINNET_CAIP2,
-          // Non-null: x402Configured already checked payToEnv is set.
-          payTo: getAddress(payToEnv!),
+          // Non-null: x402Configured already checked payToAddress is set.
+          payTo: payToAddress!,
         },
         description:
           `Full ${PRESET.displayName} forecast: predicted hot pools, three allocation objectives ` +

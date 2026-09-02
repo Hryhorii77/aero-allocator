@@ -14,6 +14,13 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 // beyond what an in-memory limiter can meaningfully stop.
 const MAX_TRACKED_KEYS = 10_000;
 
+// Trusting the first x-forwarded-for entry is only safe because Vercel
+// itself overwrites this header and never forwards a client-supplied value
+// (https://vercel.com/docs/headers/request-headers#x-forwarded-for) — on
+// any other host (self-hosted per this repo's README, or behind a
+// different reverse proxy) a client can set this header to anything,
+// making it trivial to get a fresh "IP" — and fresh rate-limit budget —
+// on every request.
 function clientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
