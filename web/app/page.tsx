@@ -109,6 +109,20 @@ interface BribeSimResult {
   assumptions: string;
 }
 
+interface TrackRecord {
+  epochsWindow: number;
+  poolsAnalyzed: number;
+  samplePoints: number;
+  overall: {
+    maeUsd: number;
+    wapePct: number;
+    directionalAccuracyPct: number;
+    skillVsBaselineWapePct: number;
+  };
+  byConfidence: Array<{ range: string; n: number; wapePct: number }>;
+  methodology: string;
+}
+
 export const usd = (n: number) =>
   n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
@@ -312,6 +326,7 @@ export default function Dashboard() {
   const [edgeAlloc, setEdgeAlloc] = useState<Allocation | null>(null);
   const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
   const [voteSwings, setVoteSwings] = useState<VoteSwingReport | null>(null);
+  const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
   // Read from the URL (if shared) so loadAll's very first fetch already
   // uses the right value — the alternative (fetch once with the default,
   // then again with the URL's value once an effect runs) is a real race:
@@ -390,6 +405,7 @@ export default function Dashboard() {
       setEdgeAlloc(data.edgeAlloc);
       setLpDeposits(data.lpDeposits);
       setVoteSwings(data.voteSwings);
+      setTrackRecord(data.trackRecord);
       if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -848,6 +864,61 @@ export default function Dashboard() {
               )}
             </div>
           </section>
+
+          {trackRecord && (
+            <section className="mb-10">
+              <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
+                Forecast accuracy <span className="text-neutral-600">(walk-forward backtest)</span>
+              </h2>
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+                <div className="flex flex-wrap gap-6">
+                  <div>
+                    <div className="font-mono text-xs text-neutral-500">error (WAPE)</div>
+                    <div className="font-mono text-sm text-neutral-100">{trackRecord.overall.wapePct.toFixed(1)}%</div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs text-neutral-500">directional accuracy</div>
+                    <div className="font-mono text-sm text-neutral-100">
+                      {trackRecord.overall.directionalAccuracyPct.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs text-neutral-500">skill vs. naive baseline</div>
+                    <div
+                      className={`font-mono text-sm ${
+                        trackRecord.overall.skillVsBaselineWapePct >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {trackRecord.overall.skillVsBaselineWapePct >= 0 ? "+" : ""}
+                      {trackRecord.overall.skillVsBaselineWapePct.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs text-neutral-500">sample</div>
+                    <div className="font-mono text-sm text-neutral-100">
+                      {trackRecord.samplePoints.toLocaleString()} pts · {trackRecord.poolsAnalyzed} pools ·{" "}
+                      {trackRecord.epochsWindow} epochs
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-neutral-800 pt-4">
+                  <div className="mb-2 font-mono text-xs text-neutral-500">accuracy by confidence bucket</div>
+                  <div className="flex flex-wrap gap-3">
+                    {trackRecord.byConfidence.map((b) => (
+                      <div key={b.range} className="rounded bg-neutral-800/60 px-3 py-1.5">
+                        <span className="font-mono text-xs text-neutral-400">conf {b.range}</span>{" "}
+                        <span className="font-mono text-sm text-neutral-100">{b.wapePct.toFixed(1)}% WAPE</span>{" "}
+                        <span className="font-mono text-xs text-neutral-600">(n={b.n})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs leading-relaxed text-neutral-500">{trackRecord.methodology}</p>
+              </div>
+            </section>
+          )}
 
           <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
             <span>

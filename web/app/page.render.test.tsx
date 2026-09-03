@@ -47,6 +47,18 @@ const dashboardPayload = {
   edgeAlloc: { objective: "edge_hunter", summary: "test edge_hunter summary", allocations: [] },
   lpDeposits: { rewardTokenSymbol: "AERO", opportunities: [] },
   voteSwings: { epochProgressPct: 42.5, risers: [], fallers: [] },
+  trackRecord: {
+    epochsWindow: 26,
+    poolsAnalyzed: 30,
+    samplePoints: 624,
+    overall: { maeUsd: 3181, wapePct: 34.5, directionalAccuracyPct: 57.2, skillVsBaselineWapePct: 5.6 },
+    byConfidence: [
+      { range: "0.00–0.30", n: 49, wapePct: 40.5 },
+      { range: "0.30–0.60", n: 207, wapePct: 33.3 },
+      { range: "0.60–1.00", n: 368, wapePct: 34.2 },
+    ],
+    methodology: "Walk-forward replay of completed epochs against a naive persistence baseline.",
+  },
 };
 
 function jsonResponse(body: unknown, ok = true) {
@@ -139,5 +151,34 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
     expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
+  });
+
+  it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText(/forecast accuracy/i)).toBeInTheDocument();
+    expect(screen.getByText("34.5%")).toBeInTheDocument(); // overall WAPE
+    expect(screen.getByText("57.2%")).toBeInTheDocument(); // directional accuracy
+    expect(screen.getByText("+5.6%")).toBeInTheDocument(); // skill vs. baseline
+    expect(screen.getByText(/624 pts/)).toBeInTheDocument();
+    expect(screen.getByText(/conf 0\.30–0\.60/)).toBeInTheDocument();
+    expect(screen.getByText(/n=207/)).toBeInTheDocument();
+  });
+
+  it("omits the track record panel gracefully when the backtest wasn't available", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, trackRecord: null });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.queryByText(/forecast accuracy/i)).not.toBeInTheDocument();
   });
 });

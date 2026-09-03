@@ -6,9 +6,39 @@ import {
   detectVoteSwings,
   type MarketSnapshot,
 } from "aero-allocator/scoring";
-import { getBacktestReport } from "aero-allocator/backtest";
+import { getBacktestReport, type BacktestReport } from "aero-allocator/backtest";
 import { getRewardTokenPriceUsd } from "aero-allocator/data";
 import { currentEpochStart, epochProgress } from "aero-allocator/config";
+
+/**
+ * Compact track-record summary for the dashboard's "forecast accuracy"
+ * panel — trims getBacktestReport's full output (worst-misses list,
+ * per-point data) down to what's worth showing a visitor deciding whether
+ * to trust these forecasts. Mixed units in the source report (backtest.ts):
+ * `wape` is a raw fraction (0..1, needs ×100), while anything already
+ * named "...Pct" (directionalAccuracyPct, skillVsBaselineWapePct) is
+ * already a percentage — same convention the CLI backtest script relies on.
+ */
+export function summarizeBacktest(report: BacktestReport) {
+  return {
+    epochsWindow: report.epochsWindow,
+    poolsAnalyzed: report.poolsAnalyzed,
+    samplePoints: report.samplePoints,
+    overall: {
+      maeUsd: Math.round(report.overall.mae),
+      wapePct: Math.round(report.overall.wape * 1000) / 10,
+      directionalAccuracyPct: Math.round(report.overall.directionalAccuracyPct * 10) / 10,
+      skillVsBaselineWapePct: Math.round(report.overall.skillVsBaselineWapePct * 10) / 10,
+    },
+    byConfidence: report.byConfidence.map((b) => ({
+      range: b.range,
+      n: b.n,
+      wapePct: Math.round(b.wape * 1000) / 10,
+    })),
+    methodology: report.methodology,
+  };
+}
+export type BacktestSummary = ReturnType<typeof summarizeBacktest>;
 
 /**
  * Snapshot with confidence recalibrated against backtested accuracy, when
@@ -39,16 +69,19 @@ export async function buildFullForecast(votingPower: number, refresh = false) {
   // force=true, which bypasses the cache-check unconditionally and starts a
   // second full RPC scan + DefiLlama price fetch in parallel with this one,
   // doubling load on every `refresh=1` request for no benefit (same data).
-  const [rawSnap, calibration, rewardTokenPriceUsd] = await Promise.all([
+  const [rawSnap, backtestReport, rewardTokenPriceUsd] = await Promise.all([
     getMarketSnapshot(refresh),
-    getBacktestReport()
-      .then((r) => r.confidenceCalibration)
-      .catch(() => undefined),
+    // Full report, not just .confidenceCalibration — also feeds the
+    // dashboard's track-record panel below. getBacktestReport has its own
+    // ~1h cache (see backtest.ts), so this costs nothing extra beyond what
+    // calibratedSnapshot already paid for confidence recalibration.
+    getBacktestReport().catch(() => null),
     getRewardTokenPriceUsd(),
   ]);
-  const snap = calibration ? applyConfidenceCalibration(rawSnap, calibration) : rawSnap;
+  const snap = backtestReport ? applyConfidenceCalibration(rawSnap, backtestReport.confidenceCalibration) : rawSnap;
 
   return {
+    trackRecord: backtestReport ? summarizeBacktest(backtestReport) : null,
     generatedAt: snap.generatedAt,
     epochStart: currentEpochStart(),
     epochProgressPct: Math.round(epochProgress() * 1000) / 10,

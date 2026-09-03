@@ -77,7 +77,9 @@ cd web && npm install && npm run dev
 
 Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence); interactive Voter
 ROI, Protocol Efficiency, and Edge Hunter allocation panels; an LP staking-yield table; a vote-swings
-(risers/fallers) panel; and a bribe-placement simulator. First load builds the onchain snapshot
+(risers/fallers) panel; a bribe-placement simulator; and a forecast-accuracy panel (the same
+walk-forward backtest as `backtest_summary` — see [Forecast accuracy](#forecast-accuracy) — so you
+can judge the model's track record without leaving the page). First load builds the onchain snapshot
 (~1 min), then it's cached.
 
 Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation as a real vote: your
