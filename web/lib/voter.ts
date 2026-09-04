@@ -1,4 +1,6 @@
+import { concatHex, encodeFunctionData } from "viem";
 import { parseAbi } from "viem";
+import { DATA_SUFFIX } from "./attribution";
 
 // Contract addresses are NOT hardcoded here — see useProtocolAddresses in
 // @/lib/protocol, which fetches them from /api/protocol (server-side
@@ -39,4 +41,21 @@ export function buildVoteArgs(
     allocations.map((a) => a.pool as `0x${string}`),
     allocations.map((a) => BigInt(Math.round(a.weightPct * 100))),
   ] as const;
+}
+
+/**
+ * Unsigned Voter.vote() calldata for the no-wallet-connect copy flow, with
+ * the ERC-8021 Builder Code suffix appended (see lib/attribution.ts). The
+ * connected-wallet path (wallet.tsx's castVote, via wagmi's writeContract)
+ * gets this automatically from wagmi's client-level `dataSuffix` config —
+ * it does NOT call this function — because that path never builds calldata
+ * by hand. This one does, and never touches a wagmi client, so it has to
+ * append the suffix itself.
+ */
+export function buildVoteCalldata(
+  tokenId: string,
+  allocations: Array<{ pool: string; weightPct: number }>,
+) {
+  const data = encodeFunctionData({ abi: voterAbi, functionName: "vote", args: buildVoteArgs(tokenId, allocations) });
+  return concatHex([data, DATA_SUFFIX]);
 }

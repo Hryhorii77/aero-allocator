@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { encodeFunctionData } from "viem";
 import {
   useAccount,
   useConnect,
@@ -12,7 +11,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { voterAbi, veSugarAbi, buildVoteArgs } from "@/lib/voter";
+import { voterAbi, veSugarAbi, buildVoteArgs, buildVoteCalldata } from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
 
 interface ProtocolAddresses {
@@ -144,8 +143,7 @@ export function VotePanel({
 
   const copyCalldata = async () => {
     if (!calldataId || allocations.length === 0) return;
-    const data = encodeFunctionData({ abi: voterAbi, functionName: "vote", args: buildVoteArgs(calldataId, allocations) });
-    await navigator.clipboard.writeText(data);
+    await navigator.clipboard.writeText(buildVoteCalldata(calldataId, allocations));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

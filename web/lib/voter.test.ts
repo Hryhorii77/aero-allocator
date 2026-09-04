@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildVoteArgs } from "./voter";
+import { decodeFunctionData, encodeFunctionData } from "viem";
+import { buildVoteArgs, buildVoteCalldata, voterAbi } from "./voter";
+import { DATA_SUFFIX } from "./attribution";
 
 describe("buildVoteArgs", () => {
   it("converts the tokenId to a bigint and pool addresses pass through unchanged", () => {
@@ -40,5 +42,37 @@ describe("buildVoteArgs", () => {
     const [, pools, weights] = buildVoteArgs("1", allocations);
     expect(pools).toEqual(["0x1", "0x2", "0x3"]);
     expect(weights).toEqual([1000n, 2000n, 7000n]);
+  });
+});
+
+describe("buildVoteCalldata", () => {
+  // Real, EIP-55-checksummed addresses — unlike buildVoteArgs (which never
+  // touches viem's ABI encoder), encodeFunctionData validates checksums for
+  // address[] params, so the placeholder-style "0xaaaa...aaaa" addresses
+  // used above would fail here.
+  const allocations = [
+    { pool: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", weightPct: 50 }, // USDC on Base
+    { pool: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", weightPct: 50 }, // AERO
+  ];
+
+  it("appends the ERC-8021 attribution suffix to the end of the encoded calldata", () => {
+    const calldata = buildVoteCalldata("123", allocations);
+    expect(calldata.endsWith(DATA_SUFFIX.slice(2))).toBe(true);
+  });
+
+  it("still decodes to the exact same vote() args as buildVoteArgs — the suffix doesn't corrupt the call", () => {
+    const calldata = buildVoteCalldata("123", allocations);
+    // decodeFunctionData only reads the ABI-expected arguments; trailing
+    // attribution bytes are exactly what it's supposed to ignore.
+    const decoded = decodeFunctionData({ abi: voterAbi, data: calldata });
+    expect(decoded.functionName).toBe("vote");
+    expect(decoded.args).toEqual(buildVoteArgs("123", allocations));
+  });
+
+  it("adds exactly the suffix's byte length on top of the unsuffixed encoding", () => {
+    const unsuffixed = encodeFunctionData({ abi: voterAbi, functionName: "vote", args: buildVoteArgs("123", allocations) });
+    const calldata = buildVoteCalldata("123", allocations);
+    expect(calldata.length - unsuffixed.length).toBe(DATA_SUFFIX.length - 2); // -2: DATA_SUFFIX's own "0x" isn't duplicated
+    expect(calldata.startsWith(unsuffixed)).toBe(true);
   });
 });
