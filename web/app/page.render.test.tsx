@@ -197,9 +197,12 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
     // POOL-A's confidence is 0.7 -> "70%"; relying only on bar width doesn't
-    // let a reader distinguish e.g. 0.77 from 0.78 at a glance.
-    expect(screen.getByText("70%")).toBeInTheDocument();
-    expect(screen.getByText("60%")).toBeInTheDocument();
+    // let a reader distinguish e.g. 0.77 from 0.78 at a glance. The hot-pools
+    // table and its sm:hidden mobile-card twin both render "70%" in jsdom
+    // (CSS media queries don't hide anything here), so scope to the table.
+    const tbody = document.querySelector("tbody")!;
+    expect(within(tbody).getByText("70%")).toBeInTheDocument();
+    expect(within(tbody).getByText("60%")).toBeInTheDocument();
   });
 
   it("flags a near-zero-current-vote pool's $/1k figure as unreliable", async () => {
@@ -215,6 +218,32 @@ describe("Dashboard", () => {
     // POOL-A/POOL-B have real vote share (10%, 5%) and shouldn't be flagged.
     const rowA = within(tbody).getByText("POOL-A").closest("tr")!;
     expect(within(rowA).queryByText("⚠")).not.toBeInTheDocument();
+  });
+
+  it("retitles the hot-pools section and warns when sorted by $/1k votes", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Default sort (predictedFeesUsd) keeps the "hot pools" framing.
+    expect(screen.getByText(/predicted hot pools/i)).toBeInTheDocument();
+    expect(screen.queryByText(/thin gauges/i)).not.toBeInTheDocument();
+
+    // Grok round 3: sorting by $/1k votes puts empty-denominator gauges
+    // (near-zero votes, trivial fees) at the top under the "hot pools"
+    // label, which reads as an opportunity ranking instead of a volatility
+    // warning. The section itself must relabel, not just the one cell.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /\$\/1k votes/i }));
+
+    expect(screen.getByText(/thin gauges/i)).toBeInTheDocument();
+    expect(screen.queryByText(/predicted hot pools/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/most unstable number on the page/i)).toBeInTheDocument();
+
+    // POOL-C (near-zero vote share) should read "no votes yet" instead of
+    // a fake-precise "0.0% → 0.0%" in the votes-vs-demand column.
+    const tbody = document.querySelector("tbody")!;
+    const rowC = within(tbody).getByText("POOL-C").closest("tr")!;
+    expect(within(rowC).getByText("no votes yet")).toBeInTheDocument();
   });
 
   it("shows TVL, current votes, and gauge-share context under a Voter ROI allocation row", async () => {

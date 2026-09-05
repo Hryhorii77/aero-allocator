@@ -481,6 +481,11 @@ export default function Dashboard() {
   const pools = [...(snapshot?.pools.filter((p) => p.predictedFeesUsd > 0) ?? [])]
     .sort((a, b) => (poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key]))
     .slice(0, 20);
+  // Retitle/relabel the section when sorted this way — "predicted hot pools"
+  // sorted by $/1k votes surfaces empty-denominator gauges (tiny fees, ~0
+  // votes) at the top, which reads as an opportunity ranking instead of the
+  // volatility warning it actually is (Grok round 3).
+  const sortedByRewardPer1k = poolSort.key === "rewardPer1kVotesUsd";
 
   const lpOpportunities = [...(lpDeposits?.opportunities ?? [])].sort((a, b) =>
     lpSort.dir === "desc" ? b[lpSort.key] - a[lpSort.key] : a[lpSort.key] - b[lpSort.key],
@@ -552,9 +557,54 @@ export default function Dashboard() {
         <>
           <section className="mb-10">
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
-              Predicted hot pools
+              {sortedByRewardPer1k ? "Highest $/1k votes — thin gauges" : "Predicted hot pools"}
             </h2>
-            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+            {sortedByRewardPer1k && (
+              <p className="mb-3 -mt-1 text-xs text-amber-500">
+                This sort surfaces pools with the least existing vote weight, so $/1k is the most unstable number
+                on the page — it can collapse the moment anyone else votes here. Not a ranking of the biggest
+                opportunities; sort by predicted fees or edge for that.
+              </p>
+            )}
+            {/* Card layout below sm: an 8-column table clipped to ~2 visible columns on a
+                phone hides exactly the column the user just sorted by (Grok round 3). */}
+            <div className="grid gap-2 sm:hidden">
+              {pools.map((p) => {
+                const thin = p.voteSharePct < 0.1;
+                return (
+                  <div
+                    key={p.lp}
+                    className={`rounded-lg border px-3 py-2.5 ${
+                      thin ? "border-amber-900/60 bg-amber-950/10" : "border-neutral-800 bg-neutral-900/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 truncate">
+                        <span className="font-medium text-neutral-100">{p.symbol}</span>
+                        <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
+                      </div>
+                      <EdgeBadge edge={p.edgePct} />
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs">
+                      <span className="text-neutral-400">
+                        predicted <span className="text-neutral-100">{usd(p.predictedFeesUsd)}</span>
+                      </span>
+                      <span className={thin ? "text-amber-400" : "text-neutral-300"}>
+                        $/1k ${p.rewardPer1kVotesUsd.toFixed(2)}
+                        {thin && " ⚠"}
+                      </span>
+                      <ConfidenceBar value={p.confidence} />
+                    </div>
+                    {thin && (
+                      <p className="mt-1 text-[11px] text-amber-500">
+                        no votes yet — $/1k is unstable until someone votes here
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto rounded-xl border border-neutral-800 sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
@@ -575,49 +625,62 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pools.map((p) => (
-                    <tr key={p.lp} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
-                      <td className="px-4 py-2.5">
-                        <span className="font-medium text-neutral-100">{p.symbol}</span>
-                        <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
-                      <td
-                        className={`px-4 py-2.5 text-right font-mono ${
-                          p.feeTrendUsdPerEpoch > 0
-                            ? "text-emerald-400"
-                            : p.feeTrendUsdPerEpoch < 0
-                              ? "text-rose-400"
-                              : "text-neutral-500"
+                  {pools.map((p) => {
+                    const thin = p.voteSharePct < 0.1;
+                    return (
+                      <tr
+                        key={p.lp}
+                        className={`border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40 ${
+                          thin ? "bg-amber-950/10" : ""
                         }`}
                       >
-                        {p.feeTrendUsdPerEpoch > 0 ? "▲" : p.feeTrendUsdPerEpoch < 0 ? "▼" : "–"}{" "}
-                        {usd(Math.abs(p.feeTrendUsdPerEpoch))}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
-                        {p.voteSharePct.toFixed(1)}% → {p.demandSharePct.toFixed(1)}%
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <EdgeBadge edge={p.edgePct} />
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
-                        <span
-                          title={
-                            p.voteSharePct < 0.1
-                              ? "Current vote share is near zero — this $/1k figure is based on very few votes and can swing wildly the moment anyone votes here. Not a reliable signal on its own."
-                              : undefined
-                          }
+                        <td className="px-4 py-2.5">
+                          <span className="font-medium text-neutral-100">{p.symbol}</span>
+                          <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
+                        <td
+                          className={`px-4 py-2.5 text-right font-mono ${
+                            p.feeTrendUsdPerEpoch > 0
+                              ? "text-emerald-400"
+                              : p.feeTrendUsdPerEpoch < 0
+                                ? "text-rose-400"
+                                : "text-neutral-500"
+                          }`}
                         >
-                          ${p.rewardPer1kVotesUsd.toFixed(2)}
-                          {p.voteSharePct < 0.1 && <span className="ml-1 text-amber-500">⚠</span>}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <ConfidenceBar value={p.confidence} />
-                      </td>
-                    </tr>
-                  ))}
+                          {p.feeTrendUsdPerEpoch > 0 ? "▲" : p.feeTrendUsdPerEpoch < 0 ? "▼" : "–"}{" "}
+                          {usd(Math.abs(p.feeTrendUsdPerEpoch))}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
+                          {thin ? (
+                            <span className="text-amber-500">no votes yet</span>
+                          ) : (
+                            `${p.voteSharePct.toFixed(1)}%`
+                          )}{" "}
+                          → {p.demandSharePct.toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <EdgeBadge edge={p.edgePct} />
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
+                          <span
+                            title={
+                              thin
+                                ? "Current vote share is near zero — this $/1k figure is based on very few votes and can swing wildly the moment anyone votes here. Not a reliable signal on its own."
+                                : undefined
+                            }
+                          >
+                            ${p.rewardPer1kVotesUsd.toFixed(2)}
+                            {thin && <span className="ml-1 text-amber-500">⚠</span>}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <ConfidenceBar value={p.confidence} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
