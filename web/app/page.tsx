@@ -197,12 +197,19 @@ function EdgeBadge({ edge }: { edge: number }) {
 }
 
 function ConfidenceBar({ value }: { value: number }) {
+  // The bar alone doesn't discriminate well: live confidence tends to
+  // cluster tightly (e.g. most pools sit around 0.75-0.80), so a handful of
+  // percentage points of bar-width difference is sub-pixel at this size —
+  // the number is what actually communicates the difference.
   return (
-    <div className="h-1.5 w-14 rounded bg-neutral-800" title={`confidence ${value}`}>
-      <div
-        className={`h-full rounded ${value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
-        style={{ width: `${Math.round(value * 100)}%` }}
-      />
+    <div className="flex items-center gap-1.5" title={`confidence ${value}`}>
+      <div className="h-1.5 w-8 shrink-0 rounded bg-neutral-800">
+        <div
+          className={`h-full rounded ${value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
+          style={{ width: `${Math.round(value * 100)}%` }}
+        />
+      </div>
+      <span className="font-mono text-xs text-neutral-400">{Math.round(value * 100)}%</span>
     </div>
   );
 }
@@ -467,7 +474,7 @@ export default function Dashboard() {
             reward where demand is going, not where it was.
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           {SIBLING_URL && (
             <a
               href={SIBLING_URL}
@@ -565,7 +572,16 @@ export default function Dashboard() {
                         <EdgeBadge edge={p.edgePct} />
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
-                        ${p.rewardPer1kVotesUsd.toFixed(2)}
+                        <span
+                          title={
+                            p.voteSharePct < 0.1
+                              ? "Current vote share is near zero — this $/1k figure is based on very few votes and can swing wildly the moment anyone votes here. Not a reliable signal on its own."
+                              : undefined
+                          }
+                        >
+                          ${p.rewardPer1kVotesUsd.toFixed(2)}
+                          {p.voteSharePct < 0.1 && <span className="ml-1 text-amber-500">⚠</span>}
+                        </span>
                       </td>
                       <td className="px-4 py-2.5">
                         <ConfidenceBar value={p.confidence} />

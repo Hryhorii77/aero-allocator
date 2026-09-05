@@ -41,6 +41,25 @@ const dashboardPayload = {
       rewardPer1kVotesUsd: 0.9,
       confidence: 0.6,
     },
+    {
+      // Deliberately last in every sort below (lowest predictedFeesUsd AND
+      // lowest lastEpochFeesUsd) — a near-zero-current-votes micro pool,
+      // the exact pattern that inflates $/1k votes into a misleading
+      // "opportunity" when someone sorts by that column.
+      lp: "0xpoolC",
+      symbol: "POOL-C",
+      poolType: "v2-volatile",
+      tvlUsd: 60_000,
+      predictedFeesUsd: 20,
+      lastEpochFeesUsd: 5,
+      feeTrendUsdPerEpoch: 1,
+      currentBribesUsd: 0,
+      voteSharePct: 0.02,
+      demandSharePct: 0.03,
+      edgePct: 0.01,
+      rewardPer1kVotesUsd: 8.4,
+      confidence: 0.78,
+    },
   ],
   voterAlloc: { objective: "voter_roi", summary: "test voter_roi summary", allocations: [] },
   protoAlloc: { objective: "protocol_efficiency", summary: "test protocol_efficiency summary", allocations: [] },
@@ -129,16 +148,40 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     const rowsInOrder = () =>
-      Array.from(document.querySelectorAll("tbody tr")).map((tr) => within(tr as HTMLElement).queryByText(/POOL-[AB]/)?.textContent);
+      Array.from(document.querySelectorAll("tbody tr")).map((tr) => within(tr as HTMLElement).queryByText(/POOL-[ABC]/)?.textContent);
 
-    // Default sort is predictedFeesUsd desc: POOL-A (200) before POOL-B (100).
-    expect(rowsInOrder()).toEqual(["POOL-A", "POOL-B"]);
+    // Default sort is predictedFeesUsd desc: POOL-A (200), POOL-B (100), POOL-C (20).
+    expect(rowsInOrder()).toEqual(["POOL-A", "POOL-B", "POOL-C"]);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /last epoch/i }));
 
-    // lastEpochFeesUsd desc: POOL-B (500) before POOL-A (50).
-    expect(rowsInOrder()).toEqual(["POOL-B", "POOL-A"]);
+    // lastEpochFeesUsd desc: POOL-B (500), POOL-A (50), POOL-C (5).
+    expect(rowsInOrder()).toEqual(["POOL-B", "POOL-A", "POOL-C"]);
+  });
+
+  it("shows a numeric confidence percentage, not just a bar", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // POOL-A's confidence is 0.7 -> "70%"; relying only on bar width doesn't
+    // let a reader distinguish e.g. 0.77 from 0.78 at a glance.
+    expect(screen.getByText("70%")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("flags a near-zero-current-vote pool's $/1k figure as unreliable", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // getByText("POOL-C") is ambiguous — it also appears as an <option> in
+    // the bribe-simulator's pool <select> — so scope to the hot-pools table.
+    const tbody = document.querySelector("tbody")!;
+    const row = within(tbody).getByText("POOL-C").closest("tr")!;
+    expect(within(row).getByText("⚠")).toBeInTheDocument();
+
+    // POOL-A/POOL-B have real vote share (10%, 5%) and shouldn't be flagged.
+    const rowA = within(tbody).getByText("POOL-A").closest("tr")!;
+    expect(within(rowA).queryByText("⚠")).not.toBeInTheDocument();
   });
 
   it("renders a CSV export control for each allocation objective", async () => {
@@ -151,6 +194,18 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
     expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
+  });
+
+  it("lets the header's control chips (epoch countdown, refresh, connect wallet) wrap onto their own lines on narrow viewports", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // Without flex-wrap here, these chips are squeezed into one unbreakable
+    // row and their own text wraps mid-phrase instead ("votes flip in 4d
+    // 3h" splitting across lines) on a phone-width screen — regression
+    // guard for that, since jsdom doesn't do real responsive layout.
+    const connectButton = screen.getByRole("button", { name: /connect wallet/i });
+    const controlsRow = connectButton.closest("div.flex")!;
+    expect(controlsRow.className).toMatch(/\bflex-wrap\b/);
   });
 
   it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {
