@@ -285,7 +285,7 @@ export function recommendAllocation(
 ): AllocationRecommendation {
   const eligible = snapshot.forecasts.filter((f) => f.pool.gaugeAlive && f.confidence > 0);
 
-  let scored: Array<{ f: PoolForecast; weight: number; expectedRewardUsd?: number; rationale: string }>;
+  let scored: Array<{ f: PoolForecast; weight: number; expectedRewardUsd?: number; votesAllocated?: number; rationale: string }>;
 
   if (objective === "protocol_efficiency") {
     scored = eligible
@@ -332,6 +332,7 @@ export function recommendAllocation(
           f: c.f,
           weight: v / votingPowerVe,
           expectedRewardUsd: round2(expected),
+          votesAllocated: Math.round(v),
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
             `(predicted pool payout ~$${Math.round(c.rewardsUsd).toLocaleString()}, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} ` +
@@ -345,7 +346,7 @@ export function recommendAllocation(
   }
 
   const totalW = scored.reduce((s, x) => s + x.weight, 0);
-  const allocations = scored.map(({ f, weight, expectedRewardUsd, rationale }) => ({
+  const allocations = scored.map(({ f, weight, expectedRewardUsd, votesAllocated, rationale }) => ({
     pool: f.pool.lp,
     symbol: f.pool.symbol,
     weightPct: round2((weight / totalW) * 100),
@@ -353,6 +354,13 @@ export function recommendAllocation(
     predictedDemandSharePct: round2(f.predictedDemandShare * 100),
     predictiveEdgePct: round2(f.predictiveEdge * 100),
     rewardPer1kVotesUsd: f.rewardPer1kVotesUsd,
+    // Context for judging a pick beyond its weight/reward — a thin, low-TVL
+    // gauge with a tiny existing vote count behaves very differently (for
+    // dilution and for how much your own vote moves it) than an
+    // established one, even at the same $/1k figure.
+    tvlUsd: Math.round(f.pool.tvlUsd),
+    currentVotes: Math.round(f.currentVotes),
+    ...(votesAllocated !== undefined && { votesAllocated }),
     ...(expectedRewardUsd !== undefined && { expectedRewardUsd }),
     confidence: f.confidence,
     rationale,

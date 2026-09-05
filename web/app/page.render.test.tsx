@@ -61,7 +61,25 @@ const dashboardPayload = {
       confidence: 0.78,
     },
   ],
-  voterAlloc: { objective: "voter_roi", summary: "test voter_roi summary", allocations: [] },
+  voterAlloc: {
+    objective: "voter_roi",
+    summary: "test voter_roi summary",
+    allocations: [
+      {
+        pool: "0xpoolA",
+        symbol: "POOL-A",
+        weightPct: 80,
+        currentVoteSharePct: 10,
+        predictedDemandSharePct: 12,
+        predictiveEdgePct: 2,
+        tvlUsd: 1_000_000,
+        currentVotes: 58_330,
+        votesAllocated: 8_000,
+        expectedRewardUsd: 42,
+        confidence: 0.7,
+      },
+    ],
+  },
   protoAlloc: { objective: "protocol_efficiency", summary: "test protocol_efficiency summary", allocations: [] },
   edgeAlloc: { objective: "edge_hunter", summary: "test edge_hunter summary", allocations: [] },
   lpDeposits: { rewardTokenSymbol: "AERO", opportunities: [] },
@@ -160,6 +178,21 @@ describe("Dashboard", () => {
     expect(rowsInOrder()).toEqual(["POOL-B", "POOL-A", "POOL-C"]);
   });
 
+  it("explains that trend/epoch is a regression slope, not predicted-minus-last", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // Grok round 2 flagged this as a real contradiction: feeTrendUsdPerEpoch
+    // can point the opposite direction from (predictedFeesUsd -
+    // lastEpochFeesUsd) since it's a multi-epoch regression slope, not that
+    // subtraction — the header's title should say so.
+    const headers = screen.getAllByRole("button", { name: /trend\/epoch/i }).map((b) => b.closest("th")!);
+    expect(headers.length).toBeGreaterThan(0);
+    for (const header of headers) {
+      expect(header.title).toMatch(/regression/i);
+      expect(header.title).toMatch(/not simply predicted minus last/i);
+    }
+  });
+
   it("shows a numeric confidence percentage, not just a bar", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -182,6 +215,17 @@ describe("Dashboard", () => {
     // POOL-A/POOL-B have real vote share (10%, 5%) and shouldn't be flagged.
     const rowA = within(tbody).getByText("POOL-A").closest("tr")!;
     expect(within(rowA).queryByText("⚠")).not.toBeInTheDocument();
+  });
+
+  it("shows TVL, current votes, and gauge-share context under a Voter ROI allocation row", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // Regression coverage for a real trust gap Grok flagged: two rows with
+    // the same weightPct look identical without this — one could be an
+    // established gauge, the other a thin one your vote would dominate.
+    expect(screen.getByText(/\$1,000,000 TVL/)).toBeInTheDocument();
+    expect(screen.getByText(/58,330 votes now/)).toBeInTheDocument();
+    expect(screen.getByText(/your vote ≈ 12\.1% of this gauge/)).toBeInTheDocument();
   });
 
   it("renders a CSV export control for each allocation objective", async () => {

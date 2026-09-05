@@ -94,8 +94,11 @@ interface VeNftOption {
 
 export function VotePanel({
   allocations,
+  onNftSelected,
 }: {
   allocations: Array<{ pool: string; symbol: string; weightPct: number }>;
+  /** Fired with the veNFT's real voting balance when the user picks one from the dropdown, so the caller can re-size the allocation for what this NFT can actually vote with. */
+  onNftSelected?: (votingPower: number) => void;
 }) {
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -123,6 +126,12 @@ export function VotePanel({
   );
 
   const tokenId = selectedId || manualId;
+
+  const selectNft = (id: string) => {
+    setSelectedId(id);
+    const opt = options.find((o) => o.id.toString() === id);
+    if (opt) onNftSelected?.(Math.round(Number(opt.votingAmount) / 1e18));
+  };
 
   const { writeContract, data: txHash, isPending: signing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
@@ -207,7 +216,7 @@ export function VotePanel({
           {options.length > 0 ? (
             <select
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => selectNft(e.target.value)}
               className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
             >
               <option value="">select {DISPLAY_PRESET.veTokenSymbol} NFT</option>
@@ -251,6 +260,11 @@ export function VotePanel({
             <button onClick={() => reset()} className="text-neutral-500 underline">
               dismiss
             </button>
+          </p>
+        )}
+        {selectedId && onNftSelected && (
+          <p className="mt-2 text-xs text-sky-400">
+            Weights above were re-sized for veNFT #{selectedId}&rsquo;s real voting balance.
           </p>
         )}
         <p className="mt-2 text-xs text-neutral-500">

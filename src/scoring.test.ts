@@ -149,6 +149,16 @@ describe("recommendAllocation — protocol_efficiency", () => {
     const rec = recommendAllocation(snapshot, "protocol_efficiency");
     expect(rec.allocations).toHaveLength(1);
   });
+
+  it("exposes tvlUsd and currentVotes for context, but no votesAllocated (that's voter_roi-only)", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictedDemandShare: 0.5, currentVotes: 12_345, pool: { tvlUsd: 987_654 } }),
+    ]);
+    const rec = recommendAllocation(snapshot, "protocol_efficiency");
+    expect(rec.allocations[0].tvlUsd).toBe(987_654);
+    expect(rec.allocations[0].currentVotes).toBe(12_345);
+    expect(rec.allocations[0].votesAllocated).toBeUndefined();
+  });
 });
 
 describe("recommendAllocation — voter_roi", () => {
@@ -212,6 +222,33 @@ describe("recommendAllocation — voter_roi", () => {
     const rec = recommendAllocation(snapshot, "voter_roi", 3, 10_000);
     expect(rec.allocations).toHaveLength(3);
   });
+
+  it("exposes tvlUsd, currentVotes, and votesAllocated so a UI can show pick context beyond weight/reward", () => {
+    // Regression coverage for a real gap: the dashboard's Voter ROI card
+    // only showed weight% and expected $, so a thin/low-liquidity pick
+    // looked identical to an established one — this data was already
+    // computed internally (dilution needs currentVotes; rationale already
+    // stringified it) but never returned as its own field.
+    const snapshot = snapshotOf([
+      makeForecast({
+        predictedFeesUsd: 100_000,
+        lastEpochFeesUsd: 100_000,
+        currentVotes: 58_330,
+        pool: { tvlUsd: 104_000 },
+      }),
+    ]);
+    const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
+    const a = rec.allocations[0];
+    expect(a.tvlUsd).toBe(104_000);
+    expect(a.currentVotes).toBe(58_330);
+    expect(a.votesAllocated).toBeDefined();
+    expect(a.votesAllocated).toBeGreaterThan(0);
+    // votesAllocated is this pool's literal vote count from the water-fill
+    // — not reconstructable client-side from weightPct alone, since
+    // weightPct is normalized across all selected pools (weight/totalW),
+    // which only equals votingPowerVe's share when totalW happens to be 1.
+    expect(a.votesAllocated).toBeLessThanOrEqual(10_000);
+  });
 });
 
 describe("recommendAllocation — edge_hunter", () => {
@@ -260,6 +297,16 @@ describe("recommendAllocation — edge_hunter", () => {
     const snapshot = snapshotOf([makeForecast({ predictiveEdge: 0.05 })]);
     const rec = recommendAllocation(snapshot, "edge_hunter");
     expect(rec.allocations[0].expectedRewardUsd).toBeUndefined();
+  });
+
+  it("exposes tvlUsd and currentVotes for context, but no votesAllocated (that's voter_roi-only)", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictiveEdge: 0.05, currentVotes: 4_321, pool: { tvlUsd: 555_000 } }),
+    ]);
+    const rec = recommendAllocation(snapshot, "edge_hunter");
+    expect(rec.allocations[0].tvlUsd).toBe(555_000);
+    expect(rec.allocations[0].currentVotes).toBe(4_321);
+    expect(rec.allocations[0].votesAllocated).toBeUndefined();
   });
 });
 

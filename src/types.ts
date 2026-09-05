@@ -69,6 +69,10 @@ export interface AllocationRecommendation {
     predictedDemandSharePct: number;
     predictiveEdgePct: number;
     rewardPer1kVotesUsd: number;
+    tvlUsd: number;
+    currentVotes: number;
+    /** Absolute votes this allocation assigns to the pool (voter_roi only — the other objectives express weight as a % of demand, not an absolute vote count). */
+    votesAllocated?: number;
     /** Expected USD reward next epoch for the votes allocated here, after dilution. */
     expectedRewardUsd?: number;
     confidence: number;

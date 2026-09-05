@@ -55,6 +55,9 @@ interface AllocationRow {
   currentVoteSharePct: number;
   predictedDemandSharePct: number;
   predictiveEdgePct: number;
+  tvlUsd: number;
+  currentVotes: number;
+  votesAllocated?: number;
   expectedRewardUsd?: number;
   confidence: number;
 }
@@ -281,15 +284,17 @@ function SortHeader<K extends string>({
   sortKey,
   sort,
   onSort,
+  title,
 }: {
   label: string;
   sortKey: K;
   sort: { key: K; dir: "asc" | "desc" };
   onSort: (key: K) => void;
+  title?: string;
 }) {
   const active = sort.key === sortKey;
   return (
-    <th className="px-4 py-2.5 text-right">
+    <th className="px-4 py-2.5 text-right" title={title}>
       <button
         onClick={() => onSort(sortKey)}
         className={`inline-flex items-center gap-1 hover:text-neutral-300 ${active ? "text-neutral-200" : ""}`}
@@ -312,16 +317,33 @@ function AllocationRows({
 }) {
   return (
     <div className="space-y-2.5">
-      {allocations.map((a) => (
-        <div key={a.pool} className="flex items-center gap-3">
-          <span className="w-40 truncate text-sm text-neutral-200" title={a.symbol}>
-            {a.symbol}
-          </span>
-          <WeightBar pct={a.weightPct} color={color} />
-          <span className="w-14 text-right font-mono text-sm text-neutral-100">{a.weightPct.toFixed(1)}%</span>
-          {right(a)}
-        </div>
-      ))}
+      {allocations.map((a) => {
+        // votesAllocated is only set for voter_roi — the pool's implied
+        // "your vote as % of this gauge" only means something once you're
+        // sizing an absolute vote count against the gauge's existing votes,
+        // which is exactly the split Grok flagged as invisible: two rows
+        // with identical weightPct can be a huge or a tiny gauge underneath.
+        const gaugeSharePct =
+          a.votesAllocated !== undefined && a.currentVotes + a.votesAllocated > 0
+            ? (a.votesAllocated / (a.currentVotes + a.votesAllocated)) * 100
+            : undefined;
+        return (
+          <div key={a.pool}>
+            <div className="flex items-center gap-3">
+              <span className="w-40 truncate text-sm text-neutral-200" title={a.symbol}>
+                {a.symbol}
+              </span>
+              <WeightBar pct={a.weightPct} color={color} />
+              <span className="w-14 text-right font-mono text-sm text-neutral-100">{a.weightPct.toFixed(1)}%</span>
+              {right(a)}
+            </div>
+            <div className="mt-0.5 text-[11px] text-neutral-600">
+              {usd(a.tvlUsd)} TVL · {Math.round(a.currentVotes).toLocaleString("en-US")} votes now
+              {gaugeSharePct !== undefined && ` · your vote ≈ ${gaugeSharePct.toFixed(1)}% of this gauge`}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -426,16 +448,18 @@ export default function Dashboard() {
     loadAll();
   }, [loadAll]);
 
-  const recomputeVoter = async () => {
+  const recomputeVoterWithPower = async (vp: number) => {
     setAllocLoading(true);
     try {
-      const res = await fetch(`/api/dashboard?votingPower=${votingPower}`);
+      const res = await fetch(`/api/dashboard?votingPower=${vp}`);
       const data = await res.json();
       setVoterAlloc(data.voterAlloc);
     } finally {
       setAllocLoading(false);
     }
   };
+
+  const recomputeVoter = () => recomputeVoterWithPower(votingPower);
 
   const simulateBribe = async () => {
     if (!bribePool || bribeBudget <= 0) return;
@@ -537,7 +561,13 @@ export default function Dashboard() {
                     <th className="px-4 py-2.5">pool</th>
                     <SortHeader label="predicted fees" sortKey="predictedFeesUsd" sort={poolSort} onSort={togglePoolSort} />
                     <SortHeader label="last epoch" sortKey="lastEpochFeesUsd" sort={poolSort} onSort={togglePoolSort} />
-                    <SortHeader label="trend/epoch" sortKey="feeTrendUsdPerEpoch" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader
+                      label="trend/epoch"
+                      sortKey="feeTrendUsdPerEpoch"
+                      sort={poolSort}
+                      onSort={togglePoolSort}
+                      title="Slope of a linear regression over trailing epochs, USD per epoch — not simply predicted minus last epoch, so it can point a different direction than that single-epoch comparison."
+                    />
                     <th className="px-4 py-2.5 text-right">votes vs demand</th>
                     <SortHeader label="edge" sortKey="edgePct" sort={poolSort} onSort={togglePoolSort} />
                     <SortHeader label="$/1k votes" sortKey="rewardPer1kVotesUsd" sort={poolSort} onSort={togglePoolSort} />
@@ -637,7 +667,13 @@ export default function Dashboard() {
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
                   </p>
-                  <VotePanel allocations={voterAlloc.allocations} />
+                  <VotePanel
+                    allocations={voterAlloc.allocations}
+                    onNftSelected={(vp) => {
+                      setVotingPower(vp);
+                      recomputeVoterWithPower(vp);
+                    }}
+                  />
                 </>
               )}
             </div>
@@ -717,6 +753,7 @@ export default function Dashboard() {
                       sortKey="emissionsTrendUsdPerEpoch"
                       sort={lpSort}
                       onSort={toggleLpSort}
+                      title="Slope of a linear regression over trailing epochs, USD per epoch — not simply predicted minus last epoch, so it can point a different direction than that single-epoch comparison."
                     />
                     <SortHeader label="conf" sortKey="confidence" sort={lpSort} onSort={toggleLpSort} />
                   </tr>
