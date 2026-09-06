@@ -26,7 +26,16 @@ import { currentEpochStart, epochProgress, SETTINGS } from "aero-allocator/confi
 async function readDurableCache<T>(pathname: string): Promise<{ cachedAt: number; data: T } | null> {
   try {
     const result = await getBlob(pathname, { access: "private" });
-    if (!result || result.statusCode !== 200 || !result.stream) return null;
+    if (!result) {
+      console.log(JSON.stringify({ level: "info", tag: "durable-cache", pathname, reason: "not-found" }));
+      return null;
+    }
+    if (result.statusCode !== 200 || !result.stream) {
+      console.log(
+        JSON.stringify({ level: "info", tag: "durable-cache", pathname, reason: "bad-response", statusCode: result.statusCode }),
+      );
+      return null;
+    }
     const text = await new Response(result.stream).text();
     const parsed = JSON.parse(text) as { cachedAt?: unknown; data?: unknown };
     // A blob written under an older shape of this cache (a field rename, for
@@ -34,13 +43,19 @@ async function readDurableCache<T>(pathname: string): Promise<{ cachedAt: number
     // would otherwise parse fine but hand back `data: undefined`, which
     // callers trust completely and dereference straight into a crash. Treat
     // anything that doesn't look like this cache's shape as a miss instead.
-    if (typeof parsed.cachedAt !== "number" || parsed.data === undefined) return null;
+    if (typeof parsed.cachedAt !== "number" || parsed.data === undefined) {
+      console.log(JSON.stringify({ level: "info", tag: "durable-cache", pathname, reason: "malformed-shape" }));
+      return null;
+    }
     return parsed as { cachedAt: number; data: T };
-  } catch {
+  } catch (e) {
     // No blob store configured (e.g. local dev without BLOB_READ_WRITE_TOKEN),
     // nothing written yet, or a transient Blob error — fall back to a live
     // rebuild either way; this cache is a latency nicety, not a correctness
-    // requirement.
+    // requirement. Logged (not just swallowed) so a *persistent* failure is
+    // visible instead of only ever showing up as an unexplained "miss".
+    const error = e instanceof Error ? e : new Error(String(e));
+    console.error(JSON.stringify({ level: "error", tag: "durable-cache", pathname, reason: "threw", message: error.message }));
     return null;
   }
 }
