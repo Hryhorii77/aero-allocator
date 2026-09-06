@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   useAccount,
@@ -40,11 +40,39 @@ function useProtocolAddresses() {
   });
 }
 
+// wagmi's injected() connector announces every EIP-6963 provider the browser
+// exposes, including wallets for other chains (Cosmos, ICP, Tron, Tezos, …)
+// that happen to inject a provider object. Filter those out so the list only
+// shows wallets a Base user would actually pick.
+const NON_EVM_WALLET_NAME = /\b(plug|keplr|leap|cosmostation|station|temple|tronlink|martian|petra|sui wallet)\b/i;
+
+function connectorDisplayName(name: string) {
+  return name === "Injected" ? "Browser Wallet" : name;
+}
+
 export function ConnectButton() {
   const { address, isConnected } = useAccount();
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) {
+        if (e.key === "Escape") setOpen(false);
+        return;
+      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
 
   if (isConnected && address) {
     return (
@@ -58,8 +86,10 @@ export function ConnectButton() {
     );
   }
 
+  const walletConnectors = connectors.filter((c) => !NON_EVM_WALLET_NAME.test(c.name));
+
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={isPending}
@@ -68,20 +98,33 @@ export function ConnectButton() {
         {isPending ? "connecting…" : "connect wallet"}
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-44 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-xl">
-          {connectors.map((c) => (
-            <button
-              key={c.uid}
-              onClick={() => {
-                connect({ connector: c });
-                setOpen(false);
-              }}
-              className="block w-full rounded px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="fixed inset-0 z-10 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute right-0 z-20 mt-2 w-48 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-xl">
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-xs text-neutral-500">connect with</span>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="close"
+                className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+              >
+                ✕
+              </button>
+            </div>
+            {walletConnectors.map((c) => (
+              <button
+                key={c.uid}
+                onClick={() => {
+                  connect({ connector: c });
+                  setOpen(false);
+                }}
+                className="block w-full rounded px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
+              >
+                {connectorDisplayName(c.name)}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
