@@ -243,7 +243,7 @@ export function VotePanel({
       <p className="mb-2 text-xs text-neutral-500">
         Prefer not to connect a wallet? Enter your veNFT id and copy the unsigned calldata for
         Voter.vote() — sign and send it with any wallet or tool you trust, to{" "}
-        <span className="font-mono">{addresses?.voterAddress ?? "…"}</span> on {DISPLAY_PRESET.networkName}.
+        <span className="font-mono break-all">{addresses?.voterAddress ?? "…"}</span> on {DISPLAY_PRESET.networkName}.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input

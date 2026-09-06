@@ -98,6 +98,12 @@ describe("VotePanel (disconnected)", () => {
     expect(screen.getByRole("button", { name: /copy calldata/i })).toBeInTheDocument();
   });
 
+  it("lets the contract address wrap instead of overflowing its card (spotted live on a narrow viewport)", async () => {
+    renderWithProviders(<VotePanel allocations={allocations} />);
+    const address = await screen.findByText("0xvoter");
+    expect(address.className).toMatch(/\bbreak-all\b/);
+  });
+
   it("disables the copy-calldata button until a veNFT id is entered", () => {
     renderWithProviders(<VotePanel allocations={allocations} />);
     expect(screen.getByRole("button", { name: /copy calldata/i })).toBeDisabled();
