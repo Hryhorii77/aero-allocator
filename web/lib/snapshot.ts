@@ -59,6 +59,16 @@ async function writeDurableCache<T>(pathname: string, data: T): Promise<void> {
   }
 }
 
+// Structured (searchable in Vercel's Logs tab) record of which path each
+// durable cache took — the only way to actually verify from the outside
+// that a cold instance served a request from Blob rather than quietly
+// paying for a full rebuild anyway (Grok round 5: "I can't swear every
+// cold region is instant until Blob is actually wired ... and the next
+// deploy misses cache on purpose").
+function logDurableCache(cache: string, outcome: "hit" | "miss" | "rebuilt", extra: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ level: "info", tag: "durable-cache", cache, outcome, ...extra }));
+}
+
 const SNAPSHOT_BLOB_PATHNAME = "market-snapshot-cache.json";
 
 /**
@@ -67,14 +77,19 @@ const SNAPSHOT_BLOB_PATHNAME = "market-snapshot-cache.json";
  * contract as getMarketSnapshot itself.
  */
 export async function getDurableMarketSnapshot(refresh = false): Promise<MarketSnapshot> {
+  const startedAt = Date.now();
   if (!refresh) {
     const cached = await readDurableCache<MarketSnapshot>(SNAPSHOT_BLOB_PATHNAME);
-    if (cached && Date.now() - cached.cachedAt < SETTINGS.cacheTtlMs) {
+    const ageMs = cached ? Date.now() - cached.cachedAt : undefined;
+    if (cached && ageMs !== undefined && ageMs < SETTINGS.cacheTtlMs) {
+      logDurableCache("snapshot", "hit", { ageMs, durationMs: Date.now() - startedAt });
       return cached.data;
     }
+    logDurableCache("snapshot", "miss", { ageMs });
   }
   const snapshot = await getMarketSnapshot(refresh);
   await writeDurableCache(SNAPSHOT_BLOB_PATHNAME, snapshot);
+  logDurableCache("snapshot", "rebuilt", { refresh, durationMs: Date.now() - startedAt });
   return snapshot;
 }
 
@@ -89,12 +104,17 @@ const BACKTEST_BLOB_PATHNAME = "backtest-report-cache.json";
  * cache.
  */
 async function getDurableBacktestReport(): Promise<BacktestReport> {
+  const startedAt = Date.now();
   const cached = await readDurableCache<BacktestReport>(BACKTEST_BLOB_PATHNAME);
-  if (cached && Date.now() - cached.cachedAt < SETTINGS.backtestCacheTtlMs) {
+  const ageMs = cached ? Date.now() - cached.cachedAt : undefined;
+  if (cached && ageMs !== undefined && ageMs < SETTINGS.backtestCacheTtlMs) {
+    logDurableCache("backtest", "hit", { ageMs, durationMs: Date.now() - startedAt });
     return cached.data;
   }
+  logDurableCache("backtest", "miss", { ageMs });
   const report = await getBacktestReport();
   await writeDurableCache(BACKTEST_BLOB_PATHNAME, report);
+  logDurableCache("backtest", "rebuilt", { durationMs: Date.now() - startedAt });
   return report;
 }
 

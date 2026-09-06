@@ -1127,6 +1127,26 @@ export default function Dashboard() {
                 Forecast accuracy <span className="text-neutral-600">(walk-forward backtest)</span>
               </h2>
               <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+                {/* Plain-language headline before the metric grid — "skill vs.
+                    naive baseline: +5.6%" doesn't read as an answer to "does
+                    this forecast actually beat just guessing last epoch's
+                    number?" without already knowing the baseline is exactly
+                    that guess (Grok round 5). Handles the honest case too:
+                    this can (and sometimes does) go negative. */}
+                <p className="mb-4 text-sm text-neutral-300">
+                  Across {trackRecord.samplePoints.toLocaleString()} historical epochs, this forecast has been{" "}
+                  <span
+                    className={
+                      trackRecord.overall.skillVsBaselineWapePct >= 0
+                        ? "font-medium text-emerald-400"
+                        : "font-medium text-rose-400"
+                    }
+                  >
+                    {trackRecord.overall.skillVsBaselineWapePct >= 0 ? "more accurate" : "less accurate"}
+                  </span>{" "}
+                  than simply assuming each epoch repeats the last one — by{" "}
+                  {Math.abs(trackRecord.overall.skillVsBaselineWapePct).toFixed(1)}%.
+                </p>
                 <div className="flex flex-wrap gap-6">
                   <div>
                     <div className="font-mono text-xs text-neutral-500">error (WAPE)</div>
@@ -1139,7 +1159,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xs text-neutral-500">skill vs. naive baseline</div>
+                    <div className="font-mono text-xs text-neutral-500">vs. last-epoch guess</div>
                     <div
                       className={`font-mono text-sm ${
                         trackRecord.overall.skillVsBaselineWapePct >= 0 ? "text-emerald-400" : "text-rose-400"

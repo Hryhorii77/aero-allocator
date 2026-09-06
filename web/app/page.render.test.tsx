@@ -314,6 +314,44 @@ describe("Dashboard", () => {
     expect(screen.getByText(/n=207/)).toBeInTheDocument();
   });
 
+  it("states in plain language whether the forecast beats a naive last-epoch guess", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // "skill vs. naive baseline: +5.6%" doesn't read as an answer to "does
+    // this beat just assuming last epoch repeats" without already knowing
+    // that's exactly what the baseline is (Grok round 5) — this headline
+    // sentence spells it out directly.
+    expect(screen.getByText(/more accurate/i)).toBeInTheDocument();
+    expect(screen.getByText(/simply assuming each epoch repeats the last one/i)).toBeInTheDocument();
+    expect(screen.getByText(/by 5\.6%/)).toBeInTheDocument();
+  });
+
+  it("frames a negative skill-vs-baseline honestly as less accurate, not just a signed number", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            trackRecord: {
+              ...dashboardPayload.trackRecord,
+              overall: { ...dashboardPayload.trackRecord.overall, skillVsBaselineWapePct: -4.2 },
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText(/less accurate/i)).toBeInTheDocument();
+    expect(screen.getByText(/by 4\.2%/)).toBeInTheDocument();
+  });
+
   it("mutes the confidence bar on a thin (near-zero-vote) row instead of showing it as high confidence", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
