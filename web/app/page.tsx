@@ -807,17 +807,23 @@ export default function Dashboard() {
                         <td className="px-4 py-2.5 text-right">
                           <EdgeBadge edge={p.edgePct} />
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
-                          <span
-                            title={
-                              thin
-                                ? "Current vote share is near zero — this $/1k figure is based on very few votes and can swing wildly the moment anyone votes here. Not a reliable signal on its own."
-                                : undefined
-                            }
-                          >
-                            ${p.rewardPer1kVotesUsd.toFixed(2)}
-                            {thin && <span className="ml-1 text-amber-500">⚠</span>}
-                          </span>
+                        <td
+                          className="px-4 py-2.5 font-mono text-neutral-300"
+                          title={
+                            thin
+                              ? "Current vote share is near zero — this $/1k figure is based on very few votes and can swing wildly the moment anyone votes here. Not a reliable signal on its own."
+                              : undefined
+                          }
+                        >
+                          {/* Reserve a fixed-width slot for the optional
+                              warning icon so its presence doesn't shift the
+                              amount left compared to rows without it — same
+                              fix as the trend/epoch arrows drifting
+                              (spotted live, same underlying cause). */}
+                          <div className="grid grid-cols-[1fr_14px] items-center gap-1">
+                            <span className="text-right">${p.rewardPer1kVotesUsd.toFixed(2)}</span>
+                            <span className="text-center text-amber-500">{thin ? "⚠" : ""}</span>
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <ConfidenceBar

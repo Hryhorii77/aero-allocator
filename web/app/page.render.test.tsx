@@ -241,6 +241,23 @@ describe("Dashboard", () => {
     expect(within(rowA).queryByText("⚠")).not.toBeInTheDocument();
   });
 
+  it("reserves a fixed-width slot for the ⚠ so the $/1k amount doesn't shift left when it's absent", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // The warning icon used to sit right after the amount in one
+    // right-aligned text run, so its presence/absence shifted where the
+    // dollar figure itself landed row to row (spotted live) — same
+    // underlying cause as the trend/epoch arrow drift. A fixed-width
+    // second grid column keeps the amount's position constant either way.
+    const tbody = document.querySelector("tbody")!;
+    const flaggedAmount = within(within(tbody).getByText("POOL-C").closest("tr")!).getByText("$8.40");
+    const unflaggedAmount = within(within(tbody).getByText("POOL-A").closest("tr")!).getByText("$1.10");
+    for (const amount of [flaggedAmount, unflaggedAmount]) {
+      expect(amount.parentElement!.className).toMatch(/grid-cols-\[1fr_14px\]/);
+    }
+  });
+
   it("retitles the hot-pools section and warns when sorted by $/1k votes", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
