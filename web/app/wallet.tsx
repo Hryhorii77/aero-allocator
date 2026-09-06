@@ -139,7 +139,14 @@ export function VotePanel({
   allocations,
   onNftSelected,
 }: {
-  allocations: Array<{ pool: string; symbol: string; weightPct: number }>;
+  allocations: Array<{
+    pool: string;
+    symbol: string;
+    weightPct: number;
+    /** Gauge's existing vote count and the vote count this allocation would add — present only for the voter_roi objective, which is the only one that actually casts a vote. Used to warn before a vote would make the caller the majority of a near-empty gauge. */
+    currentVotes?: number;
+    votesAllocated?: number;
+  }>;
   /** Fired with the veNFT's real voting balance when the user picks one from the dropdown, so the caller can re-size the allocation for what this NFT can actually vote with. */
   onNftSelected?: (votingPower: number) => void;
 }) {
@@ -188,6 +195,37 @@ export function VotePanel({
       chainId: DISPLAY_PRESET.chain.id,
       args: buildVoteArgs(tokenId, allocations),
     });
+  };
+
+  // Gauges this vote would dominate — near-empty gauges where the caller's
+  // own vote would be the majority of what's there. Silently casting into
+  // one of these was "the last dangerous click" (Grok round 4): the weight
+  // bars and $/1k warning are visible above, but nothing stops the actual
+  // vote. Recomputed from scratch (not memoized) whenever it's read, since
+  // allocations is a small (<=8 row) array recreated on every recompute.
+  const dominantGauges = allocations
+    .map((a) => ({
+      ...a,
+      gaugeSharePct:
+        a.votesAllocated !== undefined && a.currentVotes !== undefined && a.currentVotes + a.votesAllocated > 0
+          ? (a.votesAllocated / (a.currentVotes + a.votesAllocated)) * 100
+          : undefined,
+    }))
+    .filter((a): a is typeof a & { gaugeSharePct: number } => (a.gaugeSharePct ?? 0) > 50);
+
+  const [showThinGaugeConfirm, setShowThinGaugeConfirm] = useState(false);
+
+  useEffect(() => {
+    setShowThinGaugeConfirm(false);
+  }, [allocations]);
+
+  const requestCastVote = () => {
+    if (dominantGauges.length > 0 && !showThinGaugeConfirm) {
+      setShowThinGaugeConfirm(true);
+      return;
+    }
+    setShowThinGaugeConfirm(false);
+    castVote();
   };
 
   const [calldataId, setCalldataId] = useState("");
@@ -280,7 +318,7 @@ export function VotePanel({
             />
           )}
           <button
-            onClick={castVote}
+            onClick={requestCastVote}
             disabled={!tokenId || signing || confirming || allocations.length === 0 || !addresses}
             className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm text-white hover:bg-emerald-600 disabled:opacity-40"
           >
@@ -297,6 +335,37 @@ export function VotePanel({
             </a>
           )}
         </div>
+        {showThinGaugeConfirm && (
+          <div className="mt-2 rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-xs text-amber-300">
+            <p className="mb-2">
+              {dominantGauges.length === 1
+                ? "This vote would make you the majority of the gauge below"
+                : "These votes would make you the majority of the gauges below"}{" "}
+              — near-empty gauge{dominantGauges.length > 1 ? "s" : ""} your vote alone would decide:
+            </p>
+            <ul className="mb-2 list-disc pl-4">
+              {dominantGauges.map((a) => (
+                <li key={a.pool}>
+                  {a.symbol} — you&rsquo;d be ≈{a.gaugeSharePct.toFixed(0)}% of this gauge&rsquo;s votes
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <button
+                onClick={requestCastVote}
+                className="rounded-lg bg-amber-700 px-3 py-1 text-white hover:bg-amber-600"
+              >
+                cast anyway
+              </button>
+              <button
+                onClick={() => setShowThinGaugeConfirm(false)}
+                className="rounded-lg border border-neutral-700 px-3 py-1 text-neutral-300 hover:border-neutral-500"
+              >
+                cancel
+              </button>
+            </div>
+          </div>
+        )}
         {writeError && (
           <p className="mt-2 break-all text-xs text-rose-400">
             {(writeError as { shortMessage?: string }).shortMessage ?? writeError.message}{" "}

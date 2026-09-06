@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
@@ -118,6 +118,7 @@ function renderDashboard() {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string | URL) => {
@@ -131,6 +132,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
 });
 
 // "POOL-A"/"POOL-B" appear twice once loaded (the hot-pools table row and
@@ -292,6 +294,41 @@ describe("Dashboard", () => {
     expect(screen.getByText(/624 pts/)).toBeInTheDocument();
     expect(screen.getByText(/conf 0\.30–0\.60/)).toBeInTheDocument();
     expect(screen.getByText(/n=207/)).toBeInTheDocument();
+  });
+
+  it("mutes the confidence bar on a thin (near-zero-vote) row instead of showing it as high confidence", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // POOL-C is the near-zero-vote row (voteSharePct: 0.02) with confidence
+    // 0.78 — high enough to render as the "high confidence" sky-blue bar
+    // unless muted, which sits contradictorily next to "no votes yet"
+    // (Grok round 4: "don't put high confidence next to no votes yet").
+    const tbody = document.querySelector("tbody")!;
+    const rowC = within(tbody).getByText("POOL-C").closest("tr")!;
+    const barC = rowC.querySelector(".bg-neutral-600, .bg-sky-500, .bg-sky-700")!;
+    expect(barC.className).toContain("bg-neutral-600");
+    expect(within(rowC).getByText("78%").className).toContain("text-neutral-600");
+
+    // POOL-A has real vote share and keeps its normal (non-muted) styling.
+    const rowA = within(tbody).getByText("POOL-A").closest("tr")!;
+    const barA = rowA.querySelector(".bg-neutral-600, .bg-sky-500, .bg-sky-700")!;
+    expect(barA.className).toContain("bg-sky-500");
+  });
+
+  it("hydrates from the last cached snapshot instead of blocking on the cold-start spinner, then clears once fresh data lands", async () => {
+    window.localStorage.setItem(
+      "aero-allocator:dashboard-cache:v1",
+      JSON.stringify({ cachedAt: Date.now() - 5 * 60_000, data: dashboardPayload }),
+    );
+    renderDashboard();
+
+    // Cached pools render on the very first paint — no cold-start spinner.
+    expect(screen.getAllByText("POOL-A").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/building live snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/showing cached data from 5m ago/i)).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.queryByText(/showing cached data from/i)).not.toBeInTheDocument());
   });
 
   it("omits the track record panel gracefully when the backtest wasn't available", async () => {

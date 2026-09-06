@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { ConnectButton, VotePanel } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
 
@@ -126,6 +126,68 @@ interface TrackRecord {
   methodology: string;
 }
 
+// The dashboard's snapshot build is a cold RPC scan (up to ~1min) whenever
+// the server-side cache (lib/snapshot.ts) is cold — a new deploy, or just
+// the cache TTL lapsing between visits. Persisting the last successful
+// payload client-side means a returning visitor sees last epoch's numbers
+// immediately (marked stale, with a timestamp) instead of the same blocking
+// spinner every time (Grok round 4: "cold start is the first thing I see").
+const DASHBOARD_CACHE_KEY = "aero-allocator:dashboard-cache:v1";
+
+interface DashboardCachePayload {
+  generatedAt: number;
+  epochStart: number;
+  epochProgressPct: number;
+  pools: PoolRow[];
+  voterAlloc: Allocation;
+  protoAlloc: Allocation;
+  edgeAlloc: Allocation;
+  lpDeposits: LpDepositReport;
+  voteSwings: VoteSwingReport;
+  trackRecord: TrackRecord | null;
+}
+
+function readDashboardCache(): { cachedAt: number; data: DashboardCachePayload } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardCache(data: DashboardCachePayload) {
+  try {
+    window.localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data }));
+  } catch {
+    // Quota/private-browsing failures are fine to swallow — this cache is a
+    // cold-start UX nicety, not required for the page to work correctly.
+  }
+}
+
+// This page is SSR'd (Next.js still renders "use client" components on the
+// server for the initial HTML), so hydrating cached-snapshot state directly
+// into useState's initializer would render a populated table on the client
+// against server HTML that always rendered the cold-start spinner (window
+// is undefined server-side) — a real hydration mismatch, not a cosmetic
+// one, that made React discard and re-render the whole tree. Reading the
+// cache in a layout effect instead means the first client render still
+// matches the server's spinner exactly, and the swap to cached data happens
+// synchronously before the browser paints, so there's no visible flash.
+// useLayoutEffect logs a (harmless) warning if run on the server itself, so
+// fall back to useEffect there — it's a no-op during SSR either way.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+export function formatAgo(ms: number): string {
+  if (ms < 60_000) return "just now";
+  const min = Math.floor(ms / 60_000);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
 export const usd = (n: number) =>
   n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
@@ -199,20 +261,27 @@ function EdgeBadge({ edge }: { edge: number }) {
   );
 }
 
-function ConfidenceBar({ value }: { value: number }) {
+function ConfidenceBar({ value, muted, title }: { value: number; muted?: boolean; title?: string }) {
   // The bar alone doesn't discriminate well: live confidence tends to
   // cluster tightly (e.g. most pools sit around 0.75-0.80), so a handful of
   // percentage points of bar-width difference is sub-pixel at this size —
   // the number is what actually communicates the difference.
+  //
+  // `muted` forces the neutral styling regardless of value — this number is
+  // fee-prediction confidence, unrelated to vote-share stability, so a thin
+  // (near-zero-vote) row showing a bright "high confidence" bar reads as a
+  // false all-clear right next to "no votes yet" (Grok round 4).
   return (
-    <div className="flex items-center gap-1.5" title={`confidence ${value}`}>
+    <div className="flex items-center gap-1.5" title={title ?? `confidence ${value}`}>
       <div className="h-1.5 w-8 shrink-0 rounded bg-neutral-800">
         <div
-          className={`h-full rounded ${value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
+          className={`h-full rounded ${muted ? "bg-neutral-600" : value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
           style={{ width: `${Math.round(value * 100)}%` }}
         />
       </div>
-      <span className="font-mono text-xs text-neutral-400">{Math.round(value * 100)}%</span>
+      <span className={`font-mono text-xs ${muted ? "text-neutral-600" : "text-neutral-400"}`}>
+        {Math.round(value * 100)}%
+      </span>
     </div>
   );
 }
@@ -356,6 +425,9 @@ export default function Dashboard() {
   const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
   const [voteSwings, setVoteSwings] = useState<VoteSwingReport | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+  // Non-null while the visible data is last epoch's cache rather than a
+  // fresh fetch — cleared the moment loadAll's own request lands.
+  const [staleSince, setStaleSince] = useState<number | null>(null);
   // Read from the URL (if shared) so loadAll's very first fetch already
   // uses the right value — the alternative (fetch once with the default,
   // then again with the URL's value once an effect runs) is a real race:
@@ -370,6 +442,29 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Hydrate from the last cached snapshot before the browser paints — see
+  // useIsomorphicLayoutEffect's comment above for why this can't just be
+  // each state's own initializer. A cache hit still kicks off loadAll's own
+  // background refetch below unchanged.
+  useIsomorphicLayoutEffect(() => {
+    const cached = readDashboardCache();
+    if (!cached) return;
+    setSnapshot({
+      generatedAt: cached.data.generatedAt,
+      epochStart: cached.data.epochStart,
+      epochProgressPct: cached.data.epochProgressPct,
+      pools: cached.data.pools,
+    });
+    setVoterAlloc(cached.data.voterAlloc);
+    setProtoAlloc(cached.data.protoAlloc);
+    setEdgeAlloc(cached.data.edgeAlloc);
+    setLpDeposits(cached.data.lpDeposits);
+    setVoteSwings(cached.data.voteSwings);
+    setTrackRecord(cached.data.trackRecord);
+    setStaleSince(cached.cachedAt);
+    setLoading(false);
+  }, []);
 
   const [bribePool, setBribePool] = useState("");
   const [bribeBudget, setBribeBudget] = useState(5000);
@@ -435,6 +530,19 @@ export default function Dashboard() {
       setLpDeposits(data.lpDeposits);
       setVoteSwings(data.voteSwings);
       setTrackRecord(data.trackRecord);
+      setStaleSince(null);
+      writeDashboardCache({
+        generatedAt: data.generatedAt,
+        epochStart: data.epochStart,
+        epochProgressPct: data.epochProgressPct,
+        pools: data.pools,
+        voterAlloc: data.voterAlloc,
+        protoAlloc: data.protoAlloc,
+        edgeAlloc: data.edgeAlloc,
+        lpDeposits: data.lpDeposits,
+        voteSwings: data.voteSwings,
+        trackRecord: data.trackRecord,
+      });
       if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -543,6 +651,12 @@ export default function Dashboard() {
         </div>
       )}
 
+      {staleSince !== null && (
+        <div className="mb-6 rounded-lg border border-neutral-800 bg-neutral-900/40 px-4 py-2 text-xs text-neutral-400">
+          showing cached data from {formatAgo(Date.now() - staleSince)} — refreshing…
+        </div>
+      )}
+
       {loading && !snapshot && (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 px-6 py-16 text-center">
           <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-neutral-700 border-t-sky-400" />
@@ -593,7 +707,15 @@ export default function Dashboard() {
                         $/1k ${p.rewardPer1kVotesUsd.toFixed(2)}
                         {thin && " ⚠"}
                       </span>
-                      <ConfidenceBar value={p.confidence} />
+                      <ConfidenceBar
+                        value={p.confidence}
+                        muted={thin}
+                        title={
+                          thin
+                            ? "Fee-prediction confidence only — not a signal that voting here is safe, since current votes are near zero."
+                            : undefined
+                        }
+                      />
                     </div>
                     {thin && (
                       <p className="mt-1 text-[11px] text-amber-500">
@@ -676,7 +798,15 @@ export default function Dashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5">
-                          <ConfidenceBar value={p.confidence} />
+                          <ConfidenceBar
+                            value={p.confidence}
+                            muted={thin}
+                            title={
+                              thin
+                                ? "Fee-prediction confidence only — not a signal that voting here is safe, since current votes are near zero."
+                                : undefined
+                            }
+                          />
                         </td>
                       </tr>
                     );
