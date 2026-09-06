@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { put, get as getBlob } from "@vercel/blob";
 import {
   applyConfidenceCalibration,
@@ -80,11 +81,47 @@ async function writeDurableCache<T>(pathname: string, data: T): Promise<void> {
 // paying for a full rebuild anyway (Grok round 5: "I can't swear every
 // cold region is instant until Blob is actually wired ... and the next
 // deploy misses cache on purpose").
-function logDurableCache(cache: string, outcome: "hit" | "miss" | "rebuilt", extra: Record<string, unknown> = {}) {
+function logDurableCache(
+  cache: string,
+  outcome: "hit" | "stale-hit" | "miss" | "rebuilt" | "background-refreshed" | "background-refresh-failed",
+  extra: Record<string, unknown> = {},
+) {
   console.log(JSON.stringify({ level: "info", tag: "durable-cache", cache, outcome, ...extra }));
 }
 
+/**
+ * Stale-while-revalidate: a bare TTL means whoever is unlucky enough to be
+ * the first visitor after it lapses always pays full price, no matter how
+ * short or long it's set — Grok round 6 caught exactly this (a visit ~38
+ * minutes after the last one cold-started, since the snapshot TTL is only
+ * 5 minutes). Once a blob has been written at least once, this makes sure
+ * *no visitor ever waits on a rebuild again*: an expired entry is still
+ * served immediately, with a background refresh (via Next's after(),
+ * which extends the serverless invocation past the response using
+ * Vercel's waitUntil) kicked off for the *next* request to benefit from.
+ * `inFlight` coalesces concurrent triggers on the same warm instance —
+ * several requests can all see the same stale blob before the first
+ * refresh finishes.
+ */
+function refreshInBackground<T>(cache: string, pathname: string, inFlight: { promise: Promise<void> | null }, rebuild: () => Promise<T>) {
+  if (inFlight.promise) return;
+  inFlight.promise = (async () => {
+    try {
+      const fresh = await rebuild();
+      await writeDurableCache(pathname, fresh);
+      logDurableCache(cache, "background-refreshed");
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      logDurableCache(cache, "background-refresh-failed", { message: error.message });
+    } finally {
+      inFlight.promise = null;
+    }
+  })();
+  after(() => inFlight.promise ?? Promise.resolve());
+}
+
 const SNAPSHOT_BLOB_PATHNAME = "market-snapshot-cache.json";
+const snapshotRefreshInFlight: { promise: Promise<void> | null } = { promise: null };
 
 /**
  * getMarketSnapshot, plus the cross-instance durable cache described above.
@@ -95,12 +132,17 @@ export async function getDurableMarketSnapshot(refresh = false): Promise<MarketS
   const startedAt = Date.now();
   if (!refresh) {
     const cached = await readDurableCache<MarketSnapshot>(SNAPSHOT_BLOB_PATHNAME);
-    const ageMs = cached ? Date.now() - cached.cachedAt : undefined;
-    if (cached && ageMs !== undefined && ageMs < SETTINGS.cacheTtlMs) {
-      logDurableCache("snapshot", "hit", { ageMs, durationMs: Date.now() - startedAt });
+    if (cached) {
+      const ageMs = Date.now() - cached.cachedAt;
+      if (ageMs < SETTINGS.cacheTtlMs) {
+        logDurableCache("snapshot", "hit", { ageMs, durationMs: Date.now() - startedAt });
+        return cached.data;
+      }
+      logDurableCache("snapshot", "stale-hit", { ageMs, durationMs: Date.now() - startedAt });
+      refreshInBackground("snapshot", SNAPSHOT_BLOB_PATHNAME, snapshotRefreshInFlight, () => getMarketSnapshot(false));
       return cached.data;
     }
-    logDurableCache("snapshot", "miss", { ageMs });
+    logDurableCache("snapshot", "miss");
   }
   const snapshot = await getMarketSnapshot(refresh);
   await writeDurableCache(SNAPSHOT_BLOB_PATHNAME, snapshot);
@@ -109,24 +151,31 @@ export async function getDurableMarketSnapshot(refresh = false): Promise<MarketS
 }
 
 const BACKTEST_BLOB_PATHNAME = "backtest-report-cache.json";
+const backtestRefreshInFlight: { promise: Promise<void> | null } = { promise: null };
 
 /**
  * getBacktestReport (default params only — the same call calibratedSnapshot
- * and buildFullForecast make), plus the cross-instance durable cache. Its
- * own walk-forward replay is a second, independent RPC-bound cost from the
+ * and buildFullForecast make), plus the cross-instance durable cache and
+ * the same stale-while-revalidate behavior as the snapshot above. Its own
+ * walk-forward replay is a second, independent RPC-bound cost from the
  * live snapshot's — this is exactly what a fresh instance was still paying
- * during a live check (48s) even after the snapshot side hit its own blob
- * cache.
+ * during an earlier live check (48s) even after the snapshot side hit its
+ * own blob cache.
  */
 async function getDurableBacktestReport(): Promise<BacktestReport> {
   const startedAt = Date.now();
   const cached = await readDurableCache<BacktestReport>(BACKTEST_BLOB_PATHNAME);
-  const ageMs = cached ? Date.now() - cached.cachedAt : undefined;
-  if (cached && ageMs !== undefined && ageMs < SETTINGS.backtestCacheTtlMs) {
-    logDurableCache("backtest", "hit", { ageMs, durationMs: Date.now() - startedAt });
+  if (cached) {
+    const ageMs = Date.now() - cached.cachedAt;
+    if (ageMs < SETTINGS.backtestCacheTtlMs) {
+      logDurableCache("backtest", "hit", { ageMs, durationMs: Date.now() - startedAt });
+      return cached.data;
+    }
+    logDurableCache("backtest", "stale-hit", { ageMs, durationMs: Date.now() - startedAt });
+    refreshInBackground("backtest", BACKTEST_BLOB_PATHNAME, backtestRefreshInFlight, () => getBacktestReport());
     return cached.data;
   }
-  logDurableCache("backtest", "miss", { ageMs });
+  logDurableCache("backtest", "miss");
   const report = await getBacktestReport();
   await writeDurableCache(BACKTEST_BLOB_PATHNAME, report);
   logDurableCache("backtest", "rebuilt", { durationMs: Date.now() - startedAt });
