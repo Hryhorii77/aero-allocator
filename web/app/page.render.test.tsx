@@ -294,6 +294,19 @@ describe("Dashboard", () => {
     expect(votingPowerInput).toHaveValue(200);
   });
 
+  it("lets the bribe-budget input be cleared and retyped without a stuck leading zero", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Same bug, same fix, second occurrence spotted live on this input.
+    const bribeBudgetInput = screen.getAllByRole("spinbutton")[1];
+    const user = userEvent.setup();
+    await user.clear(bribeBudgetInput);
+    expect(bribeBudgetInput).toHaveValue(null);
+    await user.type(bribeBudgetInput, "750");
+    expect(bribeBudgetInput).toHaveValue(750);
+  });
+
   it("renders a CSV export control for each allocation objective", async () => {
     renderDashboard();
     await waitForPoolsLoaded();

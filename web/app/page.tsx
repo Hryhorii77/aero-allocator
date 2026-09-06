@@ -1076,8 +1076,12 @@ export default function Dashboard() {
                   <input
                     type="number"
                     min={1}
-                    value={bribeBudget}
-                    onChange={(e) => setBribeBudget(Number(e.target.value))}
+                    // "" (not "0") while cleared — same fix as the veAERO
+                    // voting-power input: Number("") is 0, and re-rendering
+                    // value={0} puts a literal "0" back in the DOM, so the
+                    // next digit typed appends onto it instead of replacing.
+                    value={bribeBudget === 0 ? "" : bribeBudget}
+                    onChange={(e) => setBribeBudget(e.target.value === "" ? 0 : Number(e.target.value))}
                     className="w-32 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                 </div>
