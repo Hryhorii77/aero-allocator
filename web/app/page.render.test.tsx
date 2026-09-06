@@ -195,6 +195,25 @@ describe("Dashboard", () => {
     }
   });
 
+  it("gives the trend/epoch arrow a fixed-width slot so it doesn't drift with the amount's length", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Plain "{arrow} {amount}" inline text lets the arrow's x-position
+    // drift row to row, since ▲/▼ aren't the same glyph width and the
+    // amount's length varies — right-aligning the whole string only pins
+    // the amount's right edge, not the arrow's (spotted live: arrows
+    // visibly out of line down the column). A fixed first grid column for
+    // the arrow keeps it in a straight line regardless of amount length.
+    const tbody = document.querySelector("tbody")!;
+    const up = within(within(tbody).getByText("POOL-A").closest("tr")!).getByText("▲");
+    const down = within(within(tbody).getByText("POOL-B").closest("tr")!).getByText("▼");
+    for (const arrow of [up, down]) {
+      const cellContent = arrow.parentElement!;
+      expect(cellContent.className).toMatch(/grid-cols-\[14px_1fr\]/);
+    }
+  });
+
   it("shows a numeric confidence percentage, not just a bar", async () => {
     renderDashboard();
     await waitForPoolsLoaded();

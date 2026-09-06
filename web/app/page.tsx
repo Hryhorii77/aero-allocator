@@ -242,6 +242,27 @@ function ExportCsvButton({ objective, allocations }: { objective: string; alloca
   );
 }
 
+function TrendCell({ value }: { value: number }) {
+  const positive = value > 0;
+  const negative = value < 0;
+  // A plain "{arrow} {amount}" inline flow lets the arrow drift left/right
+  // row to row, since ▲/▼ aren't the same glyph width and the amount's
+  // length varies — right-aligning the whole string only pins the amount's
+  // right edge, not the arrow's position (spotted live: arrows visibly out
+  // of line down the column). A fixed-width first grid column for the
+  // arrow, sized the same on every row, keeps it in a straight line.
+  return (
+    <div
+      className={`grid grid-cols-[14px_1fr] items-center gap-1 font-mono ${
+        positive ? "text-emerald-400" : negative ? "text-rose-400" : "text-neutral-500"
+      }`}
+    >
+      <span className="text-center">{positive ? "▲" : negative ? "▼" : "–"}</span>
+      <span className="text-right">{usd(Math.abs(value))}</span>
+    </div>
+  );
+}
+
 function EdgeBadge({ edge }: { edge: number }) {
   const positive = edge > 0.05;
   const negative = edge < -0.05;
@@ -772,17 +793,8 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
-                        <td
-                          className={`px-4 py-2.5 text-right font-mono ${
-                            p.feeTrendUsdPerEpoch > 0
-                              ? "text-emerald-400"
-                              : p.feeTrendUsdPerEpoch < 0
-                                ? "text-rose-400"
-                                : "text-neutral-500"
-                          }`}
-                        >
-                          {p.feeTrendUsdPerEpoch > 0 ? "▲" : p.feeTrendUsdPerEpoch < 0 ? "▼" : "–"}{" "}
-                          {usd(Math.abs(p.feeTrendUsdPerEpoch))}
+                        <td className="px-4 py-2.5">
+                          <TrendCell value={p.feeTrendUsdPerEpoch} />
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
                           {thin ? (
@@ -981,17 +993,8 @@ export default function Dashboard() {
                       <td className="px-4 py-2.5 text-right font-mono text-emerald-400">
                         {o.predictedNextEpochAprPct.toFixed(1)}%
                       </td>
-                      <td
-                        className={`px-4 py-2.5 text-right font-mono ${
-                          o.emissionsTrendUsdPerEpoch > 0
-                            ? "text-emerald-400"
-                            : o.emissionsTrendUsdPerEpoch < 0
-                              ? "text-rose-400"
-                              : "text-neutral-500"
-                        }`}
-                      >
-                        {o.emissionsTrendUsdPerEpoch > 0 ? "▲" : o.emissionsTrendUsdPerEpoch < 0 ? "▼" : "–"}{" "}
-                        {usd(Math.abs(o.emissionsTrendUsdPerEpoch))}
+                      <td className="px-4 py-2.5">
+                        <TrendCell value={o.emissionsTrendUsdPerEpoch} />
                       </td>
                       <td className="px-4 py-2.5">
                         <ConfidenceBar value={o.confidence} />
