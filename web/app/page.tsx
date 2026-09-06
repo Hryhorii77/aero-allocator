@@ -390,7 +390,22 @@ function SortHeader<K extends string>({
         className={`inline-flex items-center gap-1 hover:text-neutral-300 ${active ? "text-neutral-200" : ""}`}
       >
         {label}
-        <span className="w-2.5 text-[10px]">{active ? (sort.dir === "desc" ? "▼" : "▲") : ""}</span>
+        {/* A faint static "sortable" affordance on every header, replaced by
+            the bold directional arrow once it's the active sort — without
+            this, an inactive sortable column looked identical to the
+            non-sortable "pool" header, so there was no way to tell which
+            columns were clickable without trying (works on touch too,
+            unlike a hover-only reveal). Stacks the same ▲▼ glyphs used for
+            the active state — a dedicated bidirectional-arrow character
+            (⇅) isn't in this font's loaded subset and rendered as tofu. */}
+        {active ? (
+          <span className="w-2.5 text-[10px]">{sort.dir === "desc" ? "▼" : "▲"}</span>
+        ) : (
+          <span className="flex w-2.5 flex-col text-[7px] leading-[7px] text-neutral-600">
+            <span>▲</span>
+            <span>▼</span>
+          </span>
+        )}
       </button>
     </th>
   );

@@ -284,6 +284,23 @@ describe("Dashboard", () => {
     expect(within(rowC).getByText("no votes yet")).toBeInTheDocument();
   });
 
+  it("shows a stacked ▲▼ affordance on inactive sortable headers, replaced by a single bold arrow once active", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Previously an inactive sortable header showed no arrow at all,
+    // looking identical to the non-sortable "pool" header — no way to
+    // tell which columns were clickable without trying.
+    const edgeHeader = screen.getByRole("button", { name: /^edge/i });
+    expect(edgeHeader).toHaveTextContent("▲");
+    expect(edgeHeader).toHaveTextContent("▼");
+
+    const user = userEvent.setup();
+    await user.click(edgeHeader);
+    expect(edgeHeader).not.toHaveTextContent("▲");
+    expect(edgeHeader).toHaveTextContent("▼");
+  });
+
   it("keeps the $/1k-votes warning sort out of the shareable URL (Grok round 4)", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -298,7 +315,7 @@ describe("Dashboard", () => {
     expect(window.location.search).not.toMatch(/sort=rewardPer1kVotesUsd/);
 
     // Sorting by a normal column does restore it into the URL.
-    await user.click(screen.getByRole("button", { name: /^edge$/i }));
+    await user.click(screen.getByRole("button", { name: /^edge/i }));
     expect(window.location.search).toMatch(/sort=edgePct/);
   });
 
