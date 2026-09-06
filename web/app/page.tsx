@@ -841,8 +841,14 @@ export default function Dashboard() {
                   <input
                     type="number"
                     min={1}
-                    value={votingPower}
-                    onChange={(e) => setVotingPower(Number(e.target.value))}
+                    // Rendering "" (not "0") while cleared stops a stuck
+                    // leading zero: Number("") is 0, so clearing the field
+                    // down to empty and re-rendering value={0} would put a
+                    // literal "0" back in the DOM — then the next digit
+                    // typed appends onto it ("0" + "2" = "02") instead of
+                    // replacing it, so 10,000 could never become 200.
+                    value={votingPower === 0 ? "" : votingPower}
+                    onChange={(e) => setVotingPower(e.target.value === "" ? 0 : Number(e.target.value))}
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                   <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>

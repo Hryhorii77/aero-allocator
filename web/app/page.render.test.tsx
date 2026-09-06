@@ -277,6 +277,23 @@ describe("Dashboard", () => {
     expect(screen.getByText(/your vote ≈ 12\.1% of this gauge/)).toBeInTheDocument();
   });
 
+  it("lets the veAERO voting-power input be cleared and retyped without a stuck leading zero", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Number("") is 0, so clearing the field down to empty and rendering
+    // value={0} back would put a literal "0" in the DOM — the next digit
+    // typed then appends onto it ("0" + "2" = "02") instead of replacing
+    // it, so 10,000 could never become 200 (spotted live: the field got
+    // stuck showing "01").
+    const votingPowerInput = screen.getAllByRole("spinbutton")[0];
+    const user = userEvent.setup();
+    await user.clear(votingPowerInput);
+    expect(votingPowerInput).toHaveValue(null); // genuinely empty, not "0"
+    await user.type(votingPowerInput, "200");
+    expect(votingPowerInput).toHaveValue(200);
+  });
+
   it("renders a CSV export control for each allocation objective", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
