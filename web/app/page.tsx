@@ -501,11 +501,21 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Keep the URL in sync so the current view is always shareable.
+  // Keep the URL in sync so the current view is always shareable — except
+  // $/1k votes, which is a volatility *warning* view (thin, near-zero-vote
+  // gauges), not a view worth handing out as "the" link for this app (Grok
+  // round 4: "don't tweet the warning mode as the homepage"). Exploring it
+  // stays purely client-side; the address bar keeps whatever safe sort it
+  // last held, so a copy-pasted link always lands on predicted fees/edge.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    params.set("sort", poolSort.key);
-    params.set("dir", poolSort.dir);
+    if (poolSort.key === "rewardPer1kVotesUsd") {
+      params.delete("sort");
+      params.delete("dir");
+    } else {
+      params.set("sort", poolSort.key);
+      params.set("dir", poolSort.dir);
+    }
     params.set("lpSort", lpSort.key);
     params.set("lpDir", lpSort.dir);
     params.set("vp", String(votingPower));

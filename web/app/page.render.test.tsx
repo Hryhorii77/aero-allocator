@@ -248,6 +248,24 @@ describe("Dashboard", () => {
     expect(within(rowC).getByText("no votes yet")).toBeInTheDocument();
   });
 
+  it("keeps the $/1k-votes warning sort out of the shareable URL (Grok round 4)", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /\$\/1k votes/i }));
+
+    // The in-page view does switch to the warning sort...
+    expect(screen.getByText(/thin gauges/i)).toBeInTheDocument();
+    // ...but the address bar a user would copy/share stays off it — "don't
+    // tweet the warning mode as the homepage".
+    expect(window.location.search).not.toMatch(/sort=rewardPer1kVotesUsd/);
+
+    // Sorting by a normal column does restore it into the URL.
+    await user.click(screen.getByRole("button", { name: /^edge$/i }));
+    expect(window.location.search).toMatch(/sort=edgePct/);
+  });
+
   it("shows TVL, current votes, and gauge-share context under a Voter ROI allocation row", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
