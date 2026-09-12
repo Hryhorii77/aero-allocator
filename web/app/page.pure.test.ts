@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown, isConfidenceClustered } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -44,6 +44,45 @@ describe("isConfidenceClustered", () => {
 
   it("is false once the spread crosses the threshold", () => {
     expect(isConfidenceClustered([0.4, 0.6, 0.9])).toBe(false);
+  });
+});
+
+describe("matchesPoolFilter", () => {
+  const basePool = { symbol: "TEST/USDC", lastEpochFeesUsd: 100, edgePct: 0, confidence: 0.5 };
+
+  it("matches everything under 'all'", () => {
+    expect(matchesPoolFilter(basePool, "all", "AERO")).toBe(true);
+  });
+
+  it("matches a stablecoin ticker anywhere in the symbol under 'stables'", () => {
+    expect(matchesPoolFilter({ ...basePool, symbol: "WETH/USDC" }, "stables", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, symbol: "WETH/WBTC" }, "stables", "AERO")).toBe(false);
+  });
+
+  it("matches the configured protocol token under 'aero', case-insensitively", () => {
+    expect(matchesPoolFilter({ ...basePool, symbol: "aero/usdc" }, "aero", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, symbol: "WETH/USDC" }, "aero", "AERO")).toBe(false);
+  });
+
+  it("matches BTC-wrapped symbols under 'btc'", () => {
+    expect(matchesPoolFilter({ ...basePool, symbol: "CBBTC/USDC" }, "btc", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, symbol: "WETH/USDC" }, "btc", "AERO")).toBe(false);
+  });
+
+  it("matches pools with no prior-epoch fees under 'new'", () => {
+    expect(matchesPoolFilter({ ...basePool, lastEpochFeesUsd: 0 }, "new", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, lastEpochFeesUsd: 1 }, "new", "AERO")).toBe(false);
+  });
+
+  it("matches only a positive edge under 'positiveEdge'", () => {
+    expect(matchesPoolFilter({ ...basePool, edgePct: 5 }, "positiveEdge", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, edgePct: 0 }, "positiveEdge", "AERO")).toBe(false);
+    expect(matchesPoolFilter({ ...basePool, edgePct: -5 }, "positiveEdge", "AERO")).toBe(false);
+  });
+
+  it("matches confidence at or above 0.6 under 'highConf'", () => {
+    expect(matchesPoolFilter({ ...basePool, confidence: 0.6 }, "highConf", "AERO")).toBe(true);
+    expect(matchesPoolFilter({ ...basePool, confidence: 0.59 }, "highConf", "AERO")).toBe(false);
   });
 });
 

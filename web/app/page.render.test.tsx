@@ -181,6 +181,53 @@ describe("Dashboard", () => {
     expect(rowsInOrder()).toEqual(["POOL-B", "POOL-A", "POOL-C"]);
   });
 
+  // Scoped to the hot-pools <section> specifically — POOL-A also appears in
+  // the unrelated voter_roi allocation table below, which the search/filter
+  // controls don't (and shouldn't) touch.
+  function hotPoolsSection() {
+    return screen.getByPlaceholderText(/search symbol/i).closest("section") as HTMLElement;
+  }
+
+  it("narrows the hot-pools table to symbols matching the search box", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(/search symbol/i), "pool-b");
+
+    await waitFor(() => expect(within(hotPoolsSection()).queryAllByText("POOL-A")).toHaveLength(0));
+    expect(within(hotPoolsSection()).getAllByText("POOL-B").length).toBeGreaterThan(0);
+    expect(screen.getByText(/showing top 1 of 1 matching pools/i)).toBeInTheDocument();
+  });
+
+  it("narrows the hot-pools table by a filter chip, and reports when nothing matches", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // None of the fixture pools have lastEpochFeesUsd === 0, so "new this
+    // epoch" should empty the table out entirely rather than silently
+    // showing stale rows.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "new this epoch" }));
+
+    expect(await screen.findByText(/no pools match this search\/filter/i)).toBeInTheDocument();
+    expect(within(hotPoolsSection()).queryAllByText("POOL-A")).toHaveLength(0);
+  });
+
+  it("clears back to the full table when the 'all' chip is clicked again", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "new this epoch" }));
+    await screen.findByText(/no pools match this search\/filter/i);
+
+    await user.click(screen.getByRole("button", { name: "all" }));
+
+    expect(within(hotPoolsSection()).getAllByText("POOL-A").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/no pools match this search\/filter/i)).not.toBeInTheDocument();
+  });
+
   it("explains that trend/epoch is a regression slope, not predicted-minus-last", async () => {
     renderDashboard();
     await waitForPoolsLoaded();

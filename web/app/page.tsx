@@ -219,6 +219,45 @@ export function isConfidenceClustered(values: number[]): boolean {
   return Math.max(...values) - Math.min(...values) < CONFIDENCE_CLUSTER_THRESHOLD;
 }
 
+// Quick category chips over the pools table (Grok's plan: "tokenized
+// stocks, stables, AERO pairs, new listings are mixed in one dump").
+// Deliberately just symbol substring matches, not a rigorous token
+// classification — "tokenized stocks" specifically has no reliable naming
+// convention to detect here, so it's left out rather than guessed at.
+export type PoolFilterKey = "all" | "stables" | "aero" | "btc" | "new" | "positiveEdge" | "highConf";
+
+const STABLE_TICKERS = ["USDC", "USDT", "DAI", "USDE", "MSUSD", "FRXUSD", "EURC"];
+
+export function matchesPoolFilter(pool: { symbol: string; lastEpochFeesUsd: number; edgePct: number; confidence: number }, filter: PoolFilterKey, aeroTicker: string): boolean {
+  const upperSymbol = pool.symbol.toUpperCase();
+  switch (filter) {
+    case "all":
+      return true;
+    case "stables":
+      return STABLE_TICKERS.some((t) => upperSymbol.includes(t));
+    case "aero":
+      return upperSymbol.includes(aeroTicker.toUpperCase());
+    case "btc":
+      return upperSymbol.includes("BTC");
+    case "new":
+      return pool.lastEpochFeesUsd === 0;
+    case "positiveEdge":
+      return pool.edgePct > 0;
+    case "highConf":
+      return pool.confidence >= 0.6;
+  }
+}
+
+const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
+  { key: "all", label: "all" },
+  { key: "stables", label: "stables" },
+  { key: "aero", label: `${DISPLAY_PRESET.tokenSymbol} pairs` },
+  { key: "btc", label: "BTC" },
+  { key: "new", label: "new this epoch" },
+  { key: "positiveEdge", label: "positive edge" },
+  { key: "highConf", label: "high conf" },
+];
+
 // Split from downloadCsv so the string-building (header order, quoting of
 // values containing commas/quotes/newlines) has a direct unit test —
 // downloadCsv itself is just DOM/Blob plumbing around this.
@@ -717,6 +756,8 @@ export default function Dashboard() {
   });
   const toggleLpSort = (key: LpSortKey) =>
     setLpSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
+  const [poolSearch, setPoolSearch] = useState("");
+  const [poolFilter, setPoolFilter] = useState<PoolFilterKey>("all");
 
   // Read sort choice from the URL once on mount, so a shared link (e.g.
   // "sorted by edge") opens showing the same view. votingPower's own
@@ -832,7 +873,15 @@ export default function Dashboard() {
     }
   };
 
-  const pools = [...(snapshot?.pools.filter((p) => p.predictedFeesUsd > 0) ?? [])]
+  // Search/filter run over the *full* snapshot before the top-20 slice —
+  // stables, AERO pairs, BTC, tokenized stocks, and new listings were all
+  // mixed in one dump with no way to narrow it down (Grok round 8).
+  const trimmedSearch = poolSearch.trim().toLowerCase();
+  const matchingPools = (snapshot?.pools ?? [])
+    .filter((p) => p.predictedFeesUsd > 0)
+    .filter((p) => matchesPoolFilter(p, poolFilter, DISPLAY_PRESET.tokenSymbol))
+    .filter((p) => !trimmedSearch || p.symbol.toLowerCase().includes(trimmedSearch));
+  const pools = [...matchingPools]
     .sort((a, b) => (poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key]))
     .slice(0, 20);
   // Retitle/relabel the section when sorted this way — "predicted hot pools"
@@ -951,6 +1000,36 @@ export default function Dashboard() {
                 This sort surfaces pools with the least existing vote weight, so $/1k is the most unstable number
                 on the page — it can collapse the moment anyone else votes here. Not a ranking of the biggest
                 opportunities; sort by predicted fees or edge for that.
+              </p>
+            )}
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={poolSearch}
+                onChange={(e) => setPoolSearch(e.target.value)}
+                placeholder="search symbol…"
+                className="w-36 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+              />
+              {POOL_FILTER_CHIPS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPoolFilter(key)}
+                  className={`rounded-lg border px-2.5 py-1 font-mono text-xs ${
+                    poolFilter === key
+                      ? "border-sky-600 bg-sky-950/40 text-sky-300"
+                      : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(poolSearch.trim() !== "" || poolFilter !== "all") && (
+              <p className="mb-3 text-xs text-neutral-500">
+                {matchingPools.length === 0
+                  ? "No pools match this search/filter."
+                  : `Showing top ${Math.min(20, matchingPools.length)} of ${matchingPools.length} matching pools.`}
               </p>
             )}
             {/* Card layout below sm: an 8-column table clipped to ~2 visible columns on a
