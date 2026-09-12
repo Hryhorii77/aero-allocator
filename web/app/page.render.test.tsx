@@ -303,6 +303,18 @@ describe("Dashboard", () => {
     }
   });
 
+  it("keeps a pool row on one line instead of wrapping a long symbol onto a second line", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // A long symbol like "CL200-WETH/MORPHO" was observed wrapping onto a
+    // second line in production, making that row taller than its neighbors
+    // — the cell had no whitespace-nowrap, unlike its sm:hidden mobile-card
+    // twin which already truncates instead of wrapping.
+    const tbody = document.querySelector("tbody")!;
+    const td = within(tbody).getByText("POOL-A").closest("td")!;
+    expect(td.className).toMatch(/whitespace-nowrap/);
+  });
+
   it("shows a numeric confidence percentage, not just a bar", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -687,6 +699,9 @@ describe("Dashboard", () => {
     const card = links[0].closest(".sm\\:hidden")!;
     expect(card).toBeInTheDocument();
     expect(within(card as HTMLElement).getByText(/staked/i)).toBeInTheDocument();
+
+    const td = links[1].closest("td")!;
+    expect(td.className).toMatch(/whitespace-nowrap/);
   });
 
   it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {

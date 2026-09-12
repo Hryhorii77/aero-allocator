@@ -1221,7 +1221,7 @@ export default function Dashboard() {
                           thin ? "bg-amber-950/10" : ""
                         }`}
                       >
-                        <td className="px-4 py-2.5">
+                        <td className="whitespace-nowrap px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => setExpandedPool(expanded ? null : p.lp)}
@@ -1512,7 +1512,7 @@ export default function Dashboard() {
                 <tbody>
                   {lpOpportunities.map((o) => (
                     <tr key={o.pool} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
-                      <td className="px-4 py-2.5">
+                      <td className="whitespace-nowrap px-4 py-2.5">
                         <a
                           href={poolAppLink("liquidity", o.pool)}
                           target="_blank"
