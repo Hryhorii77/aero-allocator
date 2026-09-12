@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
-import { ConnectButton, VotePanel } from "./wallet";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
 
 const SIBLING_URL = process.env.NEXT_PUBLIC_SIBLING_URL;
@@ -540,6 +540,111 @@ function AllocationRows({
   );
 }
 
+/**
+ * The wallet's actual current on-chain vote split next to the recommended
+ * one, so a voter sees a delta instead of a blank recommendation list they
+ * have to mentally diff against memory — Grok's "personal vote desk":
+ * "I'm 40% in USDC/AERO, model wants 12%, expected +$Y if I rotate."
+ *
+ * The two $ estimates are deliberately NOT apples-to-apples and say so:
+ * "if you switch" reuses the recommendation's own next-epoch predictive
+ * model (expectedRewardUsd, already shown above as "expected ~$X next
+ * epoch"). "if you stay" has no such model to reuse — it approximates
+ * from each pool's last-epoch $/1k rate (the same figure already shown in
+ * the pools table) times the voter's own vote count there. Pretending
+ * these share a basis would be a new, invisible way to mislead; being
+ * explicit about the difference isn't.
+ */
+export function CurrentVsRecommended({
+  currentVotes,
+  votingPower,
+  recommended,
+  poolMeta,
+}: {
+  currentVotes: CurrentVote[];
+  votingPower: number;
+  recommended: AllocationRow[];
+  poolMeta: Map<string, { symbol: string; rewardPer1kVotesUsd: number }>;
+}) {
+  if (currentVotes.length === 0) {
+    return (
+      <p className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-500">
+        This veNFT hasn&rsquo;t voted yet this epoch — nothing to compare your current split against.
+      </p>
+    );
+  }
+
+  const recommendedByPool = new Map(recommended.map((a) => [a.pool.toLowerCase(), a]));
+  const allPools = new Set([
+    ...currentVotes.map((v) => v.pool.toLowerCase()),
+    ...recommended.map((a) => a.pool.toLowerCase()),
+  ]);
+
+  const rows = Array.from(allPools)
+    .map((pool) => {
+      const current = currentVotes.find((v) => v.pool.toLowerCase() === pool);
+      const rec = recommendedByPool.get(pool);
+      const meta = poolMeta.get(pool);
+      return {
+        pool,
+        symbol: meta?.symbol ?? rec?.symbol ?? `${pool.slice(0, 8)}…`,
+        currentPct: current?.weightPct ?? 0,
+        recommendedPct: rec?.weightPct ?? 0,
+        rewardPer1kVotesUsd: meta?.rewardPer1kVotesUsd,
+      };
+    })
+    .sort((a, b) => b.recommendedPct - a.recommendedPct || b.currentPct - a.currentPct);
+
+  let estimateIfStay = 0;
+  let estimateMissingRate = false;
+  for (const r of rows) {
+    if (r.currentPct <= 0) continue;
+    if (r.rewardPer1kVotesUsd === undefined) {
+      estimateMissingRate = true;
+      continue;
+    }
+    const yourVotes = votingPower * (r.currentPct / 100);
+    estimateIfStay += r.rewardPer1kVotesUsd * (yourVotes / 1000);
+  }
+  const estimateIfSwitch = recommended.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
+
+  return (
+    <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+      <div className="mb-2 text-xs text-neutral-500">your current split vs recommended</div>
+      <div className="space-y-1">
+        {rows.map((r) => {
+          const delta = r.recommendedPct - r.currentPct;
+          return (
+            <div key={r.pool} className="flex items-center gap-2 font-mono text-xs">
+              <span className="w-32 truncate text-neutral-300" title={r.symbol}>
+                {r.symbol}
+              </span>
+              <span className="w-14 text-right text-neutral-400">{r.currentPct.toFixed(1)}%</span>
+              <span className="text-neutral-600">→</span>
+              <span className="w-14 text-neutral-100">{r.recommendedPct.toFixed(1)}%</span>
+              <span
+                className={`w-16 text-right ${
+                  delta > 0.05 ? "text-emerald-400" : delta < -0.05 ? "text-rose-400" : "text-neutral-600"
+                }`}
+              >
+                {delta > 0 ? "+" : ""}
+                {delta.toFixed(1)}pp
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 border-t border-neutral-800 pt-2 text-xs leading-relaxed text-neutral-400">
+        Estimated next epoch: <span className="text-neutral-200">{usd(estimateIfStay)}</span> if you keep this
+        split (last epoch&rsquo;s $/1k rate{estimateMissingRate ? "; some pools lack a rate and are excluded" : ""}
+        ), vs <span className="text-emerald-400">{usd(estimateIfSwitch)}</span> if you switch to the
+        recommendation above (this forecast&rsquo;s next-epoch model) — not apples-to-apples, since the two use
+        different bases.
+      </p>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [voterAlloc, setVoterAlloc] = useState<Allocation | null>(null);
@@ -566,6 +671,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The selected veNFT's actual on-chain vote split (null until a real
+  // veNFT is selected) — read once via wallet.tsx's onNftSelected, not
+  // re-fetched here.
+  const [currentVotes, setCurrentVotes] = useState<CurrentVote[] | null>(null);
 
   // Hydrate from the last cached snapshot before the browser paints — see
   // useIsomorphicLayoutEffect's comment above for why this can't just be
@@ -742,6 +851,18 @@ export default function Dashboard() {
   // number, which still discriminates fine) and say so once instead.
   const poolConfClustered = isConfidenceClustered(pools.map((p) => p.confidence));
   const lpConfClustered = isConfidenceClustered(lpOpportunities.map((o) => o.confidence));
+
+  // Keyed by lowercased address so on-chain reads (wagmi/viem checksummed)
+  // and the server's pool list match regardless of casing. Built from the
+  // *full* snapshot, not the visible top-20 slice — a pool the wallet is
+  // currently voted in may not be a top predicted-fee pool at all.
+  const poolMetaByAddress = useMemo(() => {
+    const map = new Map<string, { symbol: string; rewardPer1kVotesUsd: number }>();
+    for (const p of snapshot?.pools ?? []) {
+      map.set(p.lp.toLowerCase(), { symbol: p.symbol, rewardPer1kVotesUsd: p.rewardPer1kVotesUsd });
+    }
+    return map;
+  }, [snapshot]);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
@@ -1055,10 +1176,19 @@ export default function Dashboard() {
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
                   </p>
+                  {currentVotes && (
+                    <CurrentVsRecommended
+                      currentVotes={currentVotes}
+                      votingPower={votingPower}
+                      recommended={voterAlloc.allocations}
+                      poolMeta={poolMetaByAddress}
+                    />
+                  )}
                   <VotePanel
                     allocations={voterAlloc.allocations}
-                    onNftSelected={(vp) => {
+                    onNftSelected={(vp, votes) => {
                       setVotingPower(vp);
+                      setCurrentVotes(votes);
                       recomputeVoterWithPower(vp);
                     }}
                   />

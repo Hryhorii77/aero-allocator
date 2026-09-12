@@ -16,7 +16,7 @@ const { useWriteContractMock, writeContractMock, useReadContractMock } = vi.hois
       reset: vi.fn(),
     })),
     useReadContractMock: vi.fn(() => ({
-      data: [{ id: 93n, voting_amount: 93n * 10n ** 18n }],
+      data: [{ id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] as Array<{ lp: string; weight: bigint }> }],
       isError: false,
     })),
   };
@@ -46,7 +46,7 @@ function renderWithProviders(children: React.ReactNode) {
 beforeEach(() => {
   writeContractMock.mockClear();
   useReadContractMock.mockClear();
-  useReadContractMock.mockReturnValue({ data: [{ id: 93n, voting_amount: 93n * 10n ** 18n }], isError: false });
+  useReadContractMock.mockReturnValue({ data: [{ id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] }], isError: false });
   vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
@@ -75,14 +75,14 @@ describe("VotePanel (connected, with detected veNFTs)", () => {
     renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
 
     expect(await screen.findByText(/re-sized for veNFT #93/i)).toBeInTheDocument();
-    expect(onNftSelected).toHaveBeenCalledWith(93);
+    expect(onNftSelected).toHaveBeenCalledWith(93, []);
   });
 
   it("still allows picking a different lock manually when the wallet holds more than one", async () => {
     useReadContractMock.mockReturnValue({
       data: [
-        { id: 93n, voting_amount: 93n * 10n ** 18n },
-        { id: 44n, voting_amount: 44n * 10n ** 18n },
+        { id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] },
+        { id: 44n, voting_amount: 44n * 10n ** 18n, votes: [] },
       ],
       isError: false,
     });
@@ -95,8 +95,36 @@ describe("VotePanel (connected, with detected veNFTs)", () => {
     const user = userEvent.setup();
     await user.selectOptions(screen.getByRole("combobox"), "44");
 
-    expect(onNftSelected).toHaveBeenCalledWith(44);
+    expect(onNftSelected).toHaveBeenCalledWith(44, []);
     expect(screen.getByText(/re-sized for veNFT #44/i)).toBeInTheDocument();
+  });
+
+  it("normalizes a veNFT's raw on-chain vote weights to percentages of its own total", async () => {
+    // LpVotes.weight is relative (same convention Voter.vote() itself
+    // uses), not already a 0-100 scale — this is the correctness-critical
+    // conversion the current-vs-recommended comparison depends on.
+    useReadContractMock.mockReturnValue({
+      data: [
+        {
+          id: 93n,
+          voting_amount: 93n * 10n ** 18n,
+          votes: [
+            { lp: "0xpoolA", weight: 7000n },
+            { lp: "0xpoolB", weight: 3000n },
+          ],
+        },
+      ],
+      isError: false,
+    });
+    const onNftSelected = vi.fn();
+    renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
+
+    await screen.findByText(/re-sized for veNFT #93/i);
+
+    expect(onNftSelected).toHaveBeenCalledWith(93, [
+      { pool: "0xpoolA", weightPct: 70 },
+      { pool: "0xpoolB", weightPct: 30 },
+    ]);
   });
 
   it("does not claim a re-size happened when no veNFT is detected", () => {

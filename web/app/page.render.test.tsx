@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi";
-import Dashboard from "./page";
+import Dashboard, { CurrentVsRecommended } from "./page";
 
 const dashboardPayload = {
   generatedAt: 1_700_000_000_000,
@@ -654,5 +654,118 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     expect(screen.queryByText(/forecast accuracy/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("CurrentVsRecommended", () => {
+  const poolMeta = new Map([
+    ["0xpoola", { symbol: "POOL-A", rewardPer1kVotesUsd: 1.1 }],
+    ["0xpoolb", { symbol: "POOL-B", rewardPer1kVotesUsd: 0.9 }],
+  ]);
+
+  it("shows a message instead of a comparison when the veNFT hasn't voted yet", () => {
+    render(<CurrentVsRecommended currentVotes={[]} votingPower={10_000} recommended={[]} poolMeta={poolMeta} />);
+    expect(screen.getByText(/hasn.t voted yet this epoch/i)).toBeInTheDocument();
+  });
+
+  it("shows the pp delta between current and recommended for a pool in both", () => {
+    render(
+      <CurrentVsRecommended
+        currentVotes={[{ pool: "0xpoolA", weightPct: 40 }]}
+        votingPower={10_000}
+        recommended={[
+          {
+            pool: "0xpoolA",
+            symbol: "POOL-A",
+            weightPct: 12,
+            currentVoteSharePct: 5,
+            predictedDemandSharePct: 6,
+            predictiveEdgePct: 1,
+            tvlUsd: 100,
+            currentVotes: 1000,
+            expectedRewardUsd: 50,
+            confidence: 0.7,
+          },
+        ]}
+        poolMeta={poolMeta}
+      />,
+    );
+
+    const row = screen.getByText("POOL-A").closest("div")!;
+    expect(within(row).getByText("40.0%")).toBeInTheDocument();
+    expect(within(row).getByText("12.0%")).toBeInTheDocument();
+    expect(within(row).getByText("-28.0pp")).toBeInTheDocument();
+  });
+
+  it("shows a pool the wallet currently holds but the model doesn't recommend as a 0% target", () => {
+    render(
+      <CurrentVsRecommended
+        currentVotes={[{ pool: "0xpoolA", weightPct: 100 }]}
+        votingPower={10_000}
+        recommended={[]}
+        poolMeta={poolMeta}
+      />,
+    );
+
+    const row = screen.getByText("POOL-A").closest("div")!;
+    expect(within(row).getByText("100.0%")).toBeInTheDocument();
+    expect(within(row).getByText("0.0%")).toBeInTheDocument();
+    expect(within(row).getByText("-100.0pp")).toBeInTheDocument();
+  });
+
+  it("falls back to a truncated address when a pool isn't in poolMeta or the recommendation", () => {
+    render(
+      <CurrentVsRecommended
+        currentVotes={[{ pool: "0xUnknownPoolAddress00000000000000000000", weightPct: 100 }]}
+        votingPower={10_000}
+        recommended={[]}
+        poolMeta={new Map()}
+      />,
+    );
+
+    expect(screen.getByText(/^0xunknow.*…$/i)).toBeInTheDocument();
+  });
+
+  it("estimates next-epoch $ for staying from last epoch's $/1k rate, and for switching from the recommendation's own model", () => {
+    render(
+      <CurrentVsRecommended
+        // 10,000 votingPower * 40% = 4,000 votes in POOL-A; rewardPer1kVotesUsd
+        // 1.1 -> 4,000/1000 * 1.1 = $4.40 estimated if staying.
+        currentVotes={[{ pool: "0xpoolA", weightPct: 40 }]}
+        votingPower={10_000}
+        recommended={[
+          {
+            pool: "0xpoolB",
+            symbol: "POOL-B",
+            weightPct: 100,
+            currentVoteSharePct: 5,
+            predictedDemandSharePct: 6,
+            predictiveEdgePct: 1,
+            tvlUsd: 100,
+            currentVotes: 1000,
+            expectedRewardUsd: 77,
+            confidence: 0.7,
+          },
+        ]}
+        poolMeta={poolMeta}
+      />,
+    );
+
+    expect(screen.getByText("$4.4")).toBeInTheDocument();
+    expect(screen.getByText("$77")).toBeInTheDocument();
+    expect(screen.getByText(/not apples-to-apples/i)).toBeInTheDocument();
+  });
+
+  it("flags when a currently-held pool has no $/1k rate to estimate from", () => {
+    render(
+      <CurrentVsRecommended
+        currentVotes={[{ pool: "0xUnrated", weightPct: 100 }]}
+        votingPower={10_000}
+        recommended={[]}
+        poolMeta={new Map()}
+      />,
+    );
+
+    expect(screen.getByText(/some pools lack a rate and are excluded/i)).toBeInTheDocument();
   });
 });

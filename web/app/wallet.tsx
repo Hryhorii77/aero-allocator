@@ -130,9 +130,18 @@ export function ConnectButton() {
   );
 }
 
+/** A veNFT's current on-chain vote split (veSugar's VeNFT.votes), each
+ * weight normalized to a percentage of that NFT's own total — empty if it
+ * hasn't voted yet this epoch (or ever). */
+export interface CurrentVote {
+  pool: string;
+  weightPct: number;
+}
+
 interface VeNftOption {
   id: bigint;
   votingAmount: bigint;
+  votes: CurrentVote[];
 }
 
 export function VotePanel({
@@ -147,8 +156,11 @@ export function VotePanel({
     currentVotes?: number;
     votesAllocated?: number;
   }>;
-  /** Fired with the veNFT's real voting balance when the user picks one from the dropdown, so the caller can re-size the allocation for what this NFT can actually vote with. */
-  onNftSelected?: (votingPower: number) => void;
+  /** Fired with the veNFT's real voting balance and its current on-chain
+   * vote split when the user picks one from the dropdown (or it's
+   * auto-selected), so the caller can both re-size the recommendation and
+   * show a current-vs-recommended comparison. */
+  onNftSelected?: (votingPower: number, currentVotes: CurrentVote[]) => void;
 }) {
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -171,7 +183,22 @@ export function VotePanel({
     () =>
       (veNfts ?? [])
         .filter((n) => n.voting_amount > 0n)
-        .map((n) => ({ id: n.id, votingAmount: n.voting_amount })),
+        .map((n) => {
+          // LpVotes.weight is relative, not a fixed 0-100/0-10000 scale (same
+          // convention Voter.vote() itself uses) — normalize to a percentage
+          // of this NFT's own total so it's directly comparable to the
+          // recommended split's weightPct. BigInt math throughout to avoid
+          // precision loss before the final /100.
+          const totalWeight = n.votes.reduce((s, v) => s + v.weight, 0n);
+          return {
+            id: n.id,
+            votingAmount: n.voting_amount,
+            votes: n.votes.map((v) => ({
+              pool: v.lp,
+              weightPct: totalWeight > 0n ? Number((v.weight * 10000n) / totalWeight) / 100 : 0,
+            })),
+          };
+        }),
     [veNfts],
   );
 
@@ -180,7 +207,7 @@ export function VotePanel({
   const selectNft = (id: string) => {
     setSelectedId(id);
     const opt = options.find((o) => o.id.toString() === id);
-    if (opt) onNftSelected?.(Math.round(Number(opt.votingAmount) / 1e18));
+    if (opt) onNftSelected?.(Math.round(Number(opt.votingAmount) / 1e18), opt.votes);
   };
 
   // Auto-select the first detected veNFT the moment one shows up, instead
