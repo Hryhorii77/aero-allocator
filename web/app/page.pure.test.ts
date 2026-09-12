@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -30,6 +30,20 @@ describe("formatCountdown", () => {
 
   it("formats days and hours at a day or more", () => {
     expect(formatCountdown(2 * 86_400_000 + 5 * 3_600_000 + 59 * 60_000)).toBe("2d 5h");
+  });
+});
+
+describe("isConfidenceClustered", () => {
+  it("is false with fewer than 3 values, regardless of spread", () => {
+    expect(isConfidenceClustered([0.77, 0.78])).toBe(false);
+  });
+
+  it("is true when every value sits within a few points of the others", () => {
+    expect(isConfidenceClustered([0.76, 0.77, 0.78, 0.775])).toBe(true);
+  });
+
+  it("is false once the spread crosses the threshold", () => {
+    expect(isConfidenceClustered([0.4, 0.6, 0.9])).toBe(false);
   });
 });
 

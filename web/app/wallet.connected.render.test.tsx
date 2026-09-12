@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 
-const { useWriteContractMock, writeContractMock } = vi.hoisted(() => {
+const { useWriteContractMock, writeContractMock, useReadContractMock } = vi.hoisted(() => {
   const writeContractMock = vi.fn();
   return {
     writeContractMock,
@@ -14,6 +14,10 @@ const { useWriteContractMock, writeContractMock } = vi.hoisted(() => {
       isPending: false,
       error: undefined,
       reset: vi.fn(),
+    })),
+    useReadContractMock: vi.fn(() => ({
+      data: [{ id: 93n, voting_amount: 93n * 10n ** 18n }],
+      isError: false,
     })),
   };
 });
@@ -27,10 +31,7 @@ vi.mock("wagmi", () => ({
   useConnect: () => ({ connectors: [], connect: vi.fn(), isPending: false }),
   useDisconnect: () => ({ disconnect: vi.fn() }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
-  useReadContract: () => ({
-    data: [{ id: 93n, voting_amount: 93n * 10n ** 18n }],
-    isError: false,
-  }),
+  useReadContract: useReadContractMock,
   useWriteContract: useWriteContractMock,
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
 }));
@@ -44,6 +45,8 @@ function renderWithProviders(children: React.ReactNode) {
 
 beforeEach(() => {
   writeContractMock.mockClear();
+  useReadContractMock.mockClear();
+  useReadContractMock.mockReturnValue({ data: [{ id: 93n, voting_amount: 93n * 10n ** 18n }], isError: false });
   vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
@@ -63,18 +66,41 @@ afterEach(() => {
 describe("VotePanel (connected, with detected veNFTs)", () => {
   const allocations = [{ pool: "0xpool1", symbol: "TEST/USDC", weightPct: 100 }];
 
-  it("reports the selected veNFT's real voting balance so the caller can re-size weights for it", async () => {
+  it("auto-selects the detected veNFT immediately, without waiting for the dropdown", async () => {
+    // The 10,000 default was the #1 reason people asked "does this predict
+    // my next epoch" — it's wrong for almost everyone with a real lock, and
+    // required an extra manual dropdown click to fix. This should need zero
+    // clicks once a veNFT is found.
     const onNftSelected = vi.fn();
     renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
 
-    const user = userEvent.setup();
-    await user.selectOptions(await screen.findByRole("combobox"), "93");
-
+    expect(await screen.findByText(/re-sized for veNFT #93/i)).toBeInTheDocument();
     expect(onNftSelected).toHaveBeenCalledWith(93);
-    expect(screen.getByText(/re-sized for veNFT #93/i)).toBeInTheDocument();
   });
 
-  it("does not claim a re-size happened before any veNFT is selected", () => {
+  it("still allows picking a different lock manually when the wallet holds more than one", async () => {
+    useReadContractMock.mockReturnValue({
+      data: [
+        { id: 93n, voting_amount: 93n * 10n ** 18n },
+        { id: 44n, voting_amount: 44n * 10n ** 18n },
+      ],
+      isError: false,
+    });
+    const onNftSelected = vi.fn();
+    renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
+
+    await screen.findByText(/re-sized for veNFT #93/i); // auto-selected the first
+    onNftSelected.mockClear();
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByRole("combobox"), "44");
+
+    expect(onNftSelected).toHaveBeenCalledWith(44);
+    expect(screen.getByText(/re-sized for veNFT #44/i)).toBeInTheDocument();
+  });
+
+  it("does not claim a re-size happened when no veNFT is detected", () => {
+    useReadContractMock.mockReturnValue({ data: [], isError: false });
     renderWithProviders(<VotePanel allocations={allocations} onNftSelected={vi.fn()} />);
     expect(screen.queryByText(/re-sized for veNFT/i)).not.toBeInTheDocument();
   });

@@ -183,6 +183,19 @@ export function VotePanel({
     if (opt) onNftSelected?.(Math.round(Number(opt.votingAmount) / 1e18));
   };
 
+  // Auto-select the first detected veNFT the moment one shows up, instead
+  // of leaving votingPower on its 10,000 default until the user manually
+  // opens this dropdown — that default is wrong for almost everyone and was
+  // the #1 reason people asked whether this actually predicts their next
+  // epoch. Manual override (picking a different lock, if there are several)
+  // still works via the dropdown below.
+  useEffect(() => {
+    if (options.length > 0 && !selectedId) {
+      selectNft(options[0].id.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options]);
+
   const { writeContract, data: txHash, isPending: signing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 

@@ -191,6 +191,23 @@ export function formatAgo(ms: number): string {
 export const usd = (n: number) =>
   n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
+/** Deep link to this protocol's own app for a specific pool — confirmed live
+ * that both /vote and /liquidity pre-filter to exactly one pool when given
+ * `?query=<pool address>`. */
+function poolAppLink(page: "vote" | "liquidity", poolAddress: string): string {
+  return `${DISPLAY_PRESET.appUrl}/${page}?query=${poolAddress}`;
+}
+
+const CONFIDENCE_CLUSTER_THRESHOLD = 0.03;
+
+/** True when every value in the currently-visible set sits within a few
+ * points of each other — at that point a column of individual bar widths
+ * can't discriminate anything the number itself doesn't already say. */
+export function isConfidenceClustered(values: number[]): boolean {
+  if (values.length < 3) return false;
+  return Math.max(...values) - Math.min(...values) < CONFIDENCE_CLUSTER_THRESHOLD;
+}
+
 // Split from downloadCsv so the string-building (header order, quoting of
 // values containing commas/quotes/newlines) has a direct unit test —
 // downloadCsv itself is just DOM/Blob plumbing around this.
@@ -263,6 +280,22 @@ function TrendCell({ value }: { value: number }) {
   );
 }
 
+/** A pool with zero last-epoch fees has no completed-epoch history to
+ * forecast from — predicted fees, edge, and confidence are all effectively
+ * noise there, but rendered with the same precision as a real pool that
+ * makes the model look broken (a Grok example: $0 last epoch alongside a
+ * -26.35pp edge). Flag it plainly instead. */
+function NewPoolBadge() {
+  return (
+    <span
+      className="ml-2 inline-block rounded bg-sky-950 px-1.5 py-0.5 font-mono text-[10px] text-sky-400"
+      title="No completed-epoch fee history yet — predicted fees and edge aren't meaningful until this pool has run at least one full epoch."
+    >
+      new
+    </span>
+  );
+}
+
 function EdgeBadge({ edge }: { edge: number }) {
   const positive = edge > 0.05;
   const negative = edge < -0.05;
@@ -282,11 +315,27 @@ function EdgeBadge({ edge }: { edge: number }) {
   );
 }
 
-function ConfidenceBar({ value, muted, title }: { value: number; muted?: boolean; title?: string }) {
-  // The bar alone doesn't discriminate well: live confidence tends to
-  // cluster tightly (e.g. most pools sit around 0.75-0.80), so a handful of
-  // percentage points of bar-width difference is sub-pixel at this size —
-  // the number is what actually communicates the difference.
+function ConfidenceBar({
+  value,
+  muted,
+  title,
+  showBar = true,
+}: {
+  value: number;
+  muted?: boolean;
+  title?: string;
+  /** False when confidence clusters too tightly across the whole visible
+   * set for bar width to mean anything (e.g. everything at ~77%) — 20
+   * near-identical bars are noise at that point, not a signal (Grok round
+   * 7: "almost every conf bar is 77%. stops being a signal"). The number
+   * alone still discriminates fine down to the percentage point. */
+  showBar?: boolean;
+}) {
+  // The bar alone doesn't discriminate well even when showBar is true: live
+  // confidence tends to cluster tightly (e.g. most pools sit around
+  // 0.75-0.80), so a handful of percentage points of bar-width difference is
+  // sub-pixel at this size — the number is what actually communicates the
+  // difference.
   //
   // `muted` forces the neutral styling regardless of value — this number is
   // fee-prediction confidence, unrelated to vote-share stability, so a thin
@@ -294,12 +343,14 @@ function ConfidenceBar({ value, muted, title }: { value: number; muted?: boolean
   // false all-clear right next to "no votes yet" (Grok round 4).
   return (
     <div className="flex items-center gap-1.5" title={title ?? `confidence ${value}`}>
-      <div className="h-1.5 w-8 shrink-0 rounded bg-neutral-800">
-        <div
-          className={`h-full rounded ${muted ? "bg-neutral-600" : value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
-          style={{ width: `${Math.round(value * 100)}%` }}
-        />
-      </div>
+      {showBar && (
+        <div className="h-1.5 w-8 shrink-0 rounded bg-neutral-800">
+          <div
+            className={`h-full rounded ${muted ? "bg-neutral-600" : value >= 0.6 ? "bg-sky-500" : value >= 0.4 ? "bg-sky-700" : "bg-neutral-600"}`}
+            style={{ width: `${Math.round(value * 100)}%` }}
+          />
+        </div>
+      )}
       <span className={`font-mono text-xs ${muted ? "text-neutral-600" : "text-neutral-400"}`}>
         {Math.round(value * 100)}%
       </span>
@@ -645,6 +696,13 @@ export default function Dashboard() {
     lpSort.dir === "desc" ? b[lpSort.key] - a[lpSort.key] : a[lpSort.key] - b[lpSort.key],
   );
 
+  // Individual bars stop being a signal once every value in view clusters
+  // within a few points of each other — 20 near-identical bars is noise,
+  // not discrimination (Grok round 7). Suppress the bar (keep the exact
+  // number, which still discriminates fine) and say so once instead.
+  const poolConfClustered = isConfidenceClustered(pools.map((p) => p.confidence));
+  const lpConfClustered = isConfidenceClustered(lpOpportunities.map((o) => o.confidence));
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -731,6 +789,7 @@ export default function Dashboard() {
             <div className="grid gap-2 sm:hidden">
               {pools.map((p) => {
                 const thin = p.voteSharePct < 0.1;
+                const noHistory = p.lastEpochFeesUsd === 0;
                 return (
                   <div
                     key={p.lp}
@@ -740,10 +799,27 @@ export default function Dashboard() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 truncate">
-                        <span className="font-medium text-neutral-100">{p.symbol}</span>
+                        <a
+                          href={poolAppLink("vote", p.lp)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
+                        >
+                          {p.symbol}
+                        </a>
                         <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
+                        {noHistory && <NewPoolBadge />}
                       </div>
-                      <EdgeBadge edge={p.edgePct} />
+                      {noHistory ? (
+                        <span
+                          className="text-xs text-neutral-600"
+                          title="No fee history yet — edge isn't meaningful until this pool has a completed epoch."
+                        >
+                          n/a
+                        </span>
+                      ) : (
+                        <EdgeBadge edge={p.edgePct} />
+                      )}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs">
                       <span className="text-neutral-400">
@@ -756,6 +832,7 @@ export default function Dashboard() {
                       <ConfidenceBar
                         value={p.confidence}
                         muted={thin}
+                        showBar={!poolConfClustered}
                         title={
                           thin
                             ? "Fee-prediction confidence only — not a signal that voting here is safe, since current votes are near zero."
@@ -795,6 +872,7 @@ export default function Dashboard() {
                 <tbody>
                   {pools.map((p) => {
                     const thin = p.voteSharePct < 0.1;
+                    const noHistory = p.lastEpochFeesUsd === 0;
                     return (
                       <tr
                         key={p.lp}
@@ -803,8 +881,16 @@ export default function Dashboard() {
                         }`}
                       >
                         <td className="px-4 py-2.5">
-                          <span className="font-medium text-neutral-100">{p.symbol}</span>
+                          <a
+                            href={poolAppLink("vote", p.lp)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
+                          >
+                            {p.symbol}
+                          </a>
                           <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
+                          {noHistory && <NewPoolBadge />}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
@@ -820,7 +906,16 @@ export default function Dashboard() {
                           → {p.demandSharePct.toFixed(1)}%
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          <EdgeBadge edge={p.edgePct} />
+                          {noHistory ? (
+                            <span
+                              className="text-xs text-neutral-600"
+                              title="No fee history yet — edge isn't meaningful until this pool has a completed epoch."
+                            >
+                              n/a
+                            </span>
+                          ) : (
+                            <EdgeBadge edge={p.edgePct} />
+                          )}
                         </td>
                         <td
                           className="px-4 py-2.5 font-mono text-neutral-300"
@@ -844,6 +939,7 @@ export default function Dashboard() {
                           <ConfidenceBar
                             value={p.confidence}
                             muted={thin}
+                            showBar={!poolConfClustered}
                             title={
                               thin
                                 ? "Fee-prediction confidence only — not a signal that voting here is safe, since current votes are near zero."
@@ -861,6 +957,8 @@ export default function Dashboard() {
               Edge = predicted fee-demand share − current vote share. Positive edge means the pool is
               under-incentivized relative to where trading demand is heading. Click a column header to sort —
               top 20 pools by that column, not just a reorder of the top 20 by fees.
+              {poolConfClustered &&
+                " Confidence is calibrated and clusters tightly across these pools this epoch — the number is the signal, not bar length."}
             </p>
           </section>
 
@@ -1004,7 +1102,14 @@ export default function Dashboard() {
                   {lpOpportunities.map((o) => (
                     <tr key={o.pool} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
                       <td className="px-4 py-2.5">
-                        <span className="font-medium text-neutral-100">{o.symbol}</span>
+                        <a
+                          href={poolAppLink("liquidity", o.pool)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
+                        >
+                          {o.symbol}
+                        </a>
                         <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(o.stakedTvlUsd)}</td>
@@ -1018,7 +1123,7 @@ export default function Dashboard() {
                         <TrendCell value={o.emissionsTrendUsdPerEpoch} />
                       </td>
                       <td className="px-4 py-2.5">
-                        <ConfidenceBar value={o.confidence} />
+                        <ConfidenceBar value={o.confidence} showBar={!lpConfClustered} />
                       </td>
                     </tr>
                   ))}
@@ -1028,6 +1133,8 @@ export default function Dashboard() {
             <p className="mt-2 text-xs text-neutral-500">
               For LPs staking liquidity — ranked by forecast {DISPLAY_PRESET.tokenSymbol}-emissions APR, not
               trading fees (those accrue to {DISPLAY_PRESET.veTokenSymbol} voters, not stakers).
+              {lpConfClustered &&
+                " Confidence is calibrated and clusters tightly across these pools this epoch — the number is the signal, not bar length."}
             </p>
           </section>
 

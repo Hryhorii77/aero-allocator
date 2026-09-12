@@ -360,6 +360,127 @@ describe("Dashboard", () => {
     expect(bribeBudgetInput).toHaveValue(750);
   });
 
+  it("deep-links a pool symbol to its exact pool on the protocol's own vote page", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Confirmed live against aerodrome.finance: /vote?query=<pool address>
+    // pre-filters to exactly that one pool.
+    const tbody = document.querySelector("tbody")!;
+    const link = within(tbody).getByRole("link", { name: "POOL-A" });
+    expect(link).toHaveAttribute("href", "https://aerodrome.finance/vote?query=0xpoolA");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("deep-links an LP-yield pool to the liquidity/deposit page instead of vote", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            lpDeposits: {
+              rewardTokenSymbol: "AERO",
+              opportunities: [
+                {
+                  pool: "0xlp1",
+                  symbol: "LP-POOL",
+                  poolType: "concentrated",
+                  stakedTvlUsd: 1000,
+                  currentEpochAprPct: 10,
+                  predictedNextEpochAprPct: 12,
+                  emissionsTrendUsdPerEpoch: 1,
+                  confidence: 0.7,
+                },
+              ],
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const link = await screen.findByRole("link", { name: "LP-POOL" });
+    expect(link).toHaveAttribute("href", "https://aerodrome.finance/liquidity?query=0xlp1");
+  });
+
+  it("flags a pool with zero last-epoch fees as new instead of showing a meaningless edge", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            pools: [
+              { ...dashboardPayload.pools[0], lp: "0xnew", symbol: "NEW-POOL", lastEpochFeesUsd: 0, edgePct: -26.35 },
+              ...dashboardPayload.pools,
+            ],
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const tbody = document.querySelector("tbody")!;
+    const row = within(tbody).getByText("NEW-POOL").closest("tr")!;
+    expect(within(row).getByText("new")).toBeInTheDocument();
+    // The wild -26.35pp edge (a real example from live feedback) is
+    // meaningless without a fee baseline — it shouldn't render at all.
+    expect(within(row).queryByText(/-26\.35pp/)).not.toBeInTheDocument();
+    expect(within(row).getByText("n/a")).toBeInTheDocument();
+
+    // A pool with real history still shows its actual edge badge.
+    const rowA = within(tbody).getByText("POOL-A").closest("tr")!;
+    expect(within(rowA).queryByText("new")).not.toBeInTheDocument();
+    expect(within(rowA).getByText("+2.00pp")).toBeInTheDocument();
+  });
+
+  it("suppresses individual confidence bars once every visible value clusters tightly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            pools: dashboardPayload.pools.map((p) => ({ ...p, confidence: 0.77 })),
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const tbody = document.querySelector("tbody")!;
+    const row = within(tbody).getByText("POOL-A").closest("tr")!;
+    // The number still renders...
+    expect(within(row).getByText("77%")).toBeInTheDocument();
+    // ...but no bar-width graphic, since it can't discriminate anything
+    // here — every visible pool is the same confidence.
+    expect(row.querySelector(".bg-neutral-800.h-1\\.5")).not.toBeInTheDocument();
+    expect(screen.getByText(/confidence is calibrated and clusters tightly/i)).toBeInTheDocument();
+  });
+
+  it("keeps individual confidence bars when values actually differ (default fixture)", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const tbody = document.querySelector("tbody")!;
+    const row = within(tbody).getByText("POOL-A").closest("tr")!;
+    expect(row.querySelector(".bg-neutral-800.h-1\\.5")).toBeInTheDocument();
+    expect(screen.queryByText(/confidence is calibrated and clusters tightly/i)).not.toBeInTheDocument();
+  });
+
   it("renders a CSV export control for each allocation objective", async () => {
     renderDashboard();
     await waitForPoolsLoaded();

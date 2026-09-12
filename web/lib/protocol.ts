@@ -29,6 +29,11 @@ interface ProtocolDisplay {
   networkName: string;
   chain: Chain;
   defaultRpcUrl: string;
+  /** Base URL of the protocol's own app — its /vote and /liquidity pages both
+   * accept `?query=<pool address>` and pre-filter to that exact pool
+   * (confirmed live against aerodrome.finance; velodrome.finance is the
+   * same frontend lineage so assumed to match, not independently verified). */
+  appUrl: string;
 }
 
 const DISPLAY: Record<Protocol, ProtocolDisplay> = {
@@ -40,6 +45,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
     networkName: "Base",
     chain: base,
     defaultRpcUrl: "https://base-rpc.publicnode.com",
+    appUrl: "https://aerodrome.finance",
   },
   velodrome: {
     protocol: "velodrome",
@@ -49,6 +55,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
     networkName: "Optimism",
     chain: optimism,
     defaultRpcUrl: "https://mainnet.optimism.io",
+    appUrl: "https://velodrome.finance",
   },
 };
 
