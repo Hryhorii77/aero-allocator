@@ -749,6 +749,23 @@ describe("Dashboard", () => {
 
     expect(screen.queryByText(/forecast accuracy/i)).not.toBeInTheDocument();
   });
+
+  it("keeps the changelog collapsed by default, expanding it on click", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Collapsed <details> still puts its content in the DOM (native browser
+    // behavior), so assert on visibility via the `open` attribute rather
+    // than presence/absence of the text.
+    const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/what's new/i));
+
+    expect(details.open).toBe(true);
+    expect(screen.getByText(/search box \+ filter chips/i)).toBeInTheDocument();
+  });
 });
 
 describe("CurrentVsRecommended", () => {

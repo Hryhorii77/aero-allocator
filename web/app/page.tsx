@@ -258,6 +258,56 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
   { key: "highConf", label: "high conf" },
 ];
 
+// Plain-language shipped-feature log, newest first — hand-curated from real
+// commits (not every commit; internal refactors/test-only changes are left
+// out) so users can see the dashboard is actively maintained without digging
+// through GitHub history themselves.
+const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-13",
+    title: "Search box + filter chips (stables, AERO pairs, BTC, new pools, positive edge, high confidence) to narrow the hot-pools table.",
+  },
+  { date: "2026-09-13", title: "Mobile card layout for the LP staking-yield table." },
+  {
+    date: "2026-09-13",
+    title: "Personal vote desk — see your current on-chain vote split next to the recommended one, with the $ difference.",
+  },
+  { date: "2026-09-12", title: "Predictive Allocation status indicator on the dashboard." },
+  {
+    date: "2026-09-12",
+    title:
+      "Trust fixes: no more misleading 10,000-veAERO default, new-pool flagging, one-click deep links to vote/add liquidity, and a warning when confidence scores are too clustered to rank by.",
+  },
+  {
+    date: "2026-09-06",
+    title:
+      "Sortable-column indicators, fixed misaligned trend arrows and $/1k-votes amounts, fixed both numeric inputs getting stuck on a leading zero, a real cold-start loading state, and a durable cross-instance cache so the first visitor after a quiet gap isn't stuck waiting on a rebuild.",
+  },
+  { date: "2026-09-05", title: "Base Builder Code attribution on vote transactions." },
+  {
+    date: "2026-09-03",
+    title: "Forecast-accuracy track record panel — how the model's predictions have actually performed, epoch over epoch.",
+  },
+];
+
+export function ChangelogPanel() {
+  return (
+    <details className="mt-6 rounded-lg border border-neutral-800 px-3 py-2">
+      <summary className="cursor-pointer select-none font-mono text-xs uppercase tracking-wider text-neutral-400">
+        what&apos;s new
+      </summary>
+      <ul className="mt-3 space-y-2">
+        {CHANGELOG.map((entry) => (
+          <li key={entry.date + entry.title} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
+            <span className="shrink-0 font-mono text-xs text-neutral-600 sm:w-24">{entry.date}</span>
+            <span className="text-xs leading-relaxed text-neutral-400">{entry.title}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 // Split from downloadCsv so the string-building (header order, quoting of
 // values containing commas/quotes/newlines) has a direct unit test —
 // downloadCsv itself is just DOM/Blob plumbing around this.
@@ -1627,6 +1677,8 @@ export default function Dashboard() {
               </div>
             </section>
           )}
+
+          <ChangelogPanel />
 
           <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
             <span>
