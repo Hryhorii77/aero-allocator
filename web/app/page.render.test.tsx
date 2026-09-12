@@ -25,6 +25,7 @@ const dashboardPayload = {
       edgePct: 2,
       rewardPer1kVotesUsd: 1.1,
       confidence: 0.7,
+      feeHistory: [30, 35, 40, 45, 50],
     },
     {
       lp: "0xpoolB",
@@ -40,6 +41,7 @@ const dashboardPayload = {
       edgePct: -1,
       rewardPer1kVotesUsd: 0.9,
       confidence: 0.6,
+      feeHistory: [560, 545, 530, 515, 500],
     },
     {
       // Deliberately last in every sort below (lowest predictedFeesUsd AND
@@ -59,6 +61,7 @@ const dashboardPayload = {
       edgePct: 0.01,
       rewardPer1kVotesUsd: 8.4,
       confidence: 0.78,
+      feeHistory: [5],
     },
   ],
   voterAlloc: {
@@ -226,6 +229,44 @@ describe("Dashboard", () => {
 
     expect(within(hotPoolsSection()).getAllByText("POOL-A").length).toBeGreaterThan(0);
     expect(screen.queryByText(/no pools match this search\/filter/i)).not.toBeInTheDocument();
+  });
+
+  it("expands a pool row to reveal its fee-history sparkline, and collapses it again", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /expand POOL-A fee history/i }));
+
+    expect(screen.getByRole("img", { name: /fee history sparkline, rising overall/i })).toBeInTheDocument();
+    expect(screen.getByText(/fees, last 5 completed epochs: \$30 → \$50/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /collapse POOL-A fee history/i }));
+
+    expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a falling sparkline for a pool with declining fee history", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /expand POOL-B fee history/i }));
+
+    expect(screen.getByRole("img", { name: /fee history sparkline, falling overall/i })).toBeInTheDocument();
+  });
+
+  it("explains there isn't enough history yet for a pool with a single data point", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /expand POOL-C fee history/i }));
+
+    expect(screen.getByText(/not enough completed epochs yet for a trend line/i)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
   });
 
   it("explains that trend/epoch is a regression slope, not predicted-minus-last", async () => {

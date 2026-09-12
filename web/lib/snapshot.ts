@@ -283,6 +283,14 @@ export async function buildFullForecast(votingPower: number, refresh = false) {
       edgePct: Math.round(f.predictiveEdge * 10000) / 100,
       rewardPer1kVotesUsd: f.rewardPer1kVotesUsd,
       confidence: f.confidence,
+      // Oldest-to-newest completed-epoch fees, already computed as part of
+      // every snapshot build (no extra RPC cost) — excludes the in-progress
+      // epoch, whose partial total would otherwise read as a misleading drop.
+      feeHistory: f.history
+        .filter((e) => e.ts < currentEpochStart())
+        .slice(0, 8)
+        .map((e) => e.feesUsd)
+        .reverse(),
     })),
     voterAlloc: recommendAllocation(snap, "voter_roi", 8, votingPower),
     protoAlloc: recommendAllocation(snap, "protocol_efficiency", 8),

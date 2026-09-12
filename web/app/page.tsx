@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
 
@@ -20,6 +20,7 @@ interface PoolRow {
   edgePct: number;
   rewardPer1kVotesUsd: number;
   confidence: number;
+  feeHistory: number[];
 }
 
 type PoolSortKey = "predictedFeesUsd" | "lastEpochFeesUsd" | "feeTrendUsdPerEpoch" | "edgePct" | "rewardPer1kVotesUsd" | "confidence";
@@ -377,6 +378,46 @@ function TrendCell({ value }: { value: number }) {
       <span className="text-center">{positive ? "▲" : negative ? "▼" : "–"}</span>
       <span className="text-right">{usd(Math.abs(value))}</span>
     </div>
+  );
+}
+
+// Split out from Sparkline so the point-placement math (the part actually
+// worth getting wrong) has a direct unit test, independent of SVG rendering.
+export function sparklinePoints(values: number[], width: number, height: number): string {
+  if (values.length === 0) return "";
+  if (values.length === 1) return `0,${height / 2} ${width},${height / 2}`;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  return values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+const SPARKLINE_WIDTH = 160;
+const SPARKLINE_HEIGHT = 32;
+
+function Sparkline({ values }: { values: number[] }) {
+  const rising = values[values.length - 1] >= values[0];
+  return (
+    <svg
+      width={SPARKLINE_WIDTH}
+      height={SPARKLINE_HEIGHT}
+      viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+      role="img"
+      aria-label={`fee history sparkline, ${rising ? "rising" : "falling"} overall`}
+    >
+      <polyline
+        points={sparklinePoints(values, SPARKLINE_WIDTH, SPARKLINE_HEIGHT)}
+        fill="none"
+        stroke={rising ? "#34d399" : "#fb7185"}
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }
 
@@ -808,6 +849,7 @@ export default function Dashboard() {
     setLpSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" }));
   const [poolSearch, setPoolSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState<PoolFilterKey>("all");
+  const [expandedPool, setExpandedPool] = useState<string | null>(null);
 
   // Read sort choice from the URL once on mount, so a shared link (e.g.
   // "sorted by edge") opens showing the same view. votingPower's own
@@ -1171,14 +1213,24 @@ export default function Dashboard() {
                   {pools.map((p) => {
                     const thin = p.voteSharePct < 0.1;
                     const noHistory = p.lastEpochFeesUsd === 0;
+                    const expanded = expandedPool === p.lp;
                     return (
+                      <Fragment key={p.lp}>
                       <tr
-                        key={p.lp}
                         className={`border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40 ${
                           thin ? "bg-amber-950/10" : ""
                         }`}
                       >
                         <td className="px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedPool(expanded ? null : p.lp)}
+                            className="mr-1.5 inline-block w-3 text-center text-neutral-600 hover:text-neutral-300"
+                            aria-label={`${expanded ? "collapse" : "expand"} ${p.symbol} fee history`}
+                            aria-expanded={expanded}
+                          >
+                            {expanded ? "▾" : "▸"}
+                          </button>
                           <a
                             href={poolAppLink("vote", p.lp)}
                             target="_blank"
@@ -1246,6 +1298,24 @@ export default function Dashboard() {
                           />
                         </td>
                       </tr>
+                      {expanded && (
+                        <tr className="border-b border-neutral-800/60 last:border-0 bg-neutral-950/40">
+                          <td colSpan={8} className="px-4 py-3">
+                            {p.feeHistory.length >= 2 ? (
+                              <div className="flex flex-wrap items-center gap-4">
+                                <Sparkline values={p.feeHistory} />
+                                <span className="font-mono text-xs text-neutral-500">
+                                  fees, last {p.feeHistory.length} completed epochs: {usd(p.feeHistory[0])} →{" "}
+                                  {usd(p.feeHistory[p.feeHistory.length - 1])}
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-neutral-600">Not enough completed epochs yet for a trend line.</p>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -83,6 +83,27 @@ describe("matchesPoolFilter", () => {
   it("matches confidence at or above 0.6 under 'highConf'", () => {
     expect(matchesPoolFilter({ ...basePool, confidence: 0.6 }, "highConf", "AERO")).toBe(true);
     expect(matchesPoolFilter({ ...basePool, confidence: 0.59 }, "highConf", "AERO")).toBe(false);
+  });
+});
+
+describe("sparklinePoints", () => {
+  it("returns an empty string for no values", () => {
+    expect(sparklinePoints([], 100, 20)).toBe("");
+  });
+
+  it("draws a flat mid-height line for a single value", () => {
+    expect(sparklinePoints([42], 100, 20)).toBe("0,10 100,10");
+  });
+
+  it("spans the full width and height between the min and max value", () => {
+    // Lowest value pins to the bottom (y = height), highest to the top (y = 0).
+    const points = sparklinePoints([0, 10], 100, 20);
+    expect(points).toBe("0.0,20.0 100.0,0.0");
+  });
+
+  it("places a flat series (equal min and max) in a straight line, not a division-by-zero glitch", () => {
+    const points = sparklinePoints([5, 5, 5], 100, 20);
+    expect(points).toBe("0.0,20.0 50.0,20.0 100.0,20.0");
   });
 });
 
