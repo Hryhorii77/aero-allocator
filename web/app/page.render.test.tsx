@@ -431,6 +431,24 @@ describe("Dashboard", () => {
     expect(screen.getByText(/your vote ≈ 12\.1% of this gauge/)).toBeInTheDocument();
   });
 
+  it("clarifies that the Voter ROI figure is expected voter $, not pool fees", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // External feedback: readers were conflating the (tiny, correct) expected
+    // per-voter reward with pool-level trading fees.
+    expect(screen.getByText(/this is your expected voter \$ next epoch, not pool fees/i)).toBeInTheDocument();
+  });
+
+  it("doesn't claim the veAERO amount came from a wallet when none is connected", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    // The "✓ from wallet" indicator should only appear once a real veNFT
+    // has actually been auto-detected (see wallet.connected.render.test.tsx
+    // for the connected-path coverage) — otherwise it would misrepresent a
+    // manually-typed or default number as wallet-sourced.
+    expect(screen.queryByText(/from wallet/i)).not.toBeInTheDocument();
+  });
+
   it("lets the veAERO voting-power input be cleared and retyped without a stuck leading zero", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -488,7 +506,7 @@ describe("Dashboard", () => {
                   pool: "0xlp1",
                   symbol: "LP-POOL",
                   poolType: "concentrated",
-                  stakedTvlUsd: 1000,
+                  stakedTvlUsd: 100000,
                   currentEpochAprPct: 10,
                   predictedNextEpochAprPct: 12,
                   emissionsTrendUsdPerEpoch: 1,
@@ -675,7 +693,7 @@ describe("Dashboard", () => {
                   pool: "0xlp1",
                   symbol: "LP-POOL",
                   poolType: "concentrated",
-                  stakedTvlUsd: 1000,
+                  stakedTvlUsd: 100000,
                   currentEpochAprPct: 10,
                   predictedNextEpochAprPct: 12,
                   emissionsTrendUsdPerEpoch: 1,
@@ -702,6 +720,54 @@ describe("Dashboard", () => {
 
     const td = links[1].closest("td")!;
     expect(td.className).toMatch(/whitespace-nowrap/);
+  });
+
+  it("hides a thin LP-yield pool by default, and reveals it (flagged) via the toggle", async () => {
+    // External feedback: "81,007% current / 39,326% predicted on $1.9k TVL
+    // looks like a bug even if the math is right" — a pool this thin should
+    // not be in the default view at all.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            lpDeposits: {
+              rewardTokenSymbol: "AERO",
+              opportunities: [
+                {
+                  pool: "0xthin",
+                  symbol: "THIN-POOL",
+                  poolType: "concentrated",
+                  stakedTvlUsd: 1_900,
+                  currentEpochAprPct: 81_007,
+                  predictedNextEpochAprPct: 39_326,
+                  emissionsTrendUsdPerEpoch: 1,
+                  confidence: 0.7,
+                },
+              ],
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.queryByText("THIN-POOL")).not.toBeInTheDocument();
+    const toggle = screen.getByText(/1 thin pool hidden/i);
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(screen.getAllByText("THIN-POOL").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("thin").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByText(/hide 1 thin pool/i));
+    expect(screen.queryByText("THIN-POOL")).not.toBeInTheDocument();
   });
 
   it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {

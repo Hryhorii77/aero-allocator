@@ -220,6 +220,19 @@ export function isConfidenceClustered(values: number[]): boolean {
   return Math.max(...values) - Math.min(...values) < CONFIDENCE_CLUSTER_THRESHOLD;
 }
 
+const LP_THIN_TVL_USD = 50_000;
+const LP_ABSURD_APR_PCT = 1000;
+
+/** An APR computed against a few thousand dollars of staked TVL swings into
+ * five- and six-figure percentages that are technically the correct division
+ * but read as a broken dashboard, not a real opportunity (external feedback:
+ * "81,007% current / 39,326% predicted on $1.9k TVL looks like a bug"). Hide
+ * these by default rather than clamp/round the number, which would just
+ * relabel the same misleading figure. */
+export function isThinLpOpportunity(o: { stakedTvlUsd: number; currentEpochAprPct: number; predictedNextEpochAprPct: number }): boolean {
+  return o.stakedTvlUsd < LP_THIN_TVL_USD || o.currentEpochAprPct > LP_ABSURD_APR_PCT || o.predictedNextEpochAprPct > LP_ABSURD_APR_PCT;
+}
+
 // Quick category chips over the pools table (Grok's plan: "tokenized
 // stocks, stables, AERO pairs, new listings are mixed in one dump").
 // Deliberately just symbol substring matches, not a rigorous token
@@ -433,6 +446,17 @@ function NewPoolBadge() {
       title="No completed-epoch fee history yet — predicted fees and edge aren't meaningful until this pool has run at least one full epoch."
     >
       new
+    </span>
+  );
+}
+
+function ThinLpBadge() {
+  return (
+    <span
+      className="ml-2 inline-block rounded bg-amber-950 px-1.5 py-0.5 font-mono text-[10px] text-amber-500"
+      title="Staked TVL under $50k or APR over 1,000% — the APR here is a real division, not a display bug, but too small a denominator to treat as a real opportunity."
+    >
+      thin
     </span>
   );
 }
@@ -850,6 +874,7 @@ export default function Dashboard() {
   const [poolSearch, setPoolSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState<PoolFilterKey>("all");
   const [expandedPool, setExpandedPool] = useState<string | null>(null);
+  const [showThinLp, setShowThinLp] = useState(false);
 
   // Read sort choice from the URL once on mount, so a shared link (e.g.
   // "sorted by edge") opens showing the same view. votingPower's own
@@ -982,9 +1007,11 @@ export default function Dashboard() {
   // volatility warning it actually is (Grok round 3).
   const sortedByRewardPer1k = poolSort.key === "rewardPer1kVotesUsd";
 
-  const lpOpportunities = [...(lpDeposits?.opportunities ?? [])].sort((a, b) =>
+  const lpOpportunitiesSorted = [...(lpDeposits?.opportunities ?? [])].sort((a, b) =>
     lpSort.dir === "desc" ? b[lpSort.key] - a[lpSort.key] : a[lpSort.key] - b[lpSort.key],
   );
+  const lpThinCount = lpOpportunitiesSorted.filter(isThinLpOpportunity).length;
+  const lpOpportunities = showThinLp ? lpOpportunitiesSorted : lpOpportunitiesSorted.filter((o) => !isThinLpOpportunity(o));
 
   // Individual bars stop being a signal once every value in view clusters
   // within a few points of each other — 20 near-identical bars is noise,
@@ -1351,6 +1378,14 @@ export default function Dashboard() {
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                   <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
+                  {currentVotes && (
+                    <span
+                      className="font-mono text-[10px] text-emerald-400"
+                      title="This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
+                    >
+                      ✓ from wallet
+                    </span>
+                  )}
                   <button
                     onClick={recomputeVoter}
                     disabled={allocLoading}
@@ -1374,6 +1409,9 @@ export default function Dashboard() {
                   />
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
+                  </p>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    This is your expected voter $ next epoch, not pool fees.
                   </p>
                   {currentVotes && (
                     <CurrentVsRecommended
@@ -1452,6 +1490,17 @@ export default function Dashboard() {
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
               LP staking yield {lpDeposits && <span className="text-neutral-600">({lpDeposits.rewardTokenSymbol} emissions, not fees)</span>}
             </h2>
+            {lpThinCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowThinLp((s) => !s)}
+                className="mb-3 -mt-1 block text-xs text-neutral-500 underline hover:text-neutral-300"
+              >
+                {showThinLp
+                  ? `hide ${lpThinCount} thin pool${lpThinCount === 1 ? "" : "s"} (staked TVL under $50k or APR over 1,000% — not a real opportunity, just a tiny denominator)`
+                  : `${lpThinCount} thin pool${lpThinCount === 1 ? "" : "s"} hidden (staked TVL under $50k or APR over 1,000%) — show anyway`}
+              </button>
+            )}
             {/* Card layout below sm: same reasoning as the predicted-hot-pools
                 table above — a 6-column table clipped to ~2 visible columns
                 on a phone hides most of what the user sorted by (Grok round
@@ -1470,6 +1519,7 @@ export default function Dashboard() {
                         {o.symbol}
                       </a>
                       <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                      {isThinLpOpportunity(o) && <ThinLpBadge />}
                     </div>
                     <TrendCell value={o.emissionsTrendUsdPerEpoch} />
                   </div>
@@ -1522,6 +1572,7 @@ export default function Dashboard() {
                           {o.symbol}
                         </a>
                         <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                        {isThinLpOpportunity(o) && <ThinLpBadge />}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(o.stakedTvlUsd)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-neutral-300">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints, isThinLpOpportunity } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -44,6 +44,31 @@ describe("isConfidenceClustered", () => {
 
   it("is false once the spread crosses the threshold", () => {
     expect(isConfidenceClustered([0.4, 0.6, 0.9])).toBe(false);
+  });
+});
+
+describe("isThinLpOpportunity", () => {
+  const healthy = { stakedTvlUsd: 100_000, currentEpochAprPct: 20, predictedNextEpochAprPct: 25 };
+
+  it("is false for a pool with real TVL and a sane APR", () => {
+    expect(isThinLpOpportunity(healthy)).toBe(false);
+  });
+
+  it("is true when staked TVL is under $50k, regardless of APR", () => {
+    expect(isThinLpOpportunity({ ...healthy, stakedTvlUsd: 1_900 })).toBe(true);
+  });
+
+  it("is true when either APR figure exceeds 1,000%, even with healthy TVL", () => {
+    // The exact case flagged externally: "81,007% current / 39,326%
+    // predicted on $1.9k TVL looks like a bug even if the math is right" —
+    // catch it on the APR side too, not just the TVL side, since a real
+    // whale TVL pool with a broken/manipulated APR should still be flagged.
+    expect(isThinLpOpportunity({ ...healthy, currentEpochAprPct: 81_007 })).toBe(true);
+    expect(isThinLpOpportunity({ ...healthy, predictedNextEpochAprPct: 39_326 })).toBe(true);
+  });
+
+  it("is false right at the boundary (not thin)", () => {
+    expect(isThinLpOpportunity({ stakedTvlUsd: 50_000, currentEpochAprPct: 1000, predictedNextEpochAprPct: 1000 })).toBe(false);
   });
 });
 
