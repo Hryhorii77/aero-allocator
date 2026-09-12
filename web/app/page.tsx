@@ -1363,7 +1363,7 @@ export default function Dashboard() {
                 <h3 className="font-medium text-white">
                   Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
                 </h3>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="number"
                     min={1}
@@ -1380,7 +1380,7 @@ export default function Dashboard() {
                   <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
                   {currentVotes && (
                     <span
-                      className="font-mono text-[10px] text-emerald-400"
+                      className="whitespace-nowrap font-mono text-[10px] text-emerald-400"
                       title="This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
                     >
                       ✓ from wallet
