@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { MarketSnapshot } from "aero-allocator/scoring";
 import type { BacktestReport } from "aero-allocator/backtest";
 
-const { getMarketSnapshot, getBacktestReport, put, getBlob, after } = vi.hoisted(() => ({
+const { getMarketSnapshot, getBacktestReport, put, getBlob, after, getRewardTokenPriceUsd, isLive } = vi.hoisted(() => ({
   getMarketSnapshot: vi.fn(async (_force?: boolean) => ({ generatedAt: 1, forecasts: [] }) as MarketSnapshot),
   getBacktestReport: vi.fn(async () => ({ confidenceCalibration: [] }) as unknown as BacktestReport),
   put: vi.fn(async (_pathname: string, _body: unknown, _options: unknown) => ({}) as unknown),
@@ -12,6 +12,8 @@ const { getMarketSnapshot, getBacktestReport, put, getBlob, after } = vi.hoisted
   // The mock just records the callback so tests can await it explicitly,
   // deterministically, instead of racing microtask timing.
   after: vi.fn((_cb: () => unknown) => {}),
+  getRewardTokenPriceUsd: vi.fn(async () => 1.23),
+  isLive: vi.fn(() => false),
 }));
 
 vi.mock("aero-allocator/scoring", async (importOriginal) => ({
@@ -22,10 +24,12 @@ vi.mock("aero-allocator/backtest", async (importOriginal) => ({
   ...(await importOriginal<typeof import("aero-allocator/backtest")>()),
   getBacktestReport,
 }));
+vi.mock("aero-allocator/data", () => ({ getRewardTokenPriceUsd }));
+vi.mock("aero-allocator/predictive-allocation", () => ({ adapter: { isLive } }));
 vi.mock("@vercel/blob", () => ({ put, get: getBlob }));
 vi.mock("next/server", () => ({ after }));
 
-import { getDurableMarketSnapshot, calibratedSnapshot } from "./snapshot";
+import { getDurableMarketSnapshot, calibratedSnapshot, buildFullForecast } from "./snapshot";
 
 const SNAPSHOT_PATHNAME = "market-snapshot-cache.json";
 const BACKTEST_PATHNAME = "backtest-report-cache.json";
@@ -49,6 +53,9 @@ beforeEach(() => {
   getBlob.mockReset();
   getBlob.mockResolvedValue(null);
   after.mockClear();
+  getRewardTokenPriceUsd.mockClear();
+  isLive.mockReset();
+  isLive.mockReturnValue(false);
 });
 
 describe("getDurableMarketSnapshot", () => {
@@ -192,5 +199,30 @@ describe("calibratedSnapshot's durable backtest cache", () => {
     await flushBackgroundRefresh();
     expect(getBacktestReport).toHaveBeenCalledTimes(1);
     expect(put).toHaveBeenCalledWith(BACKTEST_PATHNAME, expect.any(String), expect.anything());
+  });
+});
+
+describe("buildFullForecast's paStatus", () => {
+  beforeEach(() => {
+    // Not the point of these tests — buildFullForecast tolerates a missing
+    // backtest report fine (trackRecord just comes back null), so avoid
+    // needing a fully realistic BacktestReport fixture here.
+    getBacktestReport.mockRejectedValue(new Error("no backtest in this test"));
+  });
+
+  it("reports not live when the adapter has no contracts configured (today's reality)", async () => {
+    isLive.mockReturnValue(false);
+
+    const result = await buildFullForecast(10_000);
+
+    expect(result.paStatus).toEqual({ applicable: true, live: false });
+  });
+
+  it("flips to live purely from the adapter's own state, no other code path involved", async () => {
+    isLive.mockReturnValue(true);
+
+    const result = await buildFullForecast(10_000);
+
+    expect(result.paStatus).toEqual({ applicable: true, live: true });
   });
 });

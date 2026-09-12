@@ -126,6 +126,16 @@ interface TrackRecord {
   methodology: string;
 }
 
+/** Dromos Labs' Predictive Allocation (real-time incentive allocation,
+ * dated September 2026) is meant to replace weekly gauge voting for
+ * Aerodrome. `live` is computed server-side from the same adapter the MCP
+ * server's predictive_allocation_status tool reports — it flips true purely
+ * from env vars once contracts are published, no code change here. */
+interface PaStatus {
+  applicable: boolean;
+  live: boolean;
+}
+
 // The dashboard's snapshot build is a cold RPC scan (up to ~1min) whenever
 // the server-side cache (lib/snapshot.ts) is cold — a new deploy, or just
 // the cache TTL lapsing between visits. Persisting the last successful
@@ -145,6 +155,7 @@ interface DashboardCachePayload {
   lpDeposits: LpDepositReport;
   voteSwings: VoteSwingReport;
   trackRecord: TrackRecord | null;
+  paStatus: PaStatus;
 }
 
 function readDashboardCache(): { cachedAt: number; data: DashboardCachePayload } | null {
@@ -371,6 +382,31 @@ export function formatCountdown(ms: number): string {
   return `${m}m`;
 }
 
+/** Not live yet as of this writing — Dromos Labs hasn't published Predictive
+ * Allocation's contracts/ABI. `status.live` flips purely from env vars once
+ * they are (src/adapters/predictive-allocation.ts), with no code change
+ * needed here: this chip and its copy update automatically. */
+function PaStatusChip({ status }: { status: PaStatus }) {
+  if (!status.applicable) return null;
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+        status.live ? "border-emerald-800 bg-emerald-950/30" : "border-neutral-800 bg-neutral-900/40"
+      }`}
+      title={
+        status.live
+          ? "Predictive Allocation is live — the vote panel below now submits directly to it instead of the classic weekly gauge vote."
+          : "Dromos Labs' Predictive Allocation (real-time incentive allocation, dated September 2026) is expected to replace weekly gauge voting. Not live yet — this app still casts the classic weekly vote."
+      }
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${status.live ? "bg-emerald-400" : "bg-neutral-500"}`} />
+      <span className={`font-mono text-xs ${status.live ? "text-emerald-300" : "text-neutral-400"}`}>
+        {status.live ? "Predictive Allocation live" : "weekly gauge voting"}
+      </span>
+    </div>
+  );
+}
+
 function EpochCountdown({ epochStart }: { epochStart: number }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -512,6 +548,7 @@ export default function Dashboard() {
   const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
   const [voteSwings, setVoteSwings] = useState<VoteSwingReport | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+  const [paStatus, setPaStatus] = useState<PaStatus | null>(null);
   // Non-null while the visible data is last epoch's cache rather than a
   // fresh fetch — cleared the moment loadAll's own request lands.
   const [staleSince, setStaleSince] = useState<number | null>(null);
@@ -549,6 +586,7 @@ export default function Dashboard() {
     setLpDeposits(cached.data.lpDeposits);
     setVoteSwings(cached.data.voteSwings);
     setTrackRecord(cached.data.trackRecord);
+    setPaStatus(cached.data.paStatus);
     setStaleSince(cached.cachedAt);
     setLoading(false);
   }, []);
@@ -627,6 +665,7 @@ export default function Dashboard() {
       setLpDeposits(data.lpDeposits);
       setVoteSwings(data.voteSwings);
       setTrackRecord(data.trackRecord);
+      setPaStatus(data.paStatus);
       setStaleSince(null);
       writeDashboardCache({
         generatedAt: data.generatedAt,
@@ -639,6 +678,7 @@ export default function Dashboard() {
         lpDeposits: data.lpDeposits,
         voteSwings: data.voteSwings,
         trackRecord: data.trackRecord,
+        paStatus: data.paStatus,
       });
       if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
@@ -714,6 +754,13 @@ export default function Dashboard() {
             Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} —
             reward where demand is going, not where it was.
           </p>
+          {paStatus?.applicable && (
+            <p className="mt-1 text-xs text-neutral-500">
+              {paStatus.live
+                ? "Predictive Allocation is live — the vote panel below now submits directly to it."
+                : "Weekly gauge voting today; Dromos Labs' Predictive Allocation is expected to replace it — this forecast and your expected $ apply either way."}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-4">
           {SIBLING_URL && (
@@ -724,6 +771,7 @@ export default function Dashboard() {
               switch to {SIBLING_PRESET.displayName}
             </a>
           )}
+          {paStatus && <PaStatusChip status={paStatus} />}
           {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
           {snapshot && (
             <div className="text-right">

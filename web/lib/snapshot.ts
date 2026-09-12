@@ -10,7 +10,8 @@ import {
 } from "aero-allocator/scoring";
 import { getBacktestReport, type BacktestReport } from "aero-allocator/backtest";
 import { getRewardTokenPriceUsd } from "aero-allocator/data";
-import { currentEpochStart, epochProgress, SETTINGS } from "aero-allocator/config";
+import { currentEpochStart, epochProgress, PROTOCOL, SETTINGS } from "aero-allocator/config";
+import { adapter as predictiveAllocationAdapter } from "aero-allocator/predictive-allocation";
 
 // getMarketSnapshot's and getBacktestReport's own caches (aero-allocator/
 // scoring, aero-allocator/backtest) are both per-instance — a fresh
@@ -254,6 +255,16 @@ export async function buildFullForecast(votingPower: number, refresh = false) {
   const snap = backtestReport ? applyConfidenceCalibration(rawSnap, backtestReport.confidenceCalibration) : rawSnap;
 
   return {
+    // Dromos Labs' Predictive Allocation (real-time incentive allocation,
+    // dated September 2026) is meant to replace weekly gauge voting — but
+    // contracts/ABI aren't published yet, so `live` is always false today.
+    // `adapter.isLive()` flips to true purely from env vars once they are
+    // (see src/adapters/predictive-allocation.ts), with no code change here
+    // — the dashboard's status chip picks that up automatically.
+    paStatus: {
+      applicable: PROTOCOL === "aerodrome",
+      live: PROTOCOL === "aerodrome" && predictiveAllocationAdapter.isLive(),
+    },
     trackRecord: backtestReport ? summarizeBacktest(backtestReport) : null,
     generatedAt: snap.generatedAt,
     epochStart: currentEpochStart(),

@@ -96,6 +96,7 @@ const dashboardPayload = {
     ],
     methodology: "Walk-forward replay of completed epochs against a naive persistence baseline.",
   },
+  paStatus: { applicable: true, live: false },
 };
 
 function jsonResponse(body: unknown, ok = true) {
@@ -485,6 +486,54 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
     expect(screen.getAllByText(/export csv/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows a weekly-gauge-voting status chip when Predictive Allocation isn't live yet", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText("weekly gauge voting")).toBeInTheDocument();
+    expect(screen.queryByText("Predictive Allocation live")).not.toBeInTheDocument();
+    expect(screen.getByText(/Dromos Labs' Predictive Allocation is expected to replace it/i)).toBeInTheDocument();
+  });
+
+  it("flips the status chip once Predictive Allocation goes live, no code change needed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({ ...dashboardPayload, paStatus: { applicable: true, live: true } });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText("Predictive Allocation live")).toBeInTheDocument();
+    expect(screen.queryByText("weekly gauge voting")).not.toBeInTheDocument();
+  });
+
+  it("hides the PA status chip entirely on a deployment it doesn't apply to (e.g. Velodrome)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({ ...dashboardPayload, paStatus: { applicable: false, live: false } });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.queryByText("weekly gauge voting")).not.toBeInTheDocument();
+    expect(screen.queryByText("Predictive Allocation live")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Predictive Allocation is expected to replace it/i)).not.toBeInTheDocument();
   });
 
   it("shows the wallet-connect prompt (not connected by default in tests)", async () => {
