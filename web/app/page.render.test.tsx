@@ -405,8 +405,14 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
 
-    const link = await screen.findByRole("link", { name: "LP-POOL" });
-    expect(link).toHaveAttribute("href", "https://aerodrome.finance/liquidity?query=0xlp1");
+    // Now rendered twice (mobile card + desktop table, both always present
+    // in jsdom since it doesn't evaluate the sm: breakpoint) — every copy
+    // should point at the same link.
+    const links = await screen.findAllByRole("link", { name: "LP-POOL" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "https://aerodrome.finance/liquidity?query=0xlp1");
+    }
   });
 
   it("flags a pool with zero last-epoch fees as new instead of showing a meaningless edge", async () => {
@@ -552,6 +558,47 @@ describe("Dashboard", () => {
     const connectButton = screen.getByRole("button", { name: /connect wallet/i });
     const controlsRow = connectButton.closest("div.flex")!;
     expect(controlsRow.className).toMatch(/\bflex-wrap\b/);
+  });
+
+  it("gives the LP staking yield table an sm:hidden mobile-card twin, same as the predicted-hot-pools table", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            lpDeposits: {
+              rewardTokenSymbol: "AERO",
+              opportunities: [
+                {
+                  pool: "0xlp1",
+                  symbol: "LP-POOL",
+                  poolType: "concentrated",
+                  stakedTvlUsd: 1000,
+                  currentEpochAprPct: 10,
+                  predictedNextEpochAprPct: 12,
+                  emissionsTrendUsdPerEpoch: 1,
+                  confidence: 0.7,
+                },
+              ],
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Grok round 8: "mobile is a wide table" — a 6-column table clipped to
+    // ~2 visible columns on a phone hides most of what was sorted by.
+    const links = screen.getAllByRole("link", { name: "LP-POOL" });
+    expect(links.length).toBe(2); // one in the sm:hidden card, one in the table
+    const card = links[0].closest(".sm\\:hidden")!;
+    expect(card).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText(/staked/i)).toBeInTheDocument();
   });
 
   it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {

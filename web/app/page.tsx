@@ -1253,7 +1253,41 @@ export default function Dashboard() {
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
               LP staking yield {lpDeposits && <span className="text-neutral-600">({lpDeposits.rewardTokenSymbol} emissions, not fees)</span>}
             </h2>
-            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+            {/* Card layout below sm: same reasoning as the predicted-hot-pools
+                table above — a 6-column table clipped to ~2 visible columns
+                on a phone hides most of what the user sorted by (Grok round
+                8: "mobile is a wide table"). */}
+            <div className="grid gap-2 sm:hidden">
+              {lpOpportunities.map((o) => (
+                <div key={o.pool} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 truncate">
+                      <a
+                        href={poolAppLink("liquidity", o.pool)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
+                      >
+                        {o.symbol}
+                      </a>
+                      <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                    </div>
+                    <TrendCell value={o.emissionsTrendUsdPerEpoch} />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs">
+                    <span className="text-neutral-400">
+                      staked <span className="text-neutral-100">{usd(o.stakedTvlUsd)}</span>
+                    </span>
+                    <span className="text-neutral-400">
+                      APR <span className="text-neutral-300">{o.currentEpochAprPct.toFixed(1)}%</span> →{" "}
+                      <span className="text-emerald-400">{o.predictedNextEpochAprPct.toFixed(1)}%</span>
+                    </span>
+                    <ConfidenceBar value={o.confidence} showBar={!lpConfClustered} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-xl border border-neutral-800 sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
