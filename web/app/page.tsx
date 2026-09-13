@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useAccount } from "wagmi";
 import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
 
@@ -829,6 +830,16 @@ export default function Dashboard() {
   // veNFT is selected) — read once via wallet.tsx's onNftSelected, not
   // re-fetched here.
   const [currentVotes, setCurrentVotes] = useState<CurrentVote[] | null>(null);
+  // Disconnecting (or the wallet extension's own session lapsing) doesn't
+  // unmount anything here, so without this, currentVotes — and the "from
+  // wallet" badge / current-vs-recommended panel it drives — would keep
+  // showing a previous session's real veNFT data as if it were still live
+  // (a real trust bug spotted externally: header said disconnected, ROI
+  // card still claimed "92 veAERO ✓ from wallet").
+  const { isConnected } = useAccount();
+  useEffect(() => {
+    if (!isConnected) setCurrentVotes(null);
+  }, [isConnected]);
 
   // Hydrate from the last cached snapshot before the browser paints — see
   // useIsomorphicLayoutEffect's comment above for why this can't just be
