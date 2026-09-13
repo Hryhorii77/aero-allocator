@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 
@@ -85,20 +86,29 @@ function jsonResponse(body: unknown) {
   return { ok: true, status: 200, json: async () => body } as Response;
 }
 
+// StrictMode on purpose: React's dev-only double-invoked effects are exactly
+// what exposed the real bug here (a "have we mounted yet" guard gets
+// consumed by the phantom second invocation) — rendering without it would
+// let a regression on that front pass silently.
 function renderDashboard() {
   const queryClient = new QueryClient();
-  const utils = render(
-    <QueryClientProvider client={queryClient}>
-      <Dashboard />
-    </QueryClientProvider>,
+  const tree = (
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <Dashboard />
+      </QueryClientProvider>
+    </StrictMode>
   );
+  const utils = render(tree);
   return {
     ...utils,
     rerenderDashboard: () =>
       utils.rerender(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>,
+        <StrictMode>
+          <QueryClientProvider client={queryClient}>
+            <Dashboard />
+          </QueryClientProvider>
+        </StrictMode>,
       ),
   };
 }
@@ -137,11 +147,35 @@ describe("Dashboard reacting to the wallet disconnecting after a veNFT was alrea
     await screen.findAllByText("POOL-A");
     await screen.findByText(/from wallet/i);
     await screen.findByText(/your current split vs recommended/i);
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(92);
 
     useAccountMock.mockReturnValue({ address: undefined, isConnected: false, chainId: undefined });
     rerenderDashboard();
 
     expect(screen.queryByText(/from wallet/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/your current split vs recommended/i)).not.toBeInTheDocument();
+    // The veAERO amount itself is wallet-derived too — left at 92 after a
+    // real disconnect it would keep showing a stale balance next to a
+    // recommendation split nobody actually holds anymore (external
+    // feedback: "clear the counter... once the wallet disconnected").
+    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(10000));
+  });
+
+  it("does not stomp a shared link's ?vp= amount via a phantom StrictMode remount when no wallet ever connects", async () => {
+    // A naive "skip only the very first effect run" guard looks right in a
+    // single render, but breaks under React StrictMode's dev-only
+    // double-invoked effects: the phantom second invocation (which fires
+    // synchronously on mount, before any user interaction) consumes the
+    // guard and wrongly fires the reset even though no wallet ever
+    // connected. Caught live: opening a shared ?vp=5000 link with no wallet
+    // connected silently showed 10,000 instead.
+    useAccountMock.mockReturnValue({ address: undefined, isConnected: false, chainId: undefined });
+    useReadContractMock.mockReturnValue({ data: [], isError: false });
+    window.history.pushState({}, "", "/?vp=5000");
+
+    renderDashboard();
+    await screen.findAllByText("POOL-A");
+
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(5000);
   });
 });

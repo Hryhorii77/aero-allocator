@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
@@ -837,8 +837,29 @@ export default function Dashboard() {
   // (a real trust bug spotted externally: header said disconnected, ROI
   // card still claimed "92 veAERO ✓ from wallet").
   const { isConnected } = useAccount();
+  // React that a real *connected -> disconnected* transition happened, not
+  // just "isConnected is currently false" — a ref seeded from the initial
+  // value and only ever reacting to it flipping true->false. Reacting to
+  // mere presence (e.g. a "have we mounted yet" flag) breaks under
+  // StrictMode's dev-only double-invoked effects: the phantom second
+  // invocation would consume a mount-only guard and wrongly fire the reset
+  // with no wallet ever having connected, stomping a shared link's own
+  // ?vp= value.
+  const wasConnectedRef = useRef(isConnected);
   useEffect(() => {
-    if (!isConnected) setCurrentVotes(null);
+    const wasConnected = wasConnectedRef.current;
+    wasConnectedRef.current = isConnected;
+    if (isConnected || !wasConnected) return;
+    setCurrentVotes(null);
+    // The veAERO amount itself is also wallet-derived once connected — left
+    // at "92" after a real disconnect, it would keep showing a stale
+    // balance next to a recommendation split that's no longer anyone's
+    // real position (external feedback: "clear the counter... once the
+    // wallet disconnected"). Reset to the same default a fresh, never-
+    // connected visitor sees, and refetch the recommendation to match.
+    setVotingPower(10000);
+    recomputeVoterWithPower(10000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   // Hydrate from the last cached snapshot before the browser paints — see
