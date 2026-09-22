@@ -194,6 +194,19 @@ describe("Dashboard", () => {
     return screen.getByPlaceholderText(/search symbol/i).closest("section") as HTMLElement;
   }
 
+  // jsdom doesn't evaluate the sm: responsive classes that hide one of the
+  // mobile-card / desktop-table pair, so both render into the DOM at once
+  // here — scope to the desktop table specifically wherever a query would
+  // otherwise match both (e.g. "expand POOL-A fee history" exists on both
+  // layouts, driving the same shared expandedPool state).
+  function desktopPoolsTable() {
+    return hotPoolsSection().querySelector("table") as HTMLElement;
+  }
+
+  function mobilePoolsGrid() {
+    return hotPoolsSection().querySelector(".grid.gap-2.sm\\:hidden") as HTMLElement;
+  }
+
   it("narrows the hot-pools table to symbols matching the search box", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -241,12 +254,12 @@ describe("Dashboard", () => {
     expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /expand POOL-A fee history/i }));
+    await user.click(within(desktopPoolsTable()).getByRole("button", { name: /expand POOL-A fee history/i }));
 
-    expect(screen.getByRole("img", { name: /fee history sparkline, rising overall/i })).toBeInTheDocument();
-    expect(screen.getByText(/fees, last 5 completed epochs: \$30 → \$50/i)).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByRole("img", { name: /fee history sparkline, rising overall/i })).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByText(/fees, last 5 completed epochs: \$30 → \$50/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /collapse POOL-A fee history/i }));
+    await user.click(within(desktopPoolsTable()).getByRole("button", { name: /collapse POOL-A fee history/i }));
 
     expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
   });
@@ -256,15 +269,27 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     expect(screen.getByRole("button", { name: /vote mode/i })).toBeInTheDocument();
-    expect(within(hotPoolsSection()).queryByRole("button", { name: /^last epoch/i })).not.toBeInTheDocument();
-    expect(within(hotPoolsSection()).queryByText(/votes vs demand/i)).not.toBeInTheDocument();
+    expect(within(desktopPoolsTable()).queryByRole("button", { name: /^last epoch/i })).not.toBeInTheDocument();
+    expect(within(desktopPoolsTable()).queryByText(/votes vs demand/i)).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /expand POOL-A fee history/i }));
+    await user.click(within(desktopPoolsTable()).getByRole("button", { name: /expand POOL-A fee history/i }));
 
     // Folded into the expand panel instead of gone outright.
-    expect(screen.getByText(/last epoch \$50/i)).toBeInTheDocument();
-    expect(screen.getByText(/votes vs demand 10\.0% → 12\.0%/i)).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByText(/last epoch \$50/i)).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByText(/votes vs demand 10\.0% → 12\.0%/i)).toBeInTheDocument();
+  });
+
+  it("also expands to reveal the sparkline on the mobile card layout (previously desktop-only)", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(within(mobilePoolsGrid()).queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(within(mobilePoolsGrid()).getByRole("button", { name: /expand POOL-A fee history/i }));
+
+    expect(within(mobilePoolsGrid()).getByRole("img", { name: /fee history sparkline, rising overall/i })).toBeInTheDocument();
   });
 
   it("shows every column again when vote mode is switched off", async () => {
@@ -283,9 +308,9 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /expand POOL-B fee history/i }));
+    await user.click(within(desktopPoolsTable()).getByRole("button", { name: /expand POOL-B fee history/i }));
 
-    expect(screen.getByRole("img", { name: /fee history sparkline, falling overall/i })).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByRole("img", { name: /fee history sparkline, falling overall/i })).toBeInTheDocument();
   });
 
   it("explains there isn't enough history yet for a pool with a single data point", async () => {
@@ -293,9 +318,9 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /expand POOL-C fee history/i }));
+    await user.click(within(desktopPoolsTable()).getByRole("button", { name: /expand POOL-C fee history/i }));
 
-    expect(screen.getByText(/not enough completed epochs yet for a trend line/i)).toBeInTheDocument();
+    expect(within(desktopPoolsTable()).getByText(/not enough completed epochs yet for a trend line/i)).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
   });
 
@@ -527,6 +552,38 @@ describe("Dashboard", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
+  it("explains a short Voter ROI list with a dedicated gas-hurdle callout, not just a bare row", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            voterAlloc: { ...dashboardPayload.voterAlloc, gasHurdleDroppedCount: 2 },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText(/2 more pools cleared the reward floor but not the gas hurdle/i)).toBeInTheDocument();
+  });
+
+  it("says nothing about a gas hurdle when nothing was collapsed", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Base fixture's voterAlloc has no gasHurdleDroppedCount at all. Scoped
+    // to the Voter ROI panel — the changelog also mentions "gas hurdle" as a
+    // shipped feature, unrelated to whether this particular result hit one.
+    const voterRoiPanel = screen.getByText("Voter ROI").closest("div")!.parentElement as HTMLElement;
+    expect(within(voterRoiPanel).queryByText(/gas hurdle/i)).not.toBeInTheDocument();
+  });
+
   it("deep-links an LP-yield pool to the liquidity/deposit page instead of vote", async () => {
     vi.stubGlobal(
       "fetch",
@@ -702,16 +759,18 @@ describe("Dashboard", () => {
     expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
   });
 
-  it("lets the header's control chips (epoch countdown, refresh, connect wallet) wrap onto their own lines on narrow viewports", async () => {
+  it("lets the header's status chips (epoch countdown, snapshot freshness, epoch progress) wrap onto their own lines on narrow viewports", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
     // Without flex-wrap here, these chips are squeezed into one unbreakable
     // row and their own text wraps mid-phrase instead ("votes flip in 4d
     // 3h" splitting across lines) on a phone-width screen — regression
-    // guard for that, since jsdom doesn't do real responsive layout.
-    const connectButton = screen.getByRole("button", { name: /connect wallet/i });
-    const controlsRow = connectButton.closest("div.flex")!;
-    expect(controlsRow.className).toMatch(/\bflex-wrap\b/);
+    // guard for that, since jsdom doesn't do real responsive layout. Scoped
+    // to the status group specifically now that it's split from the
+    // actions group (refresh/connect wallet), which doesn't need to wrap —
+    // two buttons never squeeze the way a row of status chips does.
+    const flipClock = screen.getByText(/votes flip in/i);
+    expect(flipClock.closest(".flex-wrap")).not.toBeNull();
   });
 
   it("gives the LP staking yield table an sm:hidden mobile-card twin, same as the predicted-hot-pools table", async () => {

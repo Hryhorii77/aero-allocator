@@ -45,6 +45,13 @@ describe("isConfidenceClustered", () => {
   it("is false once the spread crosses the threshold", () => {
     expect(isConfidenceClustered([0.4, 0.6, 0.9])).toBe(false);
   });
+
+  it("catches an 8pp spread as clustered — too little to move a ~32px bar by a perceptible amount", () => {
+    // The exact live case an external review flagged as still rendering
+    // bars ("looks like decoration") under the old, purely-statistical 3pp
+    // threshold.
+    expect(isConfidenceClustered([0.71, 0.75, 0.78])).toBe(true);
+  });
 });
 
 describe("isThinLpOpportunity", () => {

@@ -72,6 +72,7 @@ interface Allocation {
   objective: string;
   summary: string;
   votingPowerVe?: number;
+  gasHurdleDroppedCount?: number;
   allocations: AllocationRow[];
 }
 
@@ -215,11 +216,18 @@ function poolAppLink(page: "vote" | "liquidity", poolAddress: string): string {
   return `${DISPLAY_PRESET.appUrl}/${page}?query=${poolAddress}`;
 }
 
-const CONFIDENCE_CLUSTER_THRESHOLD = 0.03;
+// The bar itself is only ~32px wide (h-1.5 w-8), so 1 percentage point of
+// spread is worth roughly 0.32px on screen — anything under ~8pp doesn't
+// clear a couple of real pixels of difference and reads as decoration, not
+// signal, even though it's statistically a real spread (external review,
+// live: "conf still clusters ~71-79%. Bars look like decoration" — 8pp was
+// still rendering as bars at the old, purely-statistical 3pp threshold).
+const CONFIDENCE_CLUSTER_THRESHOLD = 0.08;
 
-/** True when every value in the currently-visible set sits within a few
- * points of each other — at that point a column of individual bar widths
- * can't discriminate anything the number itself doesn't already say. */
+/** True when every value in the currently-visible set sits close enough
+ * together that a column of individual bar widths can't discriminate
+ * anything the number itself doesn't already say — see the pixel-width
+ * reasoning on CONFIDENCE_CLUSTER_THRESHOLD above. */
 export function isConfidenceClustered(values: number[]): boolean {
   if (values.length < 3) return false;
   return Math.max(...values) - Math.min(...values) < CONFIDENCE_CLUSTER_THRESHOLD;
@@ -466,6 +474,46 @@ function Sparkline({ values }: { values: number[] }) {
         strokeWidth="1.5"
       />
     </svg>
+  );
+}
+
+/**
+ * The content of a pool row's expand (▸) — fee-history sparkline, plus (in
+ * vote mode) the last-epoch $ and votes-vs-demand figures that mode hides
+ * from the row itself. Shared by the desktop table row and the mobile card
+ * layout so the sparkline isn't desktop-only (spotted live: mobile had no
+ * way to see it at all, despite the ▸ affordance existing only on desktop).
+ */
+function PoolExpandDetail({
+  p,
+  thin,
+  voteMode,
+}: {
+  p: PoolRow;
+  thin: boolean;
+  voteMode: boolean;
+}) {
+  return (
+    <>
+      {voteMode && (
+        <p className="mb-2 font-mono text-xs text-neutral-400">
+          last epoch {usd(p.lastEpochFeesUsd)} · votes vs demand{" "}
+          {thin ? <span className="text-amber-500">no votes yet</span> : `${p.voteSharePct.toFixed(1)}%`}
+          {" "}→ {p.demandSharePct.toFixed(1)}%
+        </p>
+      )}
+      {p.feeHistory.length >= 2 ? (
+        <div className="flex flex-wrap items-center gap-4">
+          <Sparkline values={p.feeHistory} />
+          <span className="font-mono text-xs text-neutral-500">
+            fees, last {p.feeHistory.length} completed epochs: {usd(p.feeHistory[0])} →{" "}
+            {usd(p.feeHistory[p.feeHistory.length - 1])}
+          </span>
+        </div>
+      ) : (
+        <p className="text-xs text-neutral-600">Not enough completed epochs yet for a trend line.</p>
+      )}
+    </>
   );
 }
 
@@ -1241,41 +1289,52 @@ export default function Dashboard() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          {SIBLING_URL && (
-            <a
-              href={SIBLING_URL}
-              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-500 hover:text-white"
+        {/* Two logical groups, not one flat row of equal-looking chips —
+            status (what's going on) vs actions (what you can do about it).
+            Side by side once there's room (sm:flex-row); stacked as two
+            distinct rows below that, instead of the chips and the buttons
+            interleaving into one wrapped pile (external review: "header on
+            mobile is a stack of equal chips... status should be one row,
+            actions another"). */}
+        <div className="flex flex-col items-end gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-wrap items-center gap-3">
+            {SIBLING_URL && (
+              <a
+                href={SIBLING_URL}
+                className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-500 hover:text-white"
+              >
+                switch to {SIBLING_PRESET.displayName}
+              </a>
+            )}
+            {paStatus && <PaStatusChip status={paStatus} />}
+            {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
+            {snapshot && (
+              <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
+            )}
+            {snapshot && (
+              <div className="text-right">
+                <div className="mb-1 font-mono text-xs text-neutral-400">
+                  epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
+                </div>
+                <div className="h-1.5 w-40 rounded bg-neutral-800">
+                  <div
+                    className="h-full rounded bg-sky-500"
+                    style={{ width: `${snapshot.epochProgressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => loadAll(true)}
+              disabled={loading}
+              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
             >
-              switch to {SIBLING_PRESET.displayName}
-            </a>
-          )}
-          {paStatus && <PaStatusChip status={paStatus} />}
-          {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
-          {snapshot && (
-            <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
-          )}
-          {snapshot && (
-            <div className="text-right">
-              <div className="mb-1 font-mono text-xs text-neutral-400">
-                epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
-              </div>
-              <div className="h-1.5 w-40 rounded bg-neutral-800">
-                <div
-                  className="h-full rounded bg-sky-500"
-                  style={{ width: `${snapshot.epochProgressPct}%` }}
-                />
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => loadAll(true)}
-            disabled={loading}
-            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
-          >
-            {loading ? "loading…" : "refresh"}
-          </button>
-          <ConnectButton />
+              {loading ? "loading…" : "refresh"}
+            </button>
+            <ConnectButton />
+          </div>
         </div>
       </header>
 
@@ -1369,6 +1428,7 @@ export default function Dashboard() {
               {pools.map((p) => {
                 const thin = p.voteSharePct < 0.1;
                 const noHistory = p.lastEpochFeesUsd === 0;
+                const expanded = expandedPool === p.lp;
                 return (
                   <div
                     key={p.lp}
@@ -1378,6 +1438,15 @@ export default function Dashboard() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 truncate">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPool(expanded ? null : p.lp)}
+                          className="mr-1.5 inline-block w-3 text-center text-neutral-600 hover:text-neutral-300"
+                          aria-label={`${expanded ? "collapse" : "expand"} ${p.symbol} fee history`}
+                          aria-expanded={expanded}
+                        >
+                          {expanded ? "▾" : "▸"}
+                        </button>
                         <a
                           href={poolAppLink("vote", p.lp)}
                           target="_blank"
@@ -1423,6 +1492,11 @@ export default function Dashboard() {
                       <p className="mt-1 text-[11px] text-amber-500">
                         no votes yet — $/1k is unstable until someone votes here
                       </p>
+                    )}
+                    {expanded && (
+                      <div className="mt-2 border-t border-neutral-800 pt-2">
+                        <PoolExpandDetail p={p} thin={thin} voteMode={voteMode} />
+                      </div>
                     )}
                   </div>
                 );
@@ -1546,27 +1620,7 @@ export default function Dashboard() {
                       {expanded && (
                         <tr className="border-b border-neutral-800/60 last:border-0 bg-neutral-950/40">
                           <td colSpan={voteMode ? 6 : 8} className="px-4 py-3">
-                            {/* vote mode hides last-epoch $ and votes-vs-demand
-                                from the row itself — they land here instead of
-                                disappearing outright. */}
-                            {voteMode && (
-                              <p className="mb-2 font-mono text-xs text-neutral-400">
-                                last epoch {usd(p.lastEpochFeesUsd)} · votes vs demand{" "}
-                                {thin ? <span className="text-amber-500">no votes yet</span> : `${p.voteSharePct.toFixed(1)}%`}
-                                {" "}→ {p.demandSharePct.toFixed(1)}%
-                              </p>
-                            )}
-                            {p.feeHistory.length >= 2 ? (
-                              <div className="flex flex-wrap items-center gap-4">
-                                <Sparkline values={p.feeHistory} />
-                                <span className="font-mono text-xs text-neutral-500">
-                                  fees, last {p.feeHistory.length} completed epochs: {usd(p.feeHistory[0])} →{" "}
-                                  {usd(p.feeHistory[p.feeHistory.length - 1])}
-                                </span>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-neutral-600">Not enough completed epochs yet for a trend line.</p>
-                            )}
+                            <PoolExpandDetail p={p} thin={thin} voteMode={voteMode} />
                           </td>
                         </tr>
                       )}
@@ -1635,6 +1689,20 @@ export default function Dashboard() {
                       </span>
                     )}
                   />
+                  {/* A short list here isn't a broken card — it's the gas
+                      hurdle doing its job. Called out on its own, right under
+                      the row(s), instead of leaving a visitor to read a short
+                      list next to two full 8-row panels and assume something
+                      failed (external review, live at 92 veAERO: "the card
+                      then feels empty... give it a one-line state"). */}
+                  {(voterAlloc.gasHurdleDroppedCount ?? 0) > 0 && (
+                    <p className="mt-3 rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">
+                      Too small a slice to split further — {voterAlloc.gasHurdleDroppedCount} more pool
+                      {voterAlloc.gasHurdleDroppedCount === 1 ? "" : "s"} cleared the reward floor but not the gas
+                      hurdle at {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol}, so they're collapsed
+                      here instead of split into for pennies each.
+                    </p>
+                  )}
                   <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
                     {voterAlloc.summary}
                   </p>
