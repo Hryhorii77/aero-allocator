@@ -76,13 +76,19 @@ cd web && npm install && npm run dev
 ```
 
 Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence, search + category
-filters, an expandable per-pool fee-history sparkline); interactive Voter ROI, Protocol Efficiency, and
-Edge Hunter allocation panels; an LP staking-yield table (thin pools — low TVL or an APR too high off
-too little TVL to mean anything — hidden by default, flagged if shown); a vote-swings (risers/fallers)
-panel; a bribe-placement simulator; a forecast-accuracy panel (the same walk-forward backtest as
-`backtest_summary` — see [Forecast accuracy](#forecast-accuracy) — so you can judge the model's track
-record without leaving the page); and a collapsed changelog panel. First load builds the onchain
-snapshot (~1 min), then it's cached.
+filters, an expandable per-pool fee-history sparkline), sorted by edge by default (predicted demand
+share minus current vote share — the column that says where to look first, not just which pools are
+biggest); interactive Voter ROI, Protocol Efficiency, and Edge Hunter allocation panels; an LP
+staking-yield table (thin pools — low TVL or an APR too high off too little TVL to mean anything —
+hidden by default, flagged if shown); a vote-swings (risers/fallers) panel; a bribe-placement simulator;
+a forecast-accuracy panel (the same walk-forward backtest as `backtest_summary` — see
+[Forecast accuracy](#forecast-accuracy) — so you can judge the model's track record without leaving the
+page); and a collapsed changelog panel. First load builds the onchain snapshot (~1 min), then it's
+cached.
+
+**Vote mode** (on by default) trims the hot-pools table to what a voter actually needs — pool,
+predicted fees, trend, edge, $/1k votes, confidence — folding "last epoch" and "votes vs demand" into
+each row's expand (▸) instead of dropping them. Toggle it off for the full 8-column table.
 
 The header carries two freshness/urgency signals, not just a market snapshot: a flip-clock chip
 (neutral above 12h to the next vote flip, amber inside 12h, red — with an explicit "allocation may be
@@ -352,6 +358,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Personal vote desk: dashboard shows your actual on-chain vote split next to the recommendation, with the $ difference
 - [x] Multi-veNFT batch voting: every detected veNFT selected by default, cast as one Multicall3 transaction instead of one wallet signature per lock
 - [x] Gas hurdle for small `votingPowerVe`: pools too small a slice to be worth the extra calldata are collapsed away instead of splitting into an N-way vote nobody can profit from
+- [x] Vote mode: hot-pools table defaults to edge sort and a trimmed column set, with the rest folded into the row expand
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer

@@ -285,6 +285,21 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-09-22",
     title:
+      "Vote mode (on by default) trims the hot-pools table to pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand fold into the row expand (▸) instead of disappearing. Toggle it off for the full table.",
+  },
+  {
+    date: "2026-09-22",
+    title:
+      "Hot-pools table now defaults to sorting by edge instead of raw predicted fees — fee size alone doesn't say where to vote, edge (predicted demand share minus current vote share) does.",
+  },
+  {
+    date: "2026-09-22",
+    title:
+      "Fixed the LP staking-yield table's \"thin\" badge trailing each row's own symbol text instead of lining up in a column, on both the desktop table and the mobile card layout.",
+  },
+  {
+    date: "2026-09-22",
+    title:
       "Multi-veNFT batch voting — every detected veAERO NFT is selected by default and cast as one Multicall3 transaction instead of one wallet signature per lock.",
   },
   {
