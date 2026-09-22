@@ -130,6 +130,14 @@ export const SETTINGS = {
   ewmaAlpha: 0.45,
   /** Minimum expected epoch rewards (USD) for a pool to receive voter_roi votes. */
   minVoterRewardCapacityUsd: Number(process.env.AERO_MIN_REWARD_CAPACITY_USD ?? 500),
+  /** Minimum expected $ THIS VOTER's own allocation must earn from a pool (after
+   * dilution) for that pool to be worth the incremental gas of including it in
+   * Voter.vote() — distinct from minVoterRewardCapacityUsd, which filters by the
+   * pool's total payout, not any one voter's slice of it. A small voting power
+   * spread across many pools can clear the pool-level floor while still earning
+   * each pool's slice for less than it costs to add that pool to the calldata
+   * (BNKR/Grok: "sub-1k ve on Base should not get an 8-way split"). */
+  gasHurdleUsd: Number(process.env.AERO_GAS_HURDLE_USD ?? 0.4),
   /** Cache TTL for the full market snapshot, ms. */
   cacheTtlMs: 5 * 60 * 1000,
   /** Cache TTL for the raw full-range pool scan, ms (pool set changes slowly). */

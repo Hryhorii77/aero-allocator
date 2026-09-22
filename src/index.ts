@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
-import { ADDRESSES, PRESET } from "./config.js";
+import { ADDRESSES, PRESET, SETTINGS } from "./config.js";
 import { fetchEpochHistory, getRewardTokenPriceUsd, scanPools } from "./data.js";
 import {
   applyConfidenceCalibration,
@@ -163,12 +163,21 @@ server.registerTool(
         .max(100)
         .default(35)
         .describe("Per-pool concentration cap in percent (voter_roi only)"),
+      gasHurdleUsd: z
+        .number()
+        .min(0)
+        .default(SETTINGS.gasHurdleUsd)
+        .describe(
+          "Minimum expected $ your own allocation must earn from a pool (after dilution) to be worth the " +
+            "incremental gas of including it — below this, that pool is dropped rather than splitting into it. " +
+            "0 disables the hurdle. Small votingPowerVe naturally collapses toward fewer pools (voter_roi only)",
+        ),
       refresh: z.boolean().default(false),
     },
   },
-  async ({ objective, maxPools, votingPowerVe, maxWeightPct, refresh }) => {
+  async ({ objective, maxPools, votingPowerVe, maxWeightPct, gasHurdleUsd, refresh }) => {
     const snap = await calibratedSnapshot(refresh);
-    return json(recommendAllocation(snap, objective, maxPools, votingPowerVe, maxWeightPct / 100));
+    return json(recommendAllocation(snap, objective, maxPools, votingPowerVe, maxWeightPct / 100, gasHurdleUsd));
   },
 );
 

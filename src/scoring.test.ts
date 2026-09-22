@@ -197,6 +197,56 @@ describe("recommendAllocation — voter_roi", () => {
     expect(rec.allocations).toHaveLength(1);
   });
 
+  describe("gas hurdle", () => {
+    // 8 identical, well-capitalized pools (each clears minVoterRewardCapacityUsd
+    // comfortably) with huge existing vote counts, so a tiny voting power split
+    // across all of them earns each pool's slice for a fraction of a cent.
+    const eightPools = Array.from({ length: 8 }, () =>
+      makeForecast({ predictedFeesUsd: 5_000, lastEpochFeesUsd: 5_000, currentVotes: 1_000_000 }),
+    );
+
+    it("collapses to a single pool when the voter's own voting power is too small for any pool to clear the hurdle", () => {
+      const snapshot = snapshotOf(eightPools);
+      const rec = recommendAllocation(snapshot, "voter_roi", 8, 10);
+      expect(rec.allocations).toHaveLength(1);
+    });
+
+    it("never collapses below one pool, even when that pool itself is under the hurdle", () => {
+      const snapshot = snapshotOf([makeForecast({ predictedFeesUsd: 5_000, lastEpochFeesUsd: 5_000, currentVotes: 1_000_000 })]);
+      const rec = recommendAllocation(snapshot, "voter_roi", 8, 10);
+      expect(rec.allocations).toHaveLength(1);
+      expect(rec.allocations[0].expectedRewardUsd).toBeLessThan(0.4);
+    });
+
+    it("does not collapse pools that clear the hurdle at a normal voting power", () => {
+      const snapshot = snapshotOf(eightPools);
+      const rec = recommendAllocation(snapshot, "voter_roi", 8, 100_000);
+      expect(rec.allocations).toHaveLength(8);
+    });
+
+    it("explains the collapse in the summary", () => {
+      const snapshot = snapshotOf(eightPools);
+      const rec = recommendAllocation(snapshot, "voter_roi", 8, 10);
+      expect(rec.summary).toMatch(/gas hurdle/);
+    });
+
+    it("says nothing about the hurdle in the summary when nothing was collapsed", () => {
+      const snapshot = snapshotOf(eightPools);
+      const rec = recommendAllocation(snapshot, "voter_roi", 8, 100_000);
+      expect(rec.summary).not.toMatch(/gas hurdle/);
+    });
+
+    it("accepts a custom gasHurdleUsd override instead of the SETTINGS default", () => {
+      const snapshot = snapshotOf(eightPools);
+      // A voting power that collapses to 1 pool at the default ~$0.40 hurdle
+      // keeps all 8 once the hurdle itself is dropped to $0.
+      const collapsed = recommendAllocation(snapshot, "voter_roi", 8, 10);
+      const uncollapsed = recommendAllocation(snapshot, "voter_roi", 8, 10, 0.35, 0);
+      expect(collapsed.allocations).toHaveLength(1);
+      expect(uncollapsed.allocations).toHaveLength(8);
+    });
+  });
+
   it("favors the less-diluted pool when expected rewards are otherwise equal", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 100_000, lastEpochFeesUsd: 100_000, currentVotes: 1_000 }),

@@ -287,8 +287,14 @@ export function recommendAllocation(
   maxPools = 10,
   votingPowerVe = 10_000,
   maxWeightFraction = 0.35,
+  gasHurdleUsd = SETTINGS.gasHurdleUsd,
 ): AllocationRecommendation {
   const eligible = snapshot.forecasts.filter((f) => f.pool.gaugeAlive && f.confidence > 0);
+
+  // How many otherwise-eligible pools the gas hurdle below collapsed away —
+  // surfaced in the summary so a small-ve voter sees *why* they got fewer
+  // pools than maxPools, not just a shorter list with no explanation.
+  let hurdleDroppedCount = 0;
 
   let scored: Array<{
     f: PoolForecast;
@@ -356,8 +362,19 @@ export function recommendAllocation(
         };
       })
       .filter((x) => x.weight > 0.001)
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, maxPools);
+      .sort((a, b) => b.weight - a.weight);
+
+    // Gas hurdle: adding one more pool to Voter.vote() costs real
+    // incremental gas (bigger calldata, another storage write) — once a
+    // pool's own expected $ (after dilution) falls under that marginal
+    // cost, splitting into it destroys value instead of adding it. Always
+    // keeps at least the top pool, even if it's under the hurdle too, so a
+    // very small voter still gets one recommendation rather than none.
+    const beforeHurdle = scored.length;
+    scored = scored.filter((x, i) => i === 0 || (x.expectedRewardUsd ?? 0) >= gasHurdleUsd);
+    hurdleDroppedCount = beforeHurdle - scored.length;
+
+    scored = scored.slice(0, maxPools);
   }
 
   const totalW = scored.reduce((s, x) => s + x.weight, 0);
@@ -398,7 +415,11 @@ export function recommendAllocation(
           `dilution-aware: pair with voter_roi to size an actual vote for your ${PRESET.veTokenSymbol} amount.`
         : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} ${PRESET.veTokenSymbol} across ${allocations.length} pools ` +
           `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
-          `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).`;
+          `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).` +
+          (hurdleDroppedCount > 0
+            ? ` ${hurdleDroppedCount} more pool${hurdleDroppedCount > 1 ? "s" : ""} cleared the reward floor but not ` +
+              `the ~$${gasHurdleUsd}/pool gas hurdle at this voting power — collapsed rather than split further.`
+            : "");
 
   return {
     objective,
