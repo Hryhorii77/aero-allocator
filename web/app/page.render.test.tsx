@@ -174,8 +174,8 @@ describe("Dashboard", () => {
     const rowsInOrder = () =>
       Array.from(document.querySelectorAll("tbody tr")).map((tr) => within(tr as HTMLElement).queryByText(/POOL-[ABC]/)?.textContent);
 
-    // Default sort is predictedFeesUsd desc: POOL-A (200), POOL-B (100), POOL-C (20).
-    expect(rowsInOrder()).toEqual(["POOL-A", "POOL-B", "POOL-C"]);
+    // Default sort is edgePct desc: POOL-A (2), POOL-C (0.01), POOL-B (-1).
+    expect(rowsInOrder()).toEqual(["POOL-A", "POOL-C", "POOL-B"]);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /last epoch/i }));
@@ -363,7 +363,7 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
 
-    // Default sort (predictedFeesUsd) keeps the "hot pools" framing.
+    // Default sort (edgePct) keeps the "hot pools" framing.
     expect(screen.getByText(/predicted hot pools/i)).toBeInTheDocument();
     expect(screen.queryByText(/thin gauges/i)).not.toBeInTheDocument();
 
@@ -391,15 +391,16 @@ describe("Dashboard", () => {
 
     // Previously an inactive sortable header showed no arrow at all,
     // looking identical to the non-sortable "pool" header — no way to
-    // tell which columns were clickable without trying.
-    const edgeHeader = screen.getByRole("button", { name: /^edge/i });
-    expect(edgeHeader).toHaveTextContent("▲");
-    expect(edgeHeader).toHaveTextContent("▼");
+    // tell which columns were clickable without trying. "last epoch", not
+    // "edge" — edge is the default sort now, so it starts active already.
+    const lastEpochHeader = screen.getByRole("button", { name: /last epoch/i });
+    expect(lastEpochHeader).toHaveTextContent("▲");
+    expect(lastEpochHeader).toHaveTextContent("▼");
 
     const user = userEvent.setup();
-    await user.click(edgeHeader);
-    expect(edgeHeader).not.toHaveTextContent("▲");
-    expect(edgeHeader).toHaveTextContent("▼");
+    await user.click(lastEpochHeader);
+    expect(lastEpochHeader).not.toHaveTextContent("▲");
+    expect(lastEpochHeader).toHaveTextContent("▼");
   });
 
   it("keeps the $/1k-votes warning sort out of the shareable URL (Grok round 4)", async () => {

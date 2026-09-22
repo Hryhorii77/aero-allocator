@@ -985,8 +985,13 @@ export default function Dashboard() {
   const [bribeResult, setBribeResult] = useState<BribeSimResult | null>(null);
   const [bribeLoading, setBribeLoading] = useState(false);
   const [bribeError, setBribeError] = useState<string | null>(null);
+  // Defaults to edge, not raw predicted fees — fees alone just ranks pool
+  // size, not what's worth voting into. Edge (predicted demand share minus
+  // current vote share) is the one column that answers "where should I
+  // actually look first" for a visitor here to vote, which raw fee size
+  // doesn't (external review: "fees just ranks size").
   const [poolSort, setPoolSort] = useState<{ key: PoolSortKey; dir: "asc" | "desc" }>({
-    key: "predictedFeesUsd",
+    key: "edgePct",
     dir: "desc",
   });
   const togglePoolSort = (key: PoolSortKey) =>
