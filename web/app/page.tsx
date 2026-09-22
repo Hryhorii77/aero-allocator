@@ -283,6 +283,21 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // through GitHub history themselves.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-09-22",
+    title:
+      "Multi-veNFT batch voting — every detected veAERO NFT is selected by default and cast as one Multicall3 transaction instead of one wallet signature per lock.",
+  },
+  {
+    date: "2026-09-22",
+    title:
+      "Voter ROI now splits each pool's payout into a bribe floor (posted, already committed) and a fee forecast (the riskier, confidence-blended half) instead of one blended number, and a gas hurdle collapses a small veAERO amount to 1-3 pools instead of an 8-way split not worth the extra calldata.",
+  },
+  {
+    date: "2026-09-22",
+    title:
+      "A persistent snapshot-freshness chip (with quiet auto-refresh in the final 6h before a vote flips) and a tighter flip-clock — amber under 12h, red with an explicit \"may be stale, refresh\" warning under 2h.",
+  },
+  {
     date: "2026-09-13",
     title: "Search box + filter chips (stables, AERO pairs, BTC, new pools, positive edge, high confidence) to narrow the hot-pools table.",
   },
