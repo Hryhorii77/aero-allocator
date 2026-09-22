@@ -61,6 +61,10 @@ interface AllocationRow {
   currentVotes: number;
   votesAllocated?: number;
   expectedRewardUsd?: number;
+  /** Posted bribes already committed this epoch, USD — a floor, not a forecast (voter_roi only). */
+  bribeFloorUsd?: number;
+  /** Confidence-blended predicted-vs-last-epoch fee estimate, USD — the risky half of the payout (voter_roi only). */
+  feeForecastUsd?: number;
   confidence: number;
 }
 
@@ -687,6 +691,15 @@ function AllocationRows({
             <div className="mt-0.5 text-[11px] text-neutral-600">
               {usd(a.tvlUsd)} TVL · {Math.round(a.currentVotes).toLocaleString("en-US")} votes now
               {gaugeSharePct !== undefined && ` · your vote ≈ ${gaugeSharePct.toFixed(1)}% of this gauge`}
+              {a.bribeFloorUsd !== undefined && a.feeForecastUsd !== undefined && (
+                <span
+                  title="Bribe floor: posted incentives already committed this epoch — collected regardless of whether the fee forecast is right. Fee forecast: the confidence-blended predicted-vs-last-epoch estimate — the risky half of the payout."
+                >
+                  {" "}
+                  · <span className="text-neutral-500">{usd(a.bribeFloorUsd)} floor</span> +{" "}
+                  <span className="text-amber-600">{usd(a.feeForecastUsd)} forecast</span>
+                </span>
+              )}
             </div>
           </div>
         );

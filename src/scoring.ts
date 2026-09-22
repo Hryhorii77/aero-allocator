@@ -255,7 +255,11 @@ function waterfillCapped(
  */
 interface VoterRoiCandidate {
   f: PoolForecast;
-  /** Expected next-epoch pool payout (fees blended by confidence + current bribes), USD. */
+  /** Posted bribes already committed this epoch, USD — a floor: whoever votes here collects at least this, no forecast involved. */
+  bribeFloorUsd: number;
+  /** Confidence-blended predicted-vs-last-epoch fee estimate, USD — the risky half of the payout: a forecast, not a commitment. */
+  feeForecastUsd: number;
+  /** bribeFloorUsd + feeForecastUsd — expected next-epoch pool payout used to size votes. Kept as one number for the water-fill math; the two halves above are what a voter should actually weigh differently (BNKR/Grok round: blending them hides that fees can miss while bribes can't). */
   rewardsUsd: number;
 }
 
@@ -269,10 +273,11 @@ interface VoterRoiCandidate {
 function voterRoiCandidates(snapshot: MarketSnapshot, minRewardsUsd = SETTINGS.minVoterRewardCapacityUsd): VoterRoiCandidate[] {
   return snapshot.forecasts
     .filter((f) => f.pool.gaugeAlive && f.confidence > 0)
-    .map((f) => ({
-      f,
-      rewardsUsd: f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd + f.currentBribesUsd,
-    }))
+    .map((f) => {
+      const bribeFloorUsd = f.currentBribesUsd;
+      const feeForecastUsd = f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd;
+      return { f, bribeFloorUsd, feeForecastUsd, rewardsUsd: bribeFloorUsd + feeForecastUsd };
+    })
     .filter((c) => c.rewardsUsd >= minRewardsUsd);
 }
 
@@ -285,7 +290,15 @@ export function recommendAllocation(
 ): AllocationRecommendation {
   const eligible = snapshot.forecasts.filter((f) => f.pool.gaugeAlive && f.confidence > 0);
 
-  let scored: Array<{ f: PoolForecast; weight: number; expectedRewardUsd?: number; votesAllocated?: number; rationale: string }>;
+  let scored: Array<{
+    f: PoolForecast;
+    weight: number;
+    expectedRewardUsd?: number;
+    votesAllocated?: number;
+    bribeFloorUsd?: number;
+    feeForecastUsd?: number;
+    rationale: string;
+  }>;
 
   if (objective === "protocol_efficiency") {
     scored = eligible
@@ -333,10 +346,12 @@ export function recommendAllocation(
           weight: v / votingPowerVe,
           expectedRewardUsd: round2(expected),
           votesAllocated: Math.round(v),
+          bribeFloorUsd: round2(c.bribeFloorUsd),
+          feeForecastUsd: round2(c.feeForecastUsd),
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
-            `(predicted pool payout ~$${Math.round(c.rewardsUsd).toLocaleString()}, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} ` +
-            `fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes); ` +
+            `($${Math.round(c.bribeFloorUsd).toLocaleString()} bribe floor + $${Math.round(c.feeForecastUsd).toLocaleString()} fee forecast ` +
+            `pool payout, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes); ` +
             rationaleFor(c.f, "roi"),
         };
       })
@@ -346,7 +361,7 @@ export function recommendAllocation(
   }
 
   const totalW = scored.reduce((s, x) => s + x.weight, 0);
-  const allocations = scored.map(({ f, weight, expectedRewardUsd, votesAllocated, rationale }) => ({
+  const allocations = scored.map(({ f, weight, expectedRewardUsd, votesAllocated, bribeFloorUsd, feeForecastUsd, rationale }) => ({
     pool: f.pool.lp,
     symbol: f.pool.symbol,
     weightPct: round2((weight / totalW) * 100),
@@ -361,6 +376,10 @@ export function recommendAllocation(
     tvlUsd: Math.round(f.pool.tvlUsd),
     currentVotes: Math.round(f.currentVotes),
     ...(votesAllocated !== undefined && { votesAllocated }),
+    // voter_roi only — the other two objectives don't blend a fee forecast
+    // with posted bribes, so there's no floor/forecast split to show.
+    ...(bribeFloorUsd !== undefined && { bribeFloorUsd }),
+    ...(feeForecastUsd !== undefined && { feeForecastUsd }),
     ...(expectedRewardUsd !== undefined && { expectedRewardUsd }),
     confidence: f.confidence,
     rationale,

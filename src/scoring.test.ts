@@ -171,9 +171,21 @@ describe("recommendAllocation — voter_roi", () => {
       makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4 }),
     ]);
     const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
-    expect(rec.allocations[0].rationale).toMatch(/predicted pool payout/);
+    expect(rec.allocations[0].rationale).toMatch(/fee forecast/);
     expect(rec.allocations[0].rationale).toContain("$487");
     expect(rec.allocations[0].rationale).not.toContain("pool pays ~$");
+  });
+
+  it("splits the payout into a posted-bribe floor and a fee forecast, both in the rationale and as separate fields", () => {
+    const snapshot = snapshotOf([
+      makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4, currentBribesUsd: 300 }),
+    ]);
+    const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
+    const a = rec.allocations[0];
+    expect(a.bribeFloorUsd).toBe(300);
+    // feeForecastUsd = confidence * predicted + (1 - confidence) * lastEpoch = 0.4*2000 + 0.6*487
+    expect(a.feeForecastUsd).toBeCloseTo(0.4 * 2_000 + 0.6 * 487, 2);
+    expect(a.rationale).toContain("$300 bribe floor");
   });
 
   it("excludes pools below the minimum reward-capacity floor", () => {

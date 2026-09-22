@@ -75,6 +75,10 @@ export interface AllocationRecommendation {
     votesAllocated?: number;
     /** Expected USD reward next epoch for the votes allocated here, after dilution. */
     expectedRewardUsd?: number;
+    /** Posted bribes already committed this epoch, USD — a floor, not a forecast (voter_roi only). */
+    bribeFloorUsd?: number;
+    /** Confidence-blended predicted-vs-last-epoch fee estimate, USD — the risky half of the payout estimate (voter_roi only). */
+    feeForecastUsd?: number;
     confidence: number;
     rationale: string;
   }>;
