@@ -66,7 +66,7 @@ RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; ot
 
 ### Dashboard
 
-**Live**: https://aero-allocator.vercel.app (Aerodrome/Base) · https://aero-allocator-velodrome.vercel.app (Velodrome/Optimism) — each links to the other via a header switcher
+**Live**: https://aeroallocator.app (Aerodrome/Base) · https://aero-allocator-velodrome.vercel.app (Velodrome/Optimism) — each links to the other via a header switcher
 
 A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
 
@@ -75,16 +75,29 @@ npm run build                 # engine dist/ used by the web app
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence); interactive Voter
-ROI, Protocol Efficiency, and Edge Hunter allocation panels; an LP staking-yield table; a vote-swings
-(risers/fallers) panel; a bribe-placement simulator; and a forecast-accuracy panel (the same
-walk-forward backtest as `backtest_summary` — see [Forecast accuracy](#forecast-accuracy) — so you
-can judge the model's track record without leaving the page). First load builds the onchain snapshot
-(~1 min), then it's cached.
+Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence, search + category
+filters, an expandable per-pool fee-history sparkline); interactive Voter ROI, Protocol Efficiency, and
+Edge Hunter allocation panels; an LP staking-yield table (thin pools — low TVL or an APR too high off
+too little TVL to mean anything — hidden by default, flagged if shown); a vote-swings (risers/fallers)
+panel; a bribe-placement simulator; a forecast-accuracy panel (the same walk-forward backtest as
+`backtest_summary` — see [Forecast accuracy](#forecast-accuracy) — so you can judge the model's track
+record without leaving the page); and a collapsed changelog panel. First load builds the onchain
+snapshot (~1 min), then it's cached.
+
+The header carries two freshness/urgency signals, not just a market snapshot: a flip-clock chip
+(neutral above 12h to the next vote flip, amber inside 12h, red — with an explicit "allocation may be
+stale, refresh" — inside the final 2h) and a separate snapshot-age chip that turns red once the data is
+both stale (older than the server's 5-minute cache) and close to the flip. In that last-6h window the
+page also quietly auto-refreshes (one forced live rebuild on entering it, then a 60s poll) instead of
+waiting on the next visitor to trigger a background refresh.
 
 Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation as a real vote: your
-veNFTs are auto-detected via VeSugar (manual id entry as fallback) and the "cast vote" button submits
-`Voter.vote()` with the recommended weights — you sign in your wallet; the app never holds keys.
+veNFTs are auto-detected via VeSugar (manual id entry as fallback) and all of them are selected by
+default — a wallet holding several locks gets its combined voting power and current split immediately,
+and the "cast vote" button batches one `Voter.vote()` per selected veNFT into a single Multicall3
+transaction (one signature, not N). Uncheck a lock to exclude it. The dashboard shows your actual
+current vote split next to the recommended one (with the $ difference), and you sign in your wallet;
+the app never holds keys.
 
 **Multi-protocol**: like the MCP server, one web deployment serves one protocol, fixed at build time
 by `AERO_PROTOCOL` (server) and `NEXT_PUBLIC_AERO_PROTOCOL` (client — must be set to the same value;
@@ -182,7 +195,7 @@ For each candidate pool (top N by staked TVL above a TVL floor):
 Three allocation objectives — each answers a different question, and they can disagree sharply:
 
 - **protocol_efficiency** — weights ∝ predicted demand share. This is the Predictive Allocation ideal; a market-wide benchmark, not personalized — useful for treasuries/protocols directing incentives and for benchmarking the live mechanism once it ships. **Not** a personal voting recommendation: it doesn't know your veAERO amount or account for dilution.
-- **voter_roi** — maximize *your* expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Output includes the expected USD reward per pool after self-dilution. **This is the one to use for "where should I actually vote"** — but only if you pass your real veAERO amount; the default (10,000) can produce a meaningfully different split than what's optimal for a much larger or smaller holder.
+- **voter_roi** — maximize *your* expected next-epoch reward for a given veAERO amount (`votingPowerVe`). Each pool pays pro-rata (`R·v/(E+v)`), so the optimizer water-fills votes to equalize marginal returns — dust pools with high headline ROI but no reward capacity naturally get few or no votes (plus a hard $500 capacity floor). Each pool's expected payout is also split into a bribe floor (posted incentives, already committed) and a fee forecast (the confidence-blended, riskier half) rather than one blended number. Output includes the expected USD reward per pool after self-dilution. Pools that clear the $500 floor but whose slice of a small `votingPowerVe` would still earn under a ~$0.40/pool gas hurdle (`gasHurdleUsd`, env `AERO_GAS_HURDLE_USD`) are collapsed away rather than split into — a small holder gets 1-3 pools, not an 8-way split not worth the extra calldata. **This is the one to use for "where should I actually vote"** — but only if you pass your real veAERO amount; the default (10,000) can produce a meaningfully different split than what's optimal for a much larger or smaller holder.
 - **edge_hunter** — ranks pools by `predictiveEdge × confidence`: the biggest, most-trustworthy mispricings between predicted demand and current votes, rather than raw demand (protocol_efficiency) or dilution-optimal ROI (voter_roi). Only positive edge counts (under-incentivized — the "buy" signal); a big edge from a low-confidence forecast can rank below a smaller edge the model actually trusts. Not dilution-aware — pair it with `voter_roi` to size a real vote once you've picked targets.
 
 `recommend_bribe_placement` flips this around for teams/protocols spending a bribe budget instead of voters: it re-runs the same water-fill over the market's entire active voting power, with and without the bribe added to one pool's payout, and reports the vote-share delta. Votes water-fill ∝ √payout, so a bribe dollar pulls disproportionately more on a cheap pool than an already-large one. This models an instant, frictionless, whole-market reallocation, so it's a theoretical ceiling, not a forecast — useful for *comparing* candidate pools, not for predicting a literal vote count.
@@ -244,6 +257,10 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 | `AERO_PREDICTIVE_ALLOCATION_ARGS` | `["veNftId","pools","weightsBps"]` | Positional arg roles — supported: `veNftId`, `pools`, `weightsBps` (100 = 1%, matches `Voter.vote()`), `weightsWad` (fraction of 1e18) |
 
 With all four set, `prepare_submission` builds real calldata; `predictive_allocation_status` reports `live: true`. Until then, `prepare_submission` fails with a clear "not published yet" error and `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
+
+### Arc
+
+Circle's Arc mainnet (chain ID `5042`, EVM-compatible, gas paid in USDC) launched 2026-09-16, and "Aero" — Aerodrome and Velodrome's planned merged protocol — is named as a launch trading-infrastructure partner. As of this writing, no Sugar/Voter/veAERO-equivalent contract addresses on Arc have been published anywhere (checked Arc's own contract-address docs and `aerodrome-finance/contracts` on GitHub), and it's not yet clear whether voting stays Base-hub-only or becomes Arc-local — so there's nothing here to build against yet. Tracked as a roadmap item once addresses and an ABI are public.
 
 ## Configuration (env)
 
@@ -332,6 +349,10 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Dashboard deployed live, both protocols (Vercel, cross-linked) — see [Deploying to Vercel](#deploying-to-vercel)
 - [x] Semi-automated voting: epoch-reminder posts your personal split with a one-click approve link — see [One-click voting from the alert](#one-click-voting-from-the-alert)
 - [x] Realized-vs-recommended tracking: `realized_performance` compares logged recommendations against actual outcomes — see [Realized performance tracking](#realized-performance-tracking)
+- [x] Personal vote desk: dashboard shows your actual on-chain vote split next to the recommendation, with the $ difference
+- [x] Multi-veNFT batch voting: every detected veNFT selected by default, cast as one Multicall3 transaction instead of one wallet signature per lock
+- [x] Gas hurdle for small `votingPowerVe`: pools too small a slice to be worth the extra calldata are collapsed away instead of splitting into an N-way vote nobody can profit from
+- [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer
 

@@ -1,9 +1,9 @@
 ---
 name: aero-allocator
 description: Forecast next-epoch demand for Aerodrome pools on Base and recommend veAERO vote / incentive allocations. Built for Aerodrome's Predictive Allocation era — reward where fees are going, not where they've been. Read-only onchain analytics; execution stays in your wallet layer.
-emoji: ✈️
-homepage: https://github.com/Hryhorii77/aero-allocator
 metadata:
+  emoji: ✈️
+  homepage: https://github.com/Hryhorii77/aero-allocator
   category: defi-analytics
   chain: base
 ---
@@ -44,7 +44,7 @@ Skip the clone/install/MCP-registration path entirely: pay-per-call over HTTP vi
 protocol](https://www.x402.org/), $0.05 in USDC on Base mainnet, verified and settled automatically —
 no RPC key, no self-hosting, no wallet ever connects to this project.
 
-- `GET https://aero-allocator.vercel.app/api/v1/forecast` (Aerodrome/Base)
+- `GET https://aeroallocator.app/api/v1/forecast` (Aerodrome/Base)
 - `GET https://aero-allocator-velodrome.vercel.app/api/v1/forecast` (Velodrome/Optimism)
 
 Same data `predict_demand` + `recommend_allocation` return combined: predicted hot pools, all three
@@ -66,10 +66,14 @@ const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [{ network: "eip155:8453", client: new ExactEvmScheme(account) }],
 });
 
-const res = await fetchWithPayment("https://aero-allocator.vercel.app/api/v1/forecast");
+const res = await fetchWithPayment("https://aeroallocator.app/api/v1/forecast");
 const data = await res.json();
 ```
 
 ## Predictive Allocation
 
 When Dromos Labs publishes the Predictive Allocation contracts (September 2026, with the Aero merger — pushed back from the original July target), direct submission lands in `src/adapters/predictive-allocation.ts` — check `predictive_allocation_status` to see if it's live in your installed version.
+
+## Arc
+
+Circle's Arc mainnet (chain ID `5042`) launched 2026-09-16 with Aero (Aerodrome/Velodrome's merged protocol) named as a launch trading partner, but no Sugar/Voter contract addresses on Arc are public yet — no engine support until they are.
