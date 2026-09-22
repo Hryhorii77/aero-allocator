@@ -293,6 +293,11 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-09-22",
     title:
+      "The mobile hot-pools cards now expand (▸) to show the fee-history sparkline too — previously desktop-only. Confidence bars mute at an 8pp spread instead of 3pp, since anything tighter doesn't move a ~32px bar by a visible amount. A gas-hurdle-collapsed Voter ROI result gets its own one-line explanation instead of looking like a broken card. Header status chips and action buttons now group separately instead of piling into one row.",
+  },
+  {
+    date: "2026-09-22",
+    title:
       "Vote mode (on by default) trims the hot-pools table to pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand fold into the row expand (▸) instead of disappearing. Toggle it off for the full table.",
   },
   {

@@ -88,7 +88,10 @@ cached.
 
 **Vote mode** (on by default) trims the hot-pools table to what a voter actually needs — pool,
 predicted fees, trend, edge, $/1k votes, confidence — folding "last epoch" and "votes vs demand" into
-each row's expand (▸) instead of dropping them. Toggle it off for the full 8-column table.
+each row's expand (▸) instead of dropping them. Toggle it off for the full 8-column table. The row
+expand (fee-history sparkline) works the same way on the mobile card layout, not just the desktop
+table. When a small `votingPowerVe` collapses Voter ROI to one or two pools (see gas hurdle above),
+the panel says so directly instead of just looking sparse next to the other two.
 
 The header carries two freshness/urgency signals, not just a market snapshot: a flip-clock chip
 (neutral above 12h to the next vote flip, amber inside 12h, red — with an explicit "allocation may be
@@ -359,6 +362,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Multi-veNFT batch voting: every detected veNFT selected by default, cast as one Multicall3 transaction instead of one wallet signature per lock
 - [x] Gas hurdle for small `votingPowerVe`: pools too small a slice to be worth the extra calldata are collapsed away instead of splitting into an N-way vote nobody can profit from
 - [x] Vote mode: hot-pools table defaults to edge sort and a trimmed column set, with the rest folded into the row expand
+- [x] Mobile row-expand parity, tighter confidence-cluster threshold, a gas-hurdle empty state, and a grouped (status vs actions) header
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer
