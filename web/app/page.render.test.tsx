@@ -178,6 +178,9 @@ describe("Dashboard", () => {
     expect(rowsInOrder()).toEqual(["POOL-A", "POOL-C", "POOL-B"]);
 
     const user = userEvent.setup();
+    // "last epoch" is folded into the row expand under vote mode (default
+    // on) — surface it as a header again to click it.
+    await user.click(screen.getByRole("button", { name: /vote mode/i }));
     await user.click(screen.getByRole("button", { name: /last epoch/i }));
 
     // lastEpochFeesUsd desc: POOL-B (500), POOL-A (50), POOL-C (5).
@@ -246,6 +249,33 @@ describe("Dashboard", () => {
     await user.click(screen.getByRole("button", { name: /collapse POOL-A fee history/i }));
 
     expect(screen.queryByRole("img", { name: /fee history sparkline/i })).not.toBeInTheDocument();
+  });
+
+  it("defaults to vote mode: hides last-epoch and votes-vs-demand columns, folding them into the row expand instead", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByRole("button", { name: /vote mode/i })).toBeInTheDocument();
+    expect(within(hotPoolsSection()).queryByRole("button", { name: /^last epoch/i })).not.toBeInTheDocument();
+    expect(within(hotPoolsSection()).queryByText(/votes vs demand/i)).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /expand POOL-A fee history/i }));
+
+    // Folded into the expand panel instead of gone outright.
+    expect(screen.getByText(/last epoch \$50/i)).toBeInTheDocument();
+    expect(screen.getByText(/votes vs demand 10\.0% → 12\.0%/i)).toBeInTheDocument();
+  });
+
+  it("shows every column again when vote mode is switched off", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /vote mode/i }));
+
+    expect(within(hotPoolsSection()).getByRole("button", { name: /^last epoch/i })).toBeInTheDocument();
+    expect(within(hotPoolsSection()).getByText(/votes vs demand/i)).toBeInTheDocument();
   });
 
   it("shows a falling sparkline for a pool with declining fee history", async () => {
@@ -378,8 +408,10 @@ describe("Dashboard", () => {
     expect(screen.queryByText(/predicted hot pools/i)).not.toBeInTheDocument();
     expect(screen.getByText(/most unstable number on the page/i)).toBeInTheDocument();
 
-    // POOL-C (near-zero vote share) should read "no votes yet" instead of
-    // a fake-precise "0.0% → 0.0%" in the votes-vs-demand column.
+    // POOL-C (near-zero vote share) should read "no votes yet" instead of a
+    // fake-precise "0.0% → 0.0%" in the votes-vs-demand column — folded into
+    // vote mode's row expand, so turn vote mode off to see the column itself.
+    await user.click(screen.getByRole("button", { name: /vote mode/i }));
     const tbody = document.querySelector("tbody")!;
     const rowC = within(tbody).getByText("POOL-C").closest("tr")!;
     expect(within(rowC).getByText("no votes yet")).toBeInTheDocument();
@@ -391,16 +423,19 @@ describe("Dashboard", () => {
 
     // Previously an inactive sortable header showed no arrow at all,
     // looking identical to the non-sortable "pool" header — no way to
-    // tell which columns were clickable without trying. "last epoch", not
-    // "edge" — edge is the default sort now, so it starts active already.
-    const lastEpochHeader = screen.getByRole("button", { name: /last epoch/i });
-    expect(lastEpochHeader).toHaveTextContent("▲");
-    expect(lastEpochHeader).toHaveTextContent("▼");
+    // tell which columns were clickable without trying. "trend/epoch", not
+    // "edge" (the default sort, already active) or "last epoch" (hidden by
+    // default under vote mode).
+    // Scoped to the hot-pools section — the LP staking table has its own
+    // "trend/epoch" sortable header too.
+    const trendHeader = within(hotPoolsSection()).getByRole("button", { name: /trend\/epoch/i });
+    expect(trendHeader).toHaveTextContent("▲");
+    expect(trendHeader).toHaveTextContent("▼");
 
     const user = userEvent.setup();
-    await user.click(lastEpochHeader);
-    expect(lastEpochHeader).not.toHaveTextContent("▲");
-    expect(lastEpochHeader).toHaveTextContent("▼");
+    await user.click(trendHeader);
+    expect(trendHeader).not.toHaveTextContent("▲");
+    expect(trendHeader).toHaveTextContent("▼");
   });
 
   it("keeps the $/1k-votes warning sort out of the shareable URL (Grok round 4)", async () => {

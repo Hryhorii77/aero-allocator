@@ -1006,6 +1006,12 @@ export default function Dashboard() {
   const [poolFilter, setPoolFilter] = useState<PoolFilterKey>("all");
   const [expandedPool, setExpandedPool] = useState<string | null>(null);
   const [showThinLp, setShowThinLp] = useState(false);
+  // Defaults on: a visitor here to vote needs pool, predicted fees,
+  // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
+  // once. last epoch and votes-vs-demand move into the row expand
+  // instead of disappearing outright (external review: "right now
+  // everything shouts"). Off flips back to the full power-user table.
+  const [voteMode, setVoteMode] = useState(true);
 
   // Read sort choice from the URL once on mount, so a shared link (e.g.
   // "sorted by edge") opens showing the same view. votingPower's own
@@ -1315,6 +1321,25 @@ export default function Dashboard() {
                   {label}
                 </button>
               ))}
+              {/* A display-density toggle, not a filter — set apart (ml-auto,
+                  its own color) from the category chips above so it doesn't
+                  read as an eighth filter option. */}
+              <button
+                type="button"
+                onClick={() => setVoteMode((v) => !v)}
+                title={
+                  voteMode
+                    ? "Showing pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand move into the row expand (▸). Click to show every column."
+                    : "Showing every column. Click to collapse to the columns a voter needs, with the rest moved into the row expand (▸)."
+                }
+                className={`ml-auto rounded-lg border px-2.5 py-1 font-mono text-xs ${
+                  voteMode
+                    ? "border-emerald-700 bg-emerald-950/40 text-emerald-300"
+                    : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+                }`}
+              >
+                vote mode
+              </button>
             </div>
             {(poolSearch.trim() !== "" || poolFilter !== "all") && (
               <p className="mb-3 text-xs text-neutral-500">
@@ -1394,7 +1419,9 @@ export default function Dashboard() {
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
                     <th className="px-4 py-2.5">pool</th>
                     <SortHeader label="predicted fees" sortKey="predictedFeesUsd" sort={poolSort} onSort={togglePoolSort} />
-                    <SortHeader label="last epoch" sortKey="lastEpochFeesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    {!voteMode && (
+                      <SortHeader label="last epoch" sortKey="lastEpochFeesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    )}
                     <SortHeader
                       label="trend/epoch"
                       sortKey="feeTrendUsdPerEpoch"
@@ -1402,7 +1429,7 @@ export default function Dashboard() {
                       onSort={togglePoolSort}
                       title="Slope of a linear regression over trailing epochs, USD per epoch — not simply predicted minus last epoch, so it can point a different direction than that single-epoch comparison."
                     />
-                    <th className="px-4 py-2.5 text-right">votes vs demand</th>
+                    {!voteMode && <th className="px-4 py-2.5 text-right">votes vs demand</th>}
                     <SortHeader label="edge" sortKey="edgePct" sort={poolSort} onSort={togglePoolSort} />
                     <SortHeader label="$/1k votes" sortKey="rewardPer1kVotesUsd" sort={poolSort} onSort={togglePoolSort} />
                     <SortHeader label="conf" sortKey="confidence" sort={poolSort} onSort={togglePoolSort} />
@@ -1442,18 +1469,22 @@ export default function Dashboard() {
                           {noHistory && <NewPoolBadge />}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
-                        <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
+                        {!voteMode && (
+                          <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(p.lastEpochFeesUsd)}</td>
+                        )}
                         <td className="px-4 py-2.5">
                           <TrendCell value={p.feeTrendUsdPerEpoch} />
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
-                          {thin ? (
-                            <span className="text-amber-500">no votes yet</span>
-                          ) : (
-                            `${p.voteSharePct.toFixed(1)}%`
-                          )}{" "}
-                          → {p.demandSharePct.toFixed(1)}%
-                        </td>
+                        {!voteMode && (
+                          <td className="px-4 py-2.5 text-right font-mono text-neutral-300">
+                            {thin ? (
+                              <span className="text-amber-500">no votes yet</span>
+                            ) : (
+                              `${p.voteSharePct.toFixed(1)}%`
+                            )}{" "}
+                            → {p.demandSharePct.toFixed(1)}%
+                          </td>
+                        )}
                         <td className="px-4 py-2.5 text-right">
                           {noHistory ? (
                             <span
@@ -1499,7 +1530,17 @@ export default function Dashboard() {
                       </tr>
                       {expanded && (
                         <tr className="border-b border-neutral-800/60 last:border-0 bg-neutral-950/40">
-                          <td colSpan={8} className="px-4 py-3">
+                          <td colSpan={voteMode ? 6 : 8} className="px-4 py-3">
+                            {/* vote mode hides last-epoch $ and votes-vs-demand
+                                from the row itself — they land here instead of
+                                disappearing outright. */}
+                            {voteMode && (
+                              <p className="mb-2 font-mono text-xs text-neutral-400">
+                                last epoch {usd(p.lastEpochFeesUsd)} · votes vs demand{" "}
+                                {thin ? <span className="text-amber-500">no votes yet</span> : `${p.voteSharePct.toFixed(1)}%`}
+                                {" "}→ {p.demandSharePct.toFixed(1)}%
+                              </p>
+                            )}
                             {p.feeHistory.length >= 2 ? (
                               <div className="flex flex-wrap items-center gap-4">
                                 <Sparkline values={p.feeHistory} />
