@@ -11,7 +11,15 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { voterAbi, veSugarAbi, buildVoteArgs, buildVoteCalldata } from "@/lib/voter";
+import {
+  voterAbi,
+  veSugarAbi,
+  multicall3Abi,
+  MULTICALL3_ADDRESS,
+  buildVoteArgs,
+  buildVoteCalldata,
+  buildMulticallVoteArgs,
+} from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
 
 interface ProtocolAddresses {
@@ -165,7 +173,11 @@ export function VotePanel({
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
   const [manualId, setManualId] = useState("");
-  const [selectedId, setSelectedId] = useState<string>("");
+  // Every detected veNFT is a candidate to batch into one signature — a
+  // Set rather than a single id, since a wallet with several locks (Flight
+  // School + an older max lock, the case BNKR/Grok flagged) should be able
+  // to vote all of them at once instead of running this panel N times.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { data: addresses } = useProtocolAddresses();
 
   // Auto-detect the wallet's veNFTs; deployed Sugar versions have
@@ -202,23 +214,66 @@ export function VotePanel({
     [veNfts],
   );
 
-  const tokenId = selectedId || manualId;
+  // Manual fallback (auto-detect failed or found nothing) also accepts a
+  // comma/whitespace-separated list, so a multi-lock holder isn't forced
+  // into one-at-a-time entry just because detection didn't work.
+  const manualIds = useMemo(
+    () =>
+      manualId
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [manualId],
+  );
+  const tokenIds = options.length > 0 ? [...selectedIds] : manualIds;
 
-  const selectNft = (id: string) => {
-    setSelectedId(id);
-    const opt = options.find((o) => o.id.toString() === id);
-    if (opt) onNftSelected?.(Math.round(Number(opt.votingAmount) / 1e18), opt.votes);
+  const selectNfts = (ids: Set<string>) => {
+    setSelectedIds(ids);
+    const selected = options.filter((o) => ids.has(o.id.toString()));
+    if (selected.length === 0) return;
+    if (selected.length === 1) {
+      // No blending needed — forward this veNFT's own already-normalized
+      // split exactly rather than round-tripping a single value through
+      // the floating-point blend below for no reason.
+      onNftSelected?.(Math.round(Number(selected[0].votingAmount) / 1e18), selected[0].votes);
+      return;
+    }
+    const totalVotingAmount = selected.reduce((s, o) => s + o.votingAmount, 0n);
+    const totalVotingPower = Math.round(Number(totalVotingAmount) / 1e18);
+    // Blend each selected veNFT's own split into one portfolio-wide split,
+    // weighted by that veNFT's own voting power — "what am I already in,
+    // in aggregate" is the question a multi-veNFT holder actually has, not
+    // N separate per-NFT answers the caller would have to combine itself.
+    const poolAmounts = new Map<string, number>();
+    for (const o of selected) {
+      const amount = Number(o.votingAmount) / 1e18;
+      for (const v of o.votes) {
+        poolAmounts.set(v.pool, (poolAmounts.get(v.pool) ?? 0) + amount * (v.weightPct / 100));
+      }
+    }
+    const blendedVotes: CurrentVote[] =
+      totalVotingPower > 0
+        ? [...poolAmounts.entries()].map(([pool, amount]) => ({ pool, weightPct: (amount / totalVotingPower) * 100 }))
+        : [];
+    onNftSelected?.(totalVotingPower, blendedVotes);
   };
 
-  // Auto-select the first detected veNFT the moment one shows up, instead
-  // of leaving votingPower on its 10,000 default until the user manually
-  // opens this dropdown — that default is wrong for almost everyone and was
-  // the #1 reason people asked whether this actually predicts their next
-  // epoch. Manual override (picking a different lock, if there are several)
-  // still works via the dropdown below.
+  const toggleNft = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectNfts(next);
+  };
+
+  // Default to batching every detected veNFT into one signature the moment
+  // they show up, instead of leaving votingPower on its 10,000 default (or
+  // just the first lock) until the user manually opens this panel — a
+  // wallet with several locks (Flight School + an older max lock) gets its
+  // full combined voting power and current split immediately. Unchecking a
+  // box below still excludes that lock from both the sizing and the vote.
   useEffect(() => {
-    if (options.length > 0 && !selectedId) {
-      selectNft(options[0].id.toString());
+    if (options.length > 0 && selectedIds.size === 0) {
+      selectNfts(new Set(options.map((o) => o.id.toString())));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options]);
@@ -227,13 +282,26 @@ export function VotePanel({
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
   const castVote = () => {
-    if (!tokenId || allocations.length === 0 || !addresses) return;
+    if (tokenIds.length === 0 || allocations.length === 0 || !addresses) return;
+    if (tokenIds.length === 1) {
+      writeContract({
+        address: addresses.voterAddress,
+        abi: voterAbi,
+        functionName: "vote",
+        chainId: DISPLAY_PRESET.chain.id,
+        args: buildVoteArgs(tokenIds[0], allocations),
+      });
+      return;
+    }
+    // More than one selected veNFT: one Voter.vote() per tokenId, batched
+    // into a single Multicall3 transaction instead of N separate wallet
+    // signatures.
     writeContract({
-      address: addresses.voterAddress,
-      abi: voterAbi,
-      functionName: "vote",
+      address: MULTICALL3_ADDRESS,
+      abi: multicall3Abi,
+      functionName: "aggregate3",
       chainId: DISPLAY_PRESET.chain.id,
-      args: buildVoteArgs(tokenId, allocations),
+      args: buildMulticallVoteArgs(addresses.voterAddress, tokenIds, allocations),
     });
   };
 
@@ -335,34 +403,61 @@ export function VotePanel({
       <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
         <div className="flex flex-wrap items-center gap-2">
           {options.length > 0 ? (
-            <select
-              value={selectedId}
-              onChange={(e) => selectNft(e.target.value)}
-              className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
-            >
-              <option value="">select {DISPLAY_PRESET.veTokenSymbol} NFT</option>
-              {options.map((o) => (
-                <option key={o.id.toString()} value={o.id.toString()}>
-                  #{o.id.toString()} · {Math.round(Number(o.votingAmount) / 1e18).toLocaleString()} votes
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              {options.map((o) => {
+                const id = o.id.toString();
+                return (
+                  <label
+                    key={id}
+                    className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(id)}
+                      onChange={() => toggleNft(id)}
+                      aria-label={`veNFT #${id}`}
+                      className="accent-sky-600"
+                    />
+                    #{id} · {Math.round(Number(o.votingAmount) / 1e18).toLocaleString()}
+                  </label>
+                );
+              })}
+              {options.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectNfts(
+                      selectedIds.size === options.length ? new Set() : new Set(options.map((o) => o.id.toString())),
+                    )
+                  }
+                  className="font-mono text-xs text-neutral-500 underline hover:text-neutral-300"
+                >
+                  {selectedIds.size === options.length ? "select none" : "select all"}
+                </button>
+              )}
+            </div>
           ) : (
             <input
               type="text"
               inputMode="numeric"
-              placeholder={detectFailed ? "veNFT id (auto-detect failed)" : "veNFT id"}
+              placeholder={detectFailed ? "veNFT id(s), comma-separated (auto-detect failed)" : "veNFT id(s), comma-separated"}
               value={manualId}
-              onChange={(e) => setManualId(e.target.value.replace(/\D/g, ""))}
-              className="w-44 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
+              onChange={(e) => setManualId(e.target.value.replace(/[^\d,\s]/g, ""))}
+              className="w-56 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
             />
           )}
           <button
             onClick={requestCastVote}
-            disabled={!tokenId || signing || confirming || allocations.length === 0 || !addresses}
+            disabled={tokenIds.length === 0 || signing || confirming || allocations.length === 0 || !addresses}
             className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm text-white hover:bg-emerald-600 disabled:opacity-40"
           >
-            {signing ? "confirm in wallet…" : confirming ? "confirming…" : "cast vote"}
+            {signing
+              ? "confirm in wallet…"
+              : confirming
+                ? "confirming…"
+                : tokenIds.length > 1
+                  ? `cast ${tokenIds.length} votes`
+                  : "cast vote"}
           </button>
           {txHash && (
             <a
@@ -414,9 +509,11 @@ export function VotePanel({
             </button>
           </p>
         )}
-        {selectedId && onNftSelected && (
+        {selectedIds.size > 0 && onNftSelected && (
           <p className="mt-2 text-xs text-sky-400">
-            Weights above were re-sized for veNFT #{selectedId}&rsquo;s real voting balance.
+            {selectedIds.size === 1
+              ? `Weights above were re-sized for veNFT #${[...selectedIds][0]}’s real voting balance.`
+              : `Weights above were re-sized for ${selectedIds.size} selected veNFTs’ combined voting balance — casting will batch ${selectedIds.size} votes into one multicall transaction.`}
           </p>
         )}
         <p className="mt-2 text-xs text-neutral-500">

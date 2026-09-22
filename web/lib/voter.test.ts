@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeFunctionData, encodeFunctionData } from "viem";
-import { buildVoteArgs, buildVoteCalldata, voterAbi } from "./voter";
+import { buildMulticallVoteArgs, buildVoteArgs, buildVoteCalldata, multicall3Abi, voterAbi } from "./voter";
 import { DATA_SUFFIX } from "./attribution";
 
 describe("buildVoteArgs", () => {
@@ -42,6 +42,43 @@ describe("buildVoteArgs", () => {
     const [, pools, weights] = buildVoteArgs("1", allocations);
     expect(pools).toEqual(["0x1", "0x2", "0x3"]);
     expect(weights).toEqual([1000n, 2000n, 7000n]);
+  });
+});
+
+describe("buildMulticallVoteArgs", () => {
+  // No a-f hex digits, so EIP-55 checksum casing is moot — encodeFunctionData
+  // validates checksums the same way it does for buildVoteCalldata's pool
+  // addresses below, and this dodges that without needing a real address.
+  const voterAddress = "0x4200000000000000000000000000000000000006" as `0x${string}`;
+  const allocations = [
+    { pool: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", weightPct: 60 },
+    { pool: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", weightPct: 40 },
+  ];
+
+  it("targets every call at the voter contract and never allows a partial-failure batch", () => {
+    const [calls] = buildMulticallVoteArgs(voterAddress, ["1", "2", "3"], allocations);
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      expect(call.target).toBe(voterAddress);
+      expect(call.allowFailure).toBe(false);
+    }
+  });
+
+  it("encodes the identical pools/weights as a vote() call for each tokenId, in order", () => {
+    const tokenIds = ["93", "44"];
+    const [calls] = buildMulticallVoteArgs(voterAddress, tokenIds, allocations);
+    calls.forEach((call, i) => {
+      const decoded = decodeFunctionData({ abi: voterAbi, data: call.callData });
+      expect(decoded.functionName).toBe("vote");
+      expect(decoded.args).toEqual(buildVoteArgs(tokenIds[i], allocations));
+    });
+  });
+
+  it("round-trips through aggregate3's own ABI encoding", () => {
+    const args = buildMulticallVoteArgs(voterAddress, ["1"], allocations);
+    const data = encodeFunctionData({ abi: multicall3Abi, functionName: "aggregate3", args });
+    const decoded = decodeFunctionData({ abi: multicall3Abi, data });
+    expect(decoded.functionName).toBe("aggregate3");
   });
 });
 

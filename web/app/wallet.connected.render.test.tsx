@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DISPLAY_PRESET } from "@/lib/protocol";
@@ -66,11 +66,11 @@ afterEach(() => {
 describe("VotePanel (connected, with detected veNFTs)", () => {
   const allocations = [{ pool: "0xpool1", symbol: "TEST/USDC", weightPct: 100 }];
 
-  it("auto-selects the detected veNFT immediately, without waiting for the dropdown", async () => {
+  it("auto-selects the detected veNFT immediately, without waiting for a checkbox click", async () => {
     // The 10,000 default was the #1 reason people asked "does this predict
     // my next epoch" — it's wrong for almost everyone with a real lock, and
-    // required an extra manual dropdown click to fix. This should need zero
-    // clicks once a veNFT is found.
+    // required an extra manual click to fix. This should need zero clicks
+    // once a veNFT is found.
     const onNftSelected = vi.fn();
     renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
 
@@ -78,7 +78,10 @@ describe("VotePanel (connected, with detected veNFTs)", () => {
     expect(onNftSelected).toHaveBeenCalledWith(93, []);
   });
 
-  it("still allows picking a different lock manually when the wallet holds more than one", async () => {
+  it("auto-selects every detected veNFT by default and combines their voting power (multi-veNFT batch)", async () => {
+    // A wallet with several locks (Flight School + an older max lock) should
+    // get its full combined voting power immediately, not just the first
+    // one — batching all of them into one signature is the point.
     useReadContractMock.mockReturnValue({
       data: [
         { id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] },
@@ -89,14 +92,30 @@ describe("VotePanel (connected, with detected veNFTs)", () => {
     const onNftSelected = vi.fn();
     renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
 
-    await screen.findByText(/re-sized for veNFT #93/i); // auto-selected the first
+    await screen.findByText(/re-sized for 2 selected veNFTs/i);
+    expect(onNftSelected).toHaveBeenCalledWith(137, []); // 93 + 44
+    expect(screen.getByRole("checkbox", { name: "veNFT #93" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "veNFT #44" })).toBeChecked();
+  });
+
+  it("unchecking a veNFT drops it from the combined voting power", async () => {
+    useReadContractMock.mockReturnValue({
+      data: [
+        { id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] },
+        { id: 44n, voting_amount: 44n * 10n ** 18n, votes: [] },
+      ],
+      isError: false,
+    });
+    const onNftSelected = vi.fn();
+    renderWithProviders(<VotePanel allocations={allocations} onNftSelected={onNftSelected} />);
+    await screen.findByText(/re-sized for 2 selected veNFTs/i);
     onNftSelected.mockClear();
 
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByRole("combobox"), "44");
+    await user.click(screen.getByRole("checkbox", { name: "veNFT #44" }));
 
-    expect(onNftSelected).toHaveBeenCalledWith(44, []);
-    expect(screen.getByText(/re-sized for veNFT #44/i)).toBeInTheDocument();
+    expect(onNftSelected).toHaveBeenCalledWith(93, []);
+    expect(screen.getByText(/re-sized for veNFT #93/i)).toBeInTheDocument();
   });
 
   it("normalizes a veNFT's raw on-chain vote weights to percentages of its own total", async () => {
@@ -134,6 +153,48 @@ describe("VotePanel (connected, with detected veNFTs)", () => {
   });
 });
 
+describe("VotePanel (multi-veNFT batch cast)", () => {
+  // A real, checksummed address — unlike the single-vote path (which just
+  // forwards raw args to the mocked writeContract), buildMulticallVoteArgs
+  // really ABI-encodes each inner vote() call via viem, which validates
+  // address checksums, so a placeholder like "0xpool1" would throw here.
+  const allocations = [{ pool: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", symbol: "TEST/USDC", weightPct: 100 }];
+
+  it("batches every selected veNFT into one Multicall3.aggregate3 call instead of N separate votes", async () => {
+    useReadContractMock.mockReturnValue({
+      data: [
+        { id: 93n, voting_amount: 93n * 10n ** 18n, votes: [] },
+        { id: 44n, voting_amount: 44n * 10n ** 18n, votes: [] },
+      ],
+      isError: false,
+    });
+    renderWithProviders(<VotePanel allocations={allocations} onNftSelected={vi.fn()} />);
+    await screen.findByText(/re-sized for 2 selected veNFTs/i);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /cast 2 votes/i }));
+
+    expect(writeContractMock).toHaveBeenCalledTimes(1);
+    const call = writeContractMock.mock.calls[0][0];
+    expect(call.functionName).toBe("aggregate3");
+    expect(call.address).toBe("0xcA11bde05977b3631167028862bE2a173976CA11");
+    const [calls] = call.args;
+    expect(calls).toHaveLength(2);
+    expect(calls.every((c: { target: string }) => c.target === "0xvoter")).toBe(true);
+  });
+
+  it("still casts a plain vote() (not a multicall) when only one veNFT is selected", async () => {
+    renderWithProviders(<VotePanel allocations={allocations} onNftSelected={vi.fn()} />);
+    await screen.findByText(/re-sized for veNFT #93/i);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^cast vote$/i }));
+
+    expect(writeContractMock).toHaveBeenCalledTimes(1);
+    expect(writeContractMock.mock.calls[0][0].functionName).toBe("vote");
+  });
+});
+
 describe("VotePanel (casting into a near-empty gauge)", () => {
   // currentVotes: 0 + votesAllocated: 8_000 -> this vote alone would be
   // ~100% of the gauge, i.e. the case Grok flagged: nothing stopped the
@@ -143,8 +204,12 @@ describe("VotePanel (casting into a near-empty gauge)", () => {
   ];
 
   async function selectNft() {
+    // A single detected veNFT is auto-selected on mount — nothing to click,
+    // just wait for that selection to actually land before proceeding. This
+    // describe block doesn't pass onNftSelected, so the "re-sized" message
+    // other tests wait on never renders here — wait on the checkbox itself.
     const user = userEvent.setup();
-    await user.selectOptions(await screen.findByRole("combobox"), "93");
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "veNFT #93" })).toBeChecked());
     return user;
   }
 

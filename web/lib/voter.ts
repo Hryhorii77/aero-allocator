@@ -22,6 +22,18 @@ export const veSugarAbi = parseAbi([
   "function byAccount(address _account) view returns (VeNFT[])",
 ]);
 
+// Multicall3 (https://github.com/mds1/multicall) — deployed at this same
+// address on essentially every EVM chain that has it, Base included; not
+// protocol-specific like voterAddress/veSugarAddress, so unlike those it
+// doesn't need to come from /api/protocol.
+export const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+
+export const multicall3Abi = parseAbi([
+  "struct Call3 { address target; bool allowFailure; bytes callData; }",
+  "struct Result { bool success; bytes returnData; }",
+  "function aggregate3(Call3[] calldata calls) payable returns (Result[] memory returnData)",
+]);
+
 /**
  * Builds Voter.vote()'s args from an allocation: pool addresses and integer
  * weights. Voter.vote() takes arbitrary relative weights (it normalizes by
@@ -40,6 +52,33 @@ export function buildVoteArgs(
     BigInt(tokenId),
     allocations.map((a) => a.pool as `0x${string}`),
     allocations.map((a) => BigInt(Math.round(a.weightPct * 100))),
+  ] as const;
+}
+
+/**
+ * Multicall3.aggregate3 args that cast the identical allocation for every
+ * veNFT id in `tokenIds`, each as its own Voter.vote() call, batched into
+ * one transaction — so a wallet holding several locks (Flight School +
+ * older max locks, the exact case BNKR/Grok flagged) signs once instead of
+ * running the vote flow N times. Voter.vote()'s weights are relative,
+ * normalized by each tokenId's own balance onchain (see buildVoteArgs), so
+ * reusing the same pools/weights array per call reproduces the same
+ * proportional split for every veNFT, each funded by its own voting power.
+ * allowFailure: false — a bad tokenId (already voted, wrong owner, expired)
+ * should revert the whole batch rather than silently skip a lock the caller
+ * thought they were voting with.
+ */
+export function buildMulticallVoteArgs(
+  voterAddress: `0x${string}`,
+  tokenIds: string[],
+  allocations: Array<{ pool: string; weightPct: number }>,
+) {
+  return [
+    tokenIds.map((tokenId) => ({
+      target: voterAddress,
+      allowFailure: false,
+      callData: encodeFunctionData({ abi: voterAbi, functionName: "vote", args: buildVoteArgs(tokenId, allocations) }),
+    })),
   ] as const;
 }
 
