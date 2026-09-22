@@ -426,7 +426,7 @@ export function recommendAllocation(
     generatedAt: new Date(snapshot.generatedAt).toISOString(),
     epochStart: currentEpochStart(),
     epochProgressPct: round2(epochProgress() * 100),
-    ...(objective === "voter_roi" && { votingPowerVe }),
+    ...(objective === "voter_roi" && { votingPowerVe, gasHurdleDroppedCount: hurdleDroppedCount }),
     allocations,
     summary,
   };

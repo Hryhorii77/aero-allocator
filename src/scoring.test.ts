@@ -209,6 +209,10 @@ describe("recommendAllocation — voter_roi", () => {
       const snapshot = snapshotOf(eightPools);
       const rec = recommendAllocation(snapshot, "voter_roi", 8, 10);
       expect(rec.allocations).toHaveLength(1);
+      // Typed, not just baked into the summary prose — a UI needs the raw
+      // count to render its own dedicated "why is this list short" state
+      // rather than parsing it back out of a sentence.
+      expect(rec.gasHurdleDroppedCount).toBe(7);
     });
 
     it("never collapses below one pool, even when that pool itself is under the hurdle", () => {
@@ -222,6 +226,7 @@ describe("recommendAllocation — voter_roi", () => {
       const snapshot = snapshotOf(eightPools);
       const rec = recommendAllocation(snapshot, "voter_roi", 8, 100_000);
       expect(rec.allocations).toHaveLength(8);
+      expect(rec.gasHurdleDroppedCount).toBe(0);
     });
 
     it("explains the collapse in the summary", () => {

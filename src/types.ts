@@ -61,6 +61,8 @@ export interface AllocationRecommendation {
   epochProgressPct: number;
   /** veAERO voting power the voter_roi weights were sized for. */
   votingPowerVe?: number;
+  /** How many otherwise-eligible pools the gas hurdle collapsed away — their own slice of this votingPowerVe wasn't worth the extra Voter.vote() calldata (voter_roi only; 0 when nothing was dropped). */
+  gasHurdleDroppedCount?: number;
   allocations: Array<{
     pool: string;
     symbol: string;
