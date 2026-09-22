@@ -1686,9 +1686,16 @@ export default function Dashboard() {
                         {o.symbol}
                       </a>
                       <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
-                      {isThinLpOpportunity(o) && <ThinLpBadge />}
                     </div>
-                    <TrendCell value={o.emissionsTrendUsdPerEpoch} />
+                    {/* Grouped with the trend indicator on the fixed right
+                        edge, not trailing the symbol — inside the truncating
+                        left div, a long symbol would either push the badge
+                        off at a different spot per card or clip it into the
+                        ellipsis outright. */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isThinLpOpportunity(o) && <ThinLpBadge />}
+                      <TrendCell value={o.emissionsTrendUsdPerEpoch} />
+                    </div>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs">
                     <span className="text-neutral-400">
