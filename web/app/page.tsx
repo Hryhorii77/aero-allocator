@@ -530,6 +530,19 @@ function ConfidenceBar({
 
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
 
+// Shared by the epoch chip, the freshness chip, and the auto-refresh poll
+// below — all three need to agree on when "close to the flip" starts.
+const URGENT_WINDOW_HOURS = 6;
+
+function hoursUntilFlip(epochStart: number): number {
+  return ((epochStart + WEEK_SECONDS) * 1000 - Date.now()) / (60 * 60 * 1000);
+}
+
+function isUrgentWindow(epochStart: number): boolean {
+  const hoursLeft = hoursUntilFlip(epochStart);
+  return hoursLeft > 0 && hoursLeft <= URGENT_WINDOW_HOURS;
+}
+
 export function formatCountdown(ms: number): string {
   if (ms <= 0) return "epoch just flipped";
   const totalMin = Math.floor(ms / 60_000);
@@ -577,7 +590,7 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
   const nextFlipMs = (epochStart + WEEK_SECONDS) * 1000;
   const remainingMs = nextFlipMs - now;
   const hoursLeft = remainingMs / (60 * 60 * 1000);
-  const urgent = hoursLeft <= 6;
+  const urgent = hoursLeft <= URGENT_WINDOW_HOURS;
   const soon = hoursLeft <= 24;
 
   return (
@@ -602,6 +615,49 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
         }`}
       >
         votes flip in {formatCountdown(remainingMs)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Persistent "how old is what I'm looking at" chip — sits next to the
+ * flip-clock so it's visible on every load, not just during the
+ * cached-fallback banner (that one only shows while a background refetch is
+ * in flight). One onchain snapshot covers fees, votes, and posted bribes
+ * together (lib/snapshot.ts) — there's no separate bribe/vote timestamp to
+ * show, so this deliberately doesn't invent one.
+ *
+ * Turns red only once BOTH conditions hold: the snapshot is older than the
+ * server's own cache TTL (5min — SETTINGS.cacheTtlMs) AND the vote is close
+ * to flipping (urgent, from the same threshold EpochCountdown uses). A
+ * 5-minute-old snapshot mid-epoch costs nothing; the same staleness at
+ * T-90m is exactly the "voted on a bribe dump that already happened"
+ * failure BNKR/Grok flagged.
+ */
+function SnapshotFreshness({ generatedAt, urgent }: { generatedAt: number; urgent: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const ageMs = now - generatedAt;
+  const stale = ageMs > 5 * 60_000;
+  const flagged = urgent && stale;
+
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+        flagged ? "border-rose-800 bg-rose-950/40" : "border-neutral-800 bg-neutral-900/40"
+      }`}
+      title="One onchain snapshot covers pool fees, votes, and posted bribes together — no separate bribe/vote timestamp exists to show."
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${flagged ? "bg-rose-400" : "bg-neutral-500"}`} />
+      <span className={`font-mono text-xs ${flagged ? "text-rose-300" : "text-neutral-400"}`}>
+        snapshot {formatAgo(ageMs)}
+        {flagged && " — may be stale, refresh"}
       </span>
     </div>
   );
@@ -959,9 +1015,17 @@ export default function Dashboard() {
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [poolSort, lpSort, votingPower]);
 
-  const loadAll = useCallback(async (refresh = false) => {
-    setLoading(true);
-    setError(null);
+  // `background` skips the full-page spinner and swallows errors instead of
+  // surfacing them in the error banner — used by the urgent-window
+  // auto-refresh poll below, where a transient failure (or the refresh
+  // rate-limit's 429 — see app/api/dashboard/route.ts) should just mean
+  // "try again next tick", not interrupt whatever's already on screen.
+  const loadAll = useCallback(async (refresh = false, opts: { background?: boolean } = {}) => {
+    const { background = false } = opts;
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       // One route, one snapshot build server-side — each app/api/*/route.ts
       // is its own serverless function once deployed, so fetching this in
@@ -994,9 +1058,9 @@ export default function Dashboard() {
       });
       if (!bribePool && snap.pools.length > 0) setBribePool(snap.pools[0].lp);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!background) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1004,6 +1068,36 @@ export default function Dashboard() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Freshness fix (BNKR/Grok: "a wrong vote-share at T-2h is worse than a
+  // missing feature") — once the vote is within URGENT_WINDOW_HOURS of
+  // flipping, stop waiting on the next organic visit to trigger the
+  // server's stale-while-revalidate refresh (lib/snapshot.ts) and instead:
+  // one forced live rebuild (`refresh=1`) on entering the window, then a
+  // quiet poll every 60s for the rest of it. `forcedRef` makes the forced
+  // rebuild fire once per entry into the window rather than once per poll —
+  // the server already rate-limits refresh=1 to 1/cacheTtlMs/IP regardless,
+  // this just avoids spamming it with 429s.
+  const forcedUrgentRefreshRef = useRef(false);
+  useEffect(() => {
+    if (!snapshot) return;
+    const epochStart = snapshot.epochStart;
+    const tick = () => {
+      if (!isUrgentWindow(epochStart)) {
+        forcedUrgentRefreshRef.current = false;
+        return;
+      }
+      if (!forcedUrgentRefreshRef.current) {
+        forcedUrgentRefreshRef.current = true;
+        loadAll(true, { background: true });
+      } else {
+        loadAll(false, { background: true });
+      }
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [snapshot?.epochStart, loadAll]);
 
   const recomputeVoterWithPower = async (vp: number) => {
     setAllocLoading(true);
@@ -1107,6 +1201,9 @@ export default function Dashboard() {
           )}
           {paStatus && <PaStatusChip status={paStatus} />}
           {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
+          {snapshot && (
+            <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
+          )}
           {snapshot && (
             <div className="text-right">
               <div className="mb-1 font-mono text-xs text-neutral-400">
