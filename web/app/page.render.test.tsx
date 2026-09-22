@@ -1002,3 +1002,45 @@ describe("CurrentVsRecommended", () => {
     expect(screen.getByText(/some pools lack a rate and are excluded/i)).toBeInTheDocument();
   });
 });
+
+describe("EpochCountdown urgency", () => {
+  // BNKR/Grok: "your chip is too polite" — neutral above 12h, amber inside
+  // 12h, red with an explicit stale-data warning inside the final 2h.
+  const WEEK_SECONDS = 7 * 24 * 60 * 60;
+
+  function stubFetchWithHoursLeft(hoursLeft: number) {
+    const epochStart = Math.floor(Date.now() / 1000) - WEEK_SECONDS + Math.round(hoursLeft * 3600);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, epochStart });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+  }
+
+  it("says nothing about staleness more than 12h before the flip", async () => {
+    stubFetchWithHoursLeft(20);
+    renderDashboard();
+    const chip = await screen.findByText(/votes flip in/i);
+    expect(chip.textContent).not.toMatch(/may be stale/i);
+  });
+
+  it("turns amber inside 12h but still says nothing about staleness", async () => {
+    stubFetchWithHoursLeft(8);
+    renderDashboard();
+    const chip = await screen.findByText(/votes flip in/i);
+    expect(chip.textContent).not.toMatch(/may be stale/i);
+  });
+
+  it("warns the allocation may be stale inside the final 2h before the flip", async () => {
+    // Anchored on "allocation" specifically — the fixture's fixed, ancient
+    // generatedAt also trips the separate SnapshotFreshness chip's own
+    // "may be stale, refresh" copy, so the bare phrase alone matches both.
+    stubFetchWithHoursLeft(1);
+    renderDashboard();
+    expect(await screen.findByText(/allocation may be stale, refresh/i)).toBeInTheDocument();
+  });
+});

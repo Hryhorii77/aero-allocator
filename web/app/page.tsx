@@ -530,9 +530,18 @@ function ConfidenceBar({
 
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
 
-// Shared by the epoch chip, the freshness chip, and the auto-refresh poll
-// below — all three need to agree on when "close to the flip" starts.
+// Shared by the freshness chip and the auto-refresh poll below — both need
+// a "start being careful about staleness" threshold with enough lead time
+// to actually matter, well before the epoch chip's own final-countdown red
+// state (EPOCH_RED_HOURS below, much tighter on purpose).
 const URGENT_WINDOW_HOURS = 6;
+
+// EpochCountdown's own color thresholds — deliberately less polite than a
+// generic "close to flip" window (BNKR/Grok: "your chip is too polite"):
+// neutral above 12h, amber inside 12h, red (with an explicit stale-data
+// warning, not just a color) inside the final 2h.
+const EPOCH_AMBER_HOURS = 12;
+const EPOCH_RED_HOURS = 2;
 
 function hoursUntilFlip(epochStart: number): number {
   return ((epochStart + WEEK_SECONDS) * 1000 - Date.now()) / (60 * 60 * 1000);
@@ -590,8 +599,8 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
   const nextFlipMs = (epochStart + WEEK_SECONDS) * 1000;
   const remainingMs = nextFlipMs - now;
   const hoursLeft = remainingMs / (60 * 60 * 1000);
-  const urgent = hoursLeft <= URGENT_WINDOW_HOURS;
-  const soon = hoursLeft <= 24;
+  const urgent = hoursLeft <= EPOCH_RED_HOURS;
+  const soon = hoursLeft <= EPOCH_AMBER_HOURS;
 
   return (
     <div
@@ -615,6 +624,7 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
         }`}
       >
         votes flip in {formatCountdown(remainingMs)}
+        {urgent && " — allocation may be stale, refresh"}
       </span>
     </div>
   );
