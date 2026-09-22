@@ -1730,15 +1730,24 @@ export default function Dashboard() {
                   {lpOpportunities.map((o) => (
                     <tr key={o.pool} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
                       <td className="whitespace-nowrap px-4 py-2.5">
-                        <a
-                          href={poolAppLink("liquidity", o.pool)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
-                        >
-                          {o.symbol}
-                        </a>
-                        <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                        {/* min-width (not width) on the symbol+type span so the
+                            "thin" badge column lines up down the table instead
+                            of trailing wherever each row's own symbol happens
+                            to end (spotted live: a ragged staircase of badges).
+                            A longer symbol just grows past the minimum and
+                            pushes its own badge further right, rather than
+                            overflowing into it. */}
+                        <span className="inline-block min-w-52">
+                          <a
+                            href={poolAppLink("liquidity", o.pool)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-neutral-100 hover:text-sky-400 hover:underline"
+                          >
+                            {o.symbol}
+                          </a>
+                          <span className="ml-2 font-mono text-xs text-neutral-500">{o.poolType}</span>
+                        </span>
                         {isThinLpOpportunity(o) && <ThinLpBadge />}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-neutral-400">{usd(o.stakedTvlUsd)}</td>
