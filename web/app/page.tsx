@@ -1741,10 +1741,17 @@ export default function Dashboard() {
                             "thin" badge column lines up down the table instead
                             of trailing wherever each row's own symbol happens
                             to end (spotted live: a ragged staircase of badges).
-                            A longer symbol just grows past the minimum and
-                            pushes its own badge further right, rather than
-                            overflowing into it. */}
-                        <span className="inline-block min-w-52">
+                            288px comfortably clears "CL200-USDC/BLUECHIP
+                            concentrated" (the longest real symbol+type combo
+                            measured live, ~254px) with room to spare — a
+                            longer symbol still just grows past it and pushes
+                            its own badge further right, rather than
+                            overflowing into it. The first attempt at this
+                            (min-w-52, 208px) was already narrower than most
+                            rows' actual content, so it never bound anything —
+                            confirmed live it left the badge just as ragged as
+                            before. */}
+                        <span className="inline-block min-w-72">
                           <a
                             href={poolAppLink("liquidity", o.pool)}
                             target="_blank"
