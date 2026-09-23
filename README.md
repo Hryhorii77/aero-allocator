@@ -75,23 +75,32 @@ npm run build                 # engine dist/ used by the web app
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:3000 — hot-pools table (predicted fees, edge, confidence, search + category
-filters, an expandable per-pool fee-history sparkline), sorted by edge by default (predicted demand
-share minus current vote share — the column that says where to look first, not just which pools are
-biggest); interactive Voter ROI, Protocol Efficiency, and Edge Hunter allocation panels; an LP
-staking-yield table (thin pools — low TVL or an APR too high off too little TVL to mean anything —
-hidden by default, flagged if shown); a vote-swings (risers/fallers) panel; a bribe-placement simulator;
-a forecast-accuracy panel (the same walk-forward backtest as `backtest_summary` — see
+Open http://localhost:3000. The page is built around one question — where to vote this epoch — so it
+leads with the **Voter ROI** panel: your expected $ next epoch as the headline number, then the pool
+split that earns it, then connect/cast. Below that: the hot-pools table (predicted fees, edge,
+confidence, search + category filters, an expandable per-pool fee-history sparkline), sorted by edge by
+default (predicted demand share minus current vote share — the column that says where to look first,
+not just which pools are biggest); **Other splits**, a collapsed panel holding the Protocol Efficiency
+and Edge Hunter allocations (market-wide benchmarks for treasuries and agents, not a personal vote); an
+LP staking-yield table (thin pools — low TVL or an APR too high off too little TVL to mean anything —
+hidden by default, flagged if shown, with a plain empty state when that leaves nothing); a vote-swings
+(risers/fallers) panel, one scannable line per signal with the reasoning behind a tap; a bribe-placement
+simulator; a forecast-accuracy panel (the same walk-forward backtest as `backtest_summary` — see
 [Forecast accuracy](#forecast-accuracy) — so you can judge the model's track record without leaving the
 page); and a collapsed changelog panel. First load builds the onchain snapshot (~1 min), then it's
 cached.
+
+A sticky header carries only what's needed mid-scroll — wordmark, flip clock, snapshot age, connect —
+with the protocol switcher, mechanism chip, epoch progress and refresh demoted to a secondary row.
+**On phones the page splits into vote / LP / swings tabs** rather than one long scroll; desktop keeps
+the single dense page.
 
 **Vote mode** (on by default) trims the hot-pools table to what a voter actually needs — pool,
 predicted fees, trend, edge, $/1k votes, confidence — folding "last epoch" and "votes vs demand" into
 each row's expand (▸) instead of dropping them. Toggle it off for the full 8-column table. The row
 expand (fee-history sparkline) works the same way on the mobile card layout, not just the desktop
 table. When a small `votingPowerVe` collapses Voter ROI to one or two pools (see gas hurdle above),
-the panel says so directly instead of just looking sparse next to the other two.
+the panel says so directly rather than leaving a short list to read as a failure.
 
 The header carries two freshness/urgency signals, not just a market snapshot: a flip-clock chip
 (neutral above 12h to the next vote flip, amber inside 12h, red — with an explicit "allocation may be
@@ -211,7 +220,7 @@ Three allocation objectives — each answers a different question, and they can 
 
 `recommend_lp_deposit` targets a third audience — LPs deciding where to deposit and stake liquidity — and deliberately does **not** rank by `predictedFeesUsd`. On Aerodrome, trading fees (and bribes) accrue to veAERO **voters**, not to liquidity **stakers**; stakers instead earn AERO emissions pro-rata to staked TVL. So this tool forecasts next-epoch emissions from each pool's emissions history with the same EWMA+trend model `predict_demand` uses for fees, and annualizes the result against current staked TVL as `predictedNextEpochAprPct`. It also reports `currentEpochAprPct`, which needs no forecast at all — the live epoch's emission rate was already fixed by votes cast before it started, so it's read directly rather than predicted.
 
-`detect_vote_swings` watches for the pattern voters chase in the final hours of an epoch: a pool suddenly gets a large bribe, and votes drain toward it from everywhere else before lock. For each pool it forecasts a full-epoch baseline from completed-epoch history (same EWMA+trend model, applied to bribes and votes instead of fees), scales it by how much of the epoch has elapsed to get an expected-so-far value, and compares that against the actual in-progress epoch. **risers** are pools whose bribes are running ahead of pace — the early, causal signal, since a bribe can land in one transaction. **fallers** are pools whose votes are running behind pace — the effect, once other voters have reacted. A brand-new bribe with no comparable prior-epoch baseline is reported with a null ratio rather than a meaningless divide-by-near-zero number. Like the reminder script, this sharpens as the epoch progresses and is noisiest early on.
+`detect_vote_swings` watches for the pattern voters chase in the final hours of an epoch: a pool suddenly gets a large bribe, and votes drain toward it from everywhere else before lock. For each pool it forecasts a full-epoch baseline from completed-epoch history (same EWMA+trend model, applied to bribes and votes instead of fees), scales it by how much of the epoch has elapsed to get an expected-so-far value, and compares that against the actual in-progress epoch. **risers** are pools whose bribes are running ahead of pace — the early, causal signal, since a bribe can land in one transaction. **fallers** are pools whose votes are running behind pace — the effect, once other voters have reacted. A brand-new bribe with no comparable prior-epoch baseline is reported with a null ratio rather than a meaningless divide-by-near-zero number, and a gauge that had effectively no votes by this point in prior epochs is reported as having no vote-pace baseline at all — the same division would otherwise turn any votes at all into a nine-figure percentage. Like the reminder script, this sharpens as the epoch progresses and is noisiest early on.
 
 ## Forecast accuracy
 
@@ -363,6 +372,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Gas hurdle for small `votingPowerVe`: pools too small a slice to be worth the extra calldata are collapsed away instead of splitting into an N-way vote nobody can profit from
 - [x] Vote mode: hot-pools table defaults to edge sort and a trimmed column set, with the rest folded into the row expand
 - [x] Mobile row-expand parity, tighter confidence-cluster threshold, a gas-hurdle empty state, and a grouped (status vs actions) header
+- [x] Vote-first information architecture: Voter ROI leads with an expected-$ headline, other objectives collapse behind "Other splits", sticky header, phone tabs (vote / LP / swings), and real empty states
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer
