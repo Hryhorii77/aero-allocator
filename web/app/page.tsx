@@ -98,6 +98,10 @@ interface VoteSwingSignal {
   currentBribesUsd: number;
   bribeSpikeRatio: number | null;
   voteSwingPct: number;
+  /** Votes this gauge would normally have by now. Under ~1, the engine's
+   * swing percentage divides by a 1-vote floor and explodes, so the number
+   * stops meaning anything — see SwingRow. */
+  expectedVotesSoFar: number;
   rationale: string;
 }
 
@@ -290,6 +294,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-23",
+    title:
+      "Rebuilt around the job: Voter ROI leads the page with the expected-$ total as the headline, the other two splits collapse behind \"Other splits\", and phones get vote/LP/swings tabs instead of one 7,000px scroll. Sticky header keeps the flip clock and connect button in reach; vote-swing signals are one scannable line each; an all-thin LP list says so instead of rendering an empty table.",
+  },
   {
     date: "2026-09-23",
     title: "Footer now points to the MCP server and the x402 API directly — skip the UI, ask an agent instead.",
@@ -539,6 +548,71 @@ function NewPoolBadge() {
     >
       new
     </span>
+  );
+}
+
+/**
+ * One vote-swing signal as a single scannable line — symbol, bribe pace,
+ * vote delta — with the full rationale behind a tap (<details>, same
+ * pattern as the changelog panel) rather than three lines of prose per
+ * card, ten cards deep.
+ */
+function SwingRow({ s, tone }: { s: VoteSwingSignal; tone: "riser" | "faller" }) {
+  const riser = tone === "riser";
+  const accent = riser ? "text-emerald-400" : "text-rose-400";
+  // A gauge with no meaningful prior-epoch vote history divides by a 1-vote
+  // floor upstream, which renders as e.g. "+3,287,989,742.5%" — the correct
+  // division, and useless. Same call the thin-LP filter makes.
+  const noBaseline = s.expectedVotesSoFar < 1;
+  return (
+    <details
+      className={`rounded-lg border px-3 py-2 ${
+        riser ? "border-emerald-900/60 bg-emerald-950/20" : "border-rose-900/60 bg-rose-950/20"
+      }`}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-sm text-neutral-100">{s.symbol}</span>
+        <span className="flex shrink-0 items-center gap-3 font-mono text-xs">
+          <span className={accent}>
+            {s.bribeSpikeRatio !== null ? `${s.bribeSpikeRatio}x pace` : riser ? "new bribe" : "flat pace"}
+          </span>
+          {noBaseline ? (
+            <span
+              className="whitespace-nowrap text-neutral-500"
+              title="This gauge had effectively no votes by this point in prior epochs, so there's no baseline to measure a swing against."
+            >
+              no baseline
+            </span>
+          ) : (
+            <span className={`w-16 whitespace-nowrap text-right ${accent}`}>
+              {s.voteSwingPct > 0 ? "+" : ""}
+              {s.voteSwingPct.toFixed(1)}%
+            </span>
+          )}
+        </span>
+      </summary>
+      <p className="mt-2 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
+    </details>
+  );
+}
+
+function ThinLpToggle({
+  count,
+  shown,
+  onToggle,
+  className,
+}: {
+  count: number;
+  shown: boolean;
+  onToggle: () => void;
+  className: string;
+}) {
+  return (
+    <button type="button" onClick={onToggle} className={className}>
+      {shown
+        ? `hide ${count} thin pool${count === 1 ? "" : "s"} (staked TVL under $50k or APR over 1,000% — not a real opportunity, just a tiny denominator)`
+        : `${count} thin pool${count === 1 ? "" : "s"} hidden (staked TVL under $50k or APR over 1,000%) — show anyway`}
+    </button>
   );
 }
 
@@ -1078,6 +1152,13 @@ export default function Dashboard() {
   const [poolFilter, setPoolFilter] = useState<PoolFilterKey>("all");
   const [expandedPool, setExpandedPool] = useState<string | null>(null);
   const [showThinLp, setShowThinLp] = useState(false);
+  // Phone-only: one 7000px scroll is three jobs stacked (vote / LP / market
+  // swings), and only the first is why most people are here. Desktop keeps
+  // the single dense page — the tab bar and this state are inert above sm
+  // (external review: "do not render all three sections on one scroll on
+  // mobile", with "desktop keeps the dense table").
+  const [mobileTab, setMobileTab] = useState<"vote" | "lp" | "swings">("vote");
+  const onTab = (t: "vote" | "lp" | "swings") => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
   // once. last epoch and votes-vs-demand move into the row expand
@@ -1267,6 +1348,11 @@ export default function Dashboard() {
   const poolConfClustered = isConfidenceClustered(pools.map((p) => p.confidence));
   const lpConfClustered = isConfidenceClustered(lpOpportunities.map((o) => o.confidence));
 
+  // Same figure recommendAllocation's own summary quotes — the sum of each
+  // row's post-dilution expected reward — recomputed here rather than
+  // parsed back out of that sentence.
+  const voterTotalExpectedUsd = (voterAlloc?.allocations ?? []).reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
+
   // Keyed by lowercased address so on-chain reads (wagmi/viem checksummed)
   // and the server's pool list match regardless of casing. Built from the
   // *full* snapshot, not the visible top-20 slice — a pool the wallet is
@@ -1281,71 +1367,78 @@ export default function Dashboard() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">
+      {/* Primary bar: who this is, how long you have, how fresh the data is,
+          and the one action that starts the vote. Sticky so the flip clock
+          and Connect stay reachable from anywhere in a long page. Everything
+          else in the header is secondary and demoted to the row below
+          (external review: "everything is a pill... the eye has nowhere to
+          land"). */}
+      <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
             {DISPLAY_PRESET.displayName} <span className="text-sky-400">Allocator</span>
           </h1>
-          <p className="mt-1 text-sm text-neutral-400">
-            Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} —
-            reward where demand is going, not where it was.
-          </p>
-          {paStatus?.applicable && (
-            <p className="mt-1 text-xs text-neutral-500">
-              {paStatus.live
-                ? "Predictive Allocation is live — the vote panel below now submits directly to it."
-                : "Weekly gauge voting today; Dromos Labs' Predictive Allocation is expected to replace it — this forecast and your expected $ apply either way."}
-            </p>
-          )}
-        </div>
-        {/* Two logical groups, not one flat row of equal-looking chips —
-            status (what's going on) vs actions (what you can do about it).
-            Side by side once there's room (sm:flex-row); stacked as two
-            distinct rows below that, instead of the chips and the buttons
-            interleaving into one wrapped pile (external review: "header on
-            mobile is a stack of equal chips... status should be one row,
-            actions another"). */}
-        <div className="flex flex-col items-end gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex flex-wrap items-center gap-3">
-            {SIBLING_URL && (
-              <a
-                href={SIBLING_URL}
-                className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-500 hover:text-white"
-              >
-                switch to {SIBLING_PRESET.displayName}
-              </a>
-            )}
-            {paStatus && <PaStatusChip status={paStatus} />}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
             {snapshot && (
               <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
             )}
-            {snapshot && (
-              <div className="text-right">
-                <div className="mb-1 font-mono text-xs text-neutral-400">
-                  epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
-                </div>
-                <div className="h-1.5 w-40 rounded bg-neutral-800">
-                  <div
-                    className="h-full rounded bg-sky-500"
-                    style={{ width: `${snapshot.epochProgressPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => loadAll(true)}
-              disabled={loading}
-              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
-            >
-              {loading ? "loading…" : "refresh"}
-            </button>
             <ConnectButton />
           </div>
         </div>
       </header>
+
+      {/* Phone gets the one-liner; desktop gets the fuller sentence below
+          instead, so the two don't stack into a redundant pair. */}
+      <p className="text-sm text-neutral-300 sm:hidden">
+        Where to vote {DISPLAY_PRESET.veTokenSymbol} this epoch.
+      </p>
+      {/* The explainer and the Predictive Allocation note are context, not
+          instructions — worth having on a desktop read, half a viewport of
+          manifesto above the fold on a phone. */}
+      <p className="mt-1 hidden text-sm text-neutral-400 sm:block">
+        Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} — reward
+        where demand is going, not where it was.
+      </p>
+      {paStatus?.applicable && (
+        <p className="mt-1 hidden text-xs text-neutral-500 sm:block">
+          {paStatus.live
+            ? "Predictive Allocation is live — the vote panel below now submits directly to it."
+            : "Weekly gauge voting today; Dromos Labs' Predictive Allocation is expected to replace it — this forecast and your expected $ apply either way."}
+        </p>
+      )}
+
+      {/* Secondary chrome: protocol switch, mechanism status, epoch progress,
+          refresh. One scrollable line on a phone rather than five stacked
+          pills competing with the bar above. */}
+      <div className="mb-8 mt-3 flex items-center gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {SIBLING_URL && (
+          <a
+            href={SIBLING_URL}
+            className="shrink-0 rounded-lg border border-neutral-800 px-2.5 py-1 font-mono text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+          >
+            switch to {SIBLING_PRESET.displayName}
+          </a>
+        )}
+        {paStatus && <PaStatusChip status={paStatus} />}
+        {snapshot && (
+          <div className="shrink-0">
+            <div className="mb-1 font-mono text-[11px] text-neutral-500">
+              epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
+            </div>
+            <div className="h-1 w-32 rounded bg-neutral-800">
+              <div className="h-full rounded bg-sky-600" style={{ width: `${snapshot.epochProgressPct}%` }} />
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => loadAll(true)}
+          disabled={loading}
+          className="shrink-0 rounded-lg border border-neutral-800 px-2.5 py-1 font-mono text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200 disabled:opacity-40"
+        >
+          {loading ? "loading…" : "refresh"}
+        </button>
+      </div>
 
       {error && (
         <div className="mb-6 rounded-lg border border-rose-900 bg-rose-950/40 px-4 py-3 text-sm text-rose-300">
@@ -1371,7 +1464,135 @@ export default function Dashboard() {
 
       {snapshot && (
         <>
-          <section className="mb-10">
+          <div className="mb-5 flex gap-1 sm:hidden" role="tablist" aria-label="dashboard sections">
+            {(
+              [
+                ["vote", "vote"],
+                ["lp", "LP yield"],
+                ["swings", "swings"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={mobileTab === key}
+                onClick={() => setMobileTab(key)}
+                className={`flex-1 rounded-lg border px-3 py-2 font-mono text-xs ${
+                  mobileTab === key
+                    ? "border-sky-600 bg-sky-950/40 text-sky-300"
+                    : "border-neutral-800 text-neutral-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <section className={`mb-10 sm:block ${onTab("vote")}`}>
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-medium text-white">
+                  Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
+                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    // Rendering "" (not "0") while cleared stops a stuck
+                    // leading zero: Number("") is 0, so clearing the field
+                    // down to empty and re-rendering value={0} would put a
+                    // literal "0" back in the DOM — then the next digit
+                    // typed appends onto it ("0" + "2" = "02") instead of
+                    // replacing it, so 10,000 could never become 200.
+                    value={votingPower === 0 ? "" : votingPower}
+                    onChange={(e) => setVotingPower(e.target.value === "" ? 0 : Number(e.target.value))}
+                    className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
+                  />
+                  <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
+                  {currentVotes && (
+                    <span
+                      className="whitespace-nowrap font-mono text-[10px] text-emerald-400"
+                      title="This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
+                    >
+                      ✓ from wallet
+                    </span>
+                  )}
+                  <button
+                    onClick={recomputeVoter}
+                    disabled={allocLoading}
+                    className="rounded-lg bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
+                  >
+                    {allocLoading ? "…" : "recompute"}
+                  </button>
+                  {voterAlloc && <ExportCsvButton objective="voter_roi" allocations={voterAlloc.allocations} />}
+                </div>
+              </div>
+              {voterAlloc && (
+                <>
+                  {/* The whole point of the page, at the size of the whole
+                      point of the page — it used to be a footnote under the
+                      rows (external review: "the punchline is ~$0.93 next
+                      epoch and it's a footnote under a wall of TVL text").
+                      Same number the summary quotes: the sum of the rows'
+                      own post-dilution expected rewards. */}
+                  <div className="mb-4">
+                    <div className="font-mono text-3xl tabular-nums text-emerald-400 sm:text-4xl">
+                      {usd(voterTotalExpectedUsd)}
+                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      expected next epoch for {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol} — your
+                      voter $, not pool fees
+                    </div>
+                  </div>
+                  <AllocationRows
+                    allocations={voterAlloc.allocations}
+                    color="bg-sky-500"
+                    right={(a) => (
+                      <span className="w-20 text-right font-mono text-xs text-emerald-400">
+                        {a.expectedRewardUsd !== undefined ? `+${usd(a.expectedRewardUsd)}` : ""}
+                      </span>
+                    )}
+                  />
+                  {/* A short list here isn't a broken card — it's the gas
+                      hurdle doing its job. Called out on its own, right under
+                      the row(s), instead of leaving a visitor to read a short
+                      list next to two full 8-row panels and assume something
+                      failed (external review, live at 92 veAERO: "the card
+                      then feels empty... give it a one-line state"). */}
+                  {(voterAlloc.gasHurdleDroppedCount ?? 0) > 0 && (
+                    <p className="mt-3 rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">
+                      Too small a slice to split further — {voterAlloc.gasHurdleDroppedCount} more pool
+                      {voterAlloc.gasHurdleDroppedCount === 1 ? "" : "s"} cleared the reward floor but not the gas
+                      hurdle at {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol}, so they're collapsed
+                      here instead of split into for pennies each.
+                    </p>
+                  )}
+                  <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
+                    {voterAlloc.summary}
+                  </p>
+                  {currentVotes && (
+                    <CurrentVsRecommended
+                      currentVotes={currentVotes}
+                      votingPower={votingPower}
+                      recommended={voterAlloc.allocations}
+                      poolMeta={poolMetaByAddress}
+                    />
+                  )}
+                  <VotePanel
+                    allocations={voterAlloc.allocations}
+                    onNftSelected={(vp, votes) => {
+                      setVotingPower(vp);
+                      setCurrentVotes(votes);
+                      recomputeVoterWithPower(vp);
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className={`mb-10 sm:block ${onTab("vote")}`}>
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
               {sortedByRewardPer1k ? "Highest $/1k votes — thin gauges" : "Predicted hot pools"}
             </h2>
@@ -1382,20 +1603,24 @@ export default function Dashboard() {
                 opportunities; sort by predicted fees or edge for that.
               </p>
             )}
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+            {/* One scrollable line on a phone, wrapping grid on desktop —
+                seven chips plus a search box plus the mode toggle wrapped
+                into three ragged rows and ate the top of the table
+                (external review: "filters wrap into 3 messy rows"). */}
+            <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
               <input
                 type="text"
                 value={poolSearch}
                 onChange={(e) => setPoolSearch(e.target.value)}
                 placeholder="search symbol…"
-                className="w-36 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+                className="w-36 shrink-0 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
               />
               {POOL_FILTER_CHIPS.map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setPoolFilter(key)}
-                  className={`rounded-lg border px-2.5 py-1 font-mono text-xs ${
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 font-mono text-xs ${
                     poolFilter === key
                       ? "border-sky-600 bg-sky-950/40 text-sky-300"
                       : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
@@ -1415,7 +1640,7 @@ export default function Dashboard() {
                     ? "Showing pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand move into the row expand (▸). Click to show every column."
                     : "Showing every column. Click to collapse to the columns a voter needs, with the rest moved into the row expand (▸)."
                 }
-                className={`ml-auto rounded-lg border px-2.5 py-1 font-mono text-xs ${
+                className={`ml-auto shrink-0 rounded-lg border px-2.5 py-1 font-mono text-xs ${
                   voteMode
                     ? "border-emerald-700 bg-emerald-950/40 text-emerald-300"
                     : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
@@ -1648,96 +1873,20 @@ export default function Dashboard() {
             </p>
           </section>
 
-          <section className="mb-10 grid gap-6 lg:grid-cols-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-medium text-white">
-                  Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
-                </h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    // Rendering "" (not "0") while cleared stops a stuck
-                    // leading zero: Number("") is 0, so clearing the field
-                    // down to empty and re-rendering value={0} would put a
-                    // literal "0" back in the DOM — then the next digit
-                    // typed appends onto it ("0" + "2" = "02") instead of
-                    // replacing it, so 10,000 could never become 200.
-                    value={votingPower === 0 ? "" : votingPower}
-                    onChange={(e) => setVotingPower(e.target.value === "" ? 0 : Number(e.target.value))}
-                    className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
-                  />
-                  <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
-                  {currentVotes && (
-                    <span
-                      className="whitespace-nowrap font-mono text-[10px] text-emerald-400"
-                      title="This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
-                    >
-                      ✓ from wallet
-                    </span>
-                  )}
-                  <button
-                    onClick={recomputeVoter}
-                    disabled={allocLoading}
-                    className="rounded-lg bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
-                  >
-                    {allocLoading ? "…" : "recompute"}
-                  </button>
-                  {voterAlloc && <ExportCsvButton objective="voter_roi" allocations={voterAlloc.allocations} />}
-                </div>
-              </div>
-              {voterAlloc && (
-                <>
-                  <AllocationRows
-                    allocations={voterAlloc.allocations}
-                    color="bg-sky-500"
-                    right={(a) => (
-                      <span className="w-20 text-right font-mono text-xs text-emerald-400">
-                        {a.expectedRewardUsd !== undefined ? `+${usd(a.expectedRewardUsd)}` : ""}
-                      </span>
-                    )}
-                  />
-                  {/* A short list here isn't a broken card — it's the gas
-                      hurdle doing its job. Called out on its own, right under
-                      the row(s), instead of leaving a visitor to read a short
-                      list next to two full 8-row panels and assume something
-                      failed (external review, live at 92 veAERO: "the card
-                      then feels empty... give it a one-line state"). */}
-                  {(voterAlloc.gasHurdleDroppedCount ?? 0) > 0 && (
-                    <p className="mt-3 rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">
-                      Too small a slice to split further — {voterAlloc.gasHurdleDroppedCount} more pool
-                      {voterAlloc.gasHurdleDroppedCount === 1 ? "" : "s"} cleared the reward floor but not the gas
-                      hurdle at {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol}, so they're collapsed
-                      here instead of split into for pennies each.
-                    </p>
-                  )}
-                  <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
-                    {voterAlloc.summary}
-                  </p>
-                  <p className="mt-2 text-xs text-neutral-500">
-                    This is your expected voter $ next epoch, not pool fees.
-                  </p>
-                  {currentVotes && (
-                    <CurrentVsRecommended
-                      currentVotes={currentVotes}
-                      votingPower={votingPower}
-                      recommended={voterAlloc.allocations}
-                      poolMeta={poolMetaByAddress}
-                    />
-                  )}
-                  <VotePanel
-                    allocations={voterAlloc.allocations}
-                    onNftSelected={(vp, votes) => {
-                      setVotingPower(vp);
-                      setCurrentVotes(votes);
-                      recomputeVoterWithPower(vp);
-                    }}
-                  />
-                </>
-              )}
-            </div>
-
+          {/* Protocol efficiency and Edge hunter answer questions a voter
+              didn't ask — one is the market-wide ideal, the other a
+              mispricing scan for agents and treasuries. Equal billing next
+              to Voter ROI read as "pick one of three" (external review:
+              "showing all three equal-width tells a voter they failed a
+              quiz"), so they collapse behind one line instead. */}
+          <details className={`mb-10 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("vote")}`}>
+            <summary className="cursor-pointer list-none text-sm font-medium text-neutral-300">
+              Other splits{" "}
+              <span className="text-xs font-normal text-neutral-500">
+                protocol efficiency · edge hunter — market-wide benchmarks, not a personal vote
+              </span>
+            </summary>
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-medium text-white">
@@ -1789,22 +1938,43 @@ export default function Dashboard() {
                 <p className="text-sm text-neutral-500">No positive-edge pools right now.</p>
               )}
             </div>
-          </section>
+            </div>
+          </details>
 
-          <section className="mb-10">
+          <section className={`mb-10 sm:block ${onTab("lp")}`}>
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
               LP staking yield {lpDeposits && <span className="text-neutral-600">({lpDeposits.rewardTokenSymbol} emissions, not fees)</span>}
             </h2>
-            {lpThinCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowThinLp((s) => !s)}
+            {lpThinCount > 0 && lpOpportunities.length > 0 && (
+              <ThinLpToggle
+                count={lpThinCount}
+                shown={showThinLp}
+                onToggle={() => setShowThinLp((s) => !s)}
                 className="mb-3 -mt-1 block text-xs text-neutral-500 underline hover:text-neutral-300"
-              >
-                {showThinLp
-                  ? `hide ${lpThinCount} thin pool${lpThinCount === 1 ? "" : "s"} (staked TVL under $50k or APR over 1,000% — not a real opportunity, just a tiny denominator)`
-                  : `${lpThinCount} thin pool${lpThinCount === 1 ? "" : "s"} hidden (staked TVL under $50k or APR over 1,000%) — show anyway`}
-              </button>
+              />
+            )}
+            {/* Every remaining pool filtered out (routinely: all of them are
+                thin) used to render as a heading, a one-line link, and a
+                header-only table with nothing under it — indistinguishable
+                from a failed fetch (external review: "LP block can look
+                broken... looks like a failed fetch"). Say what happened and
+                put the unhide control inside the same card. */}
+            {lpOpportunities.length === 0 && (
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-6 text-center">
+                <p className="text-sm text-neutral-400">
+                  {lpThinCount > 0
+                    ? `Nothing here worth staking into this epoch — all ${lpThinCount} ${DISPLAY_PRESET.displayName} pool${lpThinCount === 1 ? " is" : "s are"} too thin to mean anything (staked TVL under $50k, or an APR computed off too little TVL to be real).`
+                    : "No LP staking opportunities in this snapshot."}
+                </p>
+                {lpThinCount > 0 && (
+                  <ThinLpToggle
+                    count={lpThinCount}
+                    shown={showThinLp}
+                    onToggle={() => setShowThinLp((s) => !s)}
+                    className="mt-3 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
+                  />
+                )}
+              </div>
             )}
             {/* Card layout below sm: same reasoning as the predicted-hot-pools
                 table above — a 6-column table clipped to ~2 visible columns
@@ -1848,7 +2018,11 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-            <div className="hidden overflow-x-auto rounded-xl border border-neutral-800 sm:block">
+            <div
+              className={`overflow-x-auto rounded-xl border border-neutral-800 ${
+                lpOpportunities.length > 0 ? "hidden sm:block" : "hidden"
+              }`}
+            >
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
@@ -1928,24 +2102,23 @@ export default function Dashboard() {
             </p>
           </section>
 
-          <section className="mb-10 grid gap-6 lg:grid-cols-2">
+          <section className={`mb-10 gap-6 sm:grid lg:grid-cols-2 ${mobileTab === "swings" ? "grid" : "hidden"}`}>
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <h3 className="mb-4 font-medium text-white">
+              <h3 className="font-medium text-white">
                 Vote swings <span className="text-xs font-normal text-neutral-500">risers</span>
               </h3>
-              <div className="space-y-3">
+              {/* Stated once here instead of on every card — the epoch
+                  progress is identical across all of them, so repeating it
+                  per row was pure scan noise (external review: "vote-swing
+                  cards repeat the same sentence 10 times"). */}
+              {voteSwings && (
+                <p className="mb-3 mt-1 font-mono text-[11px] text-neutral-600">
+                  vs each pool&rsquo;s normal trajectory at {voteSwings.epochProgressPct.toFixed(1)}% through the epoch
+                </p>
+              )}
+              <div className="space-y-1.5">
                 {voteSwings && voteSwings.risers.length > 0 ? (
-                  voteSwings.risers.map((s) => (
-                    <div key={s.pool} className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm text-neutral-100">{s.symbol}</span>
-                        <span className="font-mono text-xs text-emerald-400">
-                          {s.bribeSpikeRatio !== null ? `${s.bribeSpikeRatio}x pace` : "new bribe"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
-                    </div>
-                  ))
+                  voteSwings.risers.map((s) => <SwingRow key={s.pool} s={s} tone="riser" />)
                 ) : (
                   <p className="text-sm text-neutral-500">No bribe pace anomalies right now.</p>
                 )}
@@ -1953,20 +2126,17 @@ export default function Dashboard() {
             </div>
 
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <h3 className="mb-4 font-medium text-white">
+              <h3 className="font-medium text-white">
                 Vote swings <span className="text-xs font-normal text-neutral-500">fallers</span>
               </h3>
-              <div className="space-y-3">
+              {voteSwings && (
+                <p className="mb-3 mt-1 font-mono text-[11px] text-neutral-600">
+                  vs each pool&rsquo;s normal trajectory at {voteSwings.epochProgressPct.toFixed(1)}% through the epoch
+                </p>
+              )}
+              <div className="space-y-1.5">
                 {voteSwings && voteSwings.fallers.length > 0 ? (
-                  voteSwings.fallers.map((s) => (
-                    <div key={s.pool} className="rounded-lg border border-rose-900/60 bg-rose-950/20 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm text-neutral-100">{s.symbol}</span>
-                        <span className="font-mono text-xs text-rose-400">{s.voteSwingPct.toFixed(1)}%</span>
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
-                    </div>
-                  ))
+                  voteSwings.fallers.map((s) => <SwingRow key={s.pool} s={s} tone="faller" />)
                 ) : (
                   <p className="text-sm text-neutral-500">No pools running behind their normal vote pace.</p>
                 )}
@@ -1974,7 +2144,7 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <section className="mb-10">
+          <section className={`mb-10 sm:block ${onTab("swings")}`}>
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">Bribe placement</h2>
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="flex flex-wrap items-end gap-3">

@@ -696,9 +696,19 @@ export function detectVoteSwings(
       rationale:
         bribeSpikeRatio === null && current.bribesUsd >= BRIBE_SPIKE_FLOOR_USD
           ? `New bribe (~$${Math.round(current.bribesUsd).toLocaleString()}) with no comparable prior-epoch baseline.`
-          : `Bribes running ${bribeSpikeRatio === null ? "flat" : `${bribeSpikeRatio}x`} expected pace; votes ` +
-            `${voteSwingPct >= 0 ? "+" : ""}${voteSwingPct}% vs this pool's normal trajectory at ` +
-            `${round2(progress * 100)}% through the epoch.`,
+          : // A gauge with effectively no votes in prior epochs divides by the
+            // 1-vote floor above, which turns any votes at all into a
+            // nine-figure percentage — technically the division asked for,
+            // but the same "tiny denominator" tell the thin-LP filter exists
+            // for. Say there's no baseline instead of quoting the number.
+            expectedVotesSoFar < 1
+            ? `Bribes running ${bribeSpikeRatio === null ? "flat" : `${bribeSpikeRatio}x`} expected pace; this gauge ` +
+              `had effectively no votes by this point in prior epochs, so its vote pace has no meaningful baseline ` +
+              `to compare against (${Math.round(current.votes).toLocaleString()} votes now, ` +
+              `${round2(progress * 100)}% through the epoch).`
+            : `Bribes running ${bribeSpikeRatio === null ? "flat" : `${bribeSpikeRatio}x`} expected pace; votes ` +
+              `${voteSwingPct >= 0 ? "+" : ""}${voteSwingPct}% vs this pool's normal trajectory at ` +
+              `${round2(progress * 100)}% through the epoch.`,
     });
   }
 

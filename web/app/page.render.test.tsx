@@ -492,12 +492,15 @@ describe("Dashboard", () => {
     expect(screen.getByText(/your vote ≈ 12\.1% of this gauge/)).toBeInTheDocument();
   });
 
-  it("clarifies that the Voter ROI figure is expected voter $, not pool fees", async () => {
+  it("leads the Voter ROI panel with the expected-$ total, captioned as voter $ rather than pool fees", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
     // External feedback: readers were conflating the (tiny, correct) expected
-    // per-voter reward with pool-level trading fees.
-    expect(screen.getByText(/this is your expected voter \$ next epoch, not pool fees/i)).toBeInTheDocument();
+    // per-voter reward with pool-level trading fees — the caption now rides
+    // with the hero number instead of sitting below the rows as its own line.
+    expect(screen.getByText(/your\s+voter \$, not pool fees/i)).toBeInTheDocument();
+    // Sum of the fixture's single allocation's expectedRewardUsd (42).
+    expect(screen.getByText("$42")).toBeInTheDocument();
   });
 
   it("doesn't claim the veAERO amount came from a wallet when none is connected", async () => {
@@ -771,6 +774,130 @@ describe("Dashboard", () => {
     // two buttons never squeeze the way a row of status chips does.
     const flipClock = screen.getByText(/votes flip in/i);
     expect(flipClock.closest(".flex-wrap")).not.toBeNull();
+  });
+
+  it("replaces the header-only LP table with a real empty state when every pool is filtered out as thin", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            lpDeposits: {
+              rewardTokenSymbol: "AERO",
+              opportunities: [
+                {
+                  pool: "0xlpthin",
+                  symbol: "THIN-LP",
+                  poolType: "concentrated",
+                  stakedTvlUsd: 2_000, // under the $50k thin floor
+                  currentEpochAprPct: 40_000,
+                  predictedNextEpochAprPct: 50_000,
+                  emissionsTrendUsdPerEpoch: 1,
+                  confidence: 0.7,
+                },
+              ],
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Previously: heading + a one-line link + a table with a header row and
+    // nothing under it, which reads as a failed fetch.
+    expect(screen.getByText(/too thin to mean anything/i)).toBeInTheDocument();
+    const unhide = screen.getByRole("button", { name: /show anyway/i });
+    expect(unhide.closest("div")!.textContent).toMatch(/too thin to mean anything/i);
+
+    // And the control still works from inside the empty state.
+    const user = userEvent.setup();
+    await user.click(unhide);
+    expect(screen.getAllByRole("link", { name: "THIN-LP" }).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the mobile tab bar in sync with which sections are hidden below sm", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const voteTab = screen.getByRole("tab", { name: "vote" });
+    const lpTab = screen.getByRole("tab", { name: "LP yield" });
+    expect(voteTab).toHaveAttribute("aria-selected", "true");
+
+    // jsdom applies no CSS, so assert the class contract the breakpoint
+    // relies on: inactive sections carry `hidden`, all of them carry an
+    // sm: override so desktop still renders one dense page.
+    const lpSection = screen.getByText(/LP staking yield/i).closest("section")!;
+    expect(lpSection.className).toMatch(/\bhidden\b/);
+    expect(lpSection.className).toMatch(/\bsm:block\b/);
+
+    const user = userEvent.setup();
+    await user.click(lpTab);
+
+    expect(lpTab).toHaveAttribute("aria-selected", "true");
+    expect(voteTab).toHaveAttribute("aria-selected", "false");
+    expect(lpSection.className).not.toMatch(/\bhidden\b/);
+  });
+
+  it("collapses a vote-swing signal to one line, with the full rationale behind a tap", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // The epoch-progress clause is identical on every signal, so it's stated
+    // once per panel instead of repeated per card.
+    expect(screen.getAllByText(/normal trajectory at 42\.5% through the epoch/i).length).toBe(2);
+  });
+
+  it("shows 'no baseline' instead of a nine-figure swing for a gauge with no prior votes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          return jsonResponse({
+            ...dashboardPayload,
+            voteSwings: {
+              epochProgressPct: 42.5,
+              risers: [
+                {
+                  pool: "0xnew",
+                  symbol: "NEW-GAUGE",
+                  currentBribesUsd: 5000,
+                  bribeSpikeRatio: null,
+                  // What the 1-vote-floor division actually produces.
+                  voteSwingPct: 3_287_989_742.5,
+                  expectedVotesSoFar: 0,
+                  rationale: "…no meaningful baseline to compare against.",
+                },
+                {
+                  pool: "0xreal",
+                  symbol: "REAL-GAUGE",
+                  currentBribesUsd: 900,
+                  bribeSpikeRatio: 2.4,
+                  voteSwingPct: 44.8,
+                  expectedVotesSoFar: 120_000,
+                  rationale: "Bribes running 2.4x expected pace; votes +44.8% …",
+                },
+              ],
+              fallers: [],
+            },
+          });
+        }
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText(/no baseline/i)).toBeInTheDocument();
+    expect(screen.queryByText(/3,?287,?989,?742/)).not.toBeInTheDocument();
+    // A gauge that does have a baseline still shows its real number.
+    expect(screen.getByText("+44.8%")).toBeInTheDocument();
   });
 
   it("gives the LP staking yield table an sm:hidden mobile-card twin, same as the predicted-hot-pools table", async () => {

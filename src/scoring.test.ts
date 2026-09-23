@@ -584,6 +584,28 @@ describe("detectVoteSwings", () => {
     expect(detectVoteSwings(noBaseline).risers).toHaveLength(0);
   });
 
+  it("says a vote-pace baseline is missing instead of quoting a nine-figure percentage", () => {
+    // A gauge nobody voted in before divides by the 1-vote floor, so any
+    // votes at all produce e.g. "+3,287,989,742.5%" — the division the
+    // formula asks for, and meaningless (spotted live in the risers panel).
+    const snapshot = snapshotOf([
+      makeForecast({
+        history: [
+          inProgressEpoch(32_000_000, 5_000), // votes arrived this epoch
+          completedEpoch(1, 0, 4_000),
+          completedEpoch(2, 0, 4_000),
+        ],
+      }),
+    ]);
+    const report = detectVoteSwings(snapshot);
+    expect(report.risers).toHaveLength(1);
+    expect(report.risers[0].rationale).toMatch(/no meaningful baseline/);
+    expect(report.risers[0].rationale).not.toMatch(/\d{7,}%/);
+    // The numeric field itself is untouched — callers that sort or filter on
+    // it keep working; only the prose stops quoting it.
+    expect(report.risers[0].expectedVotesSoFar).toBeLessThan(1);
+  });
+
   it("flags a brand-new bribe (no prior baseline) with a null ratio, not a bogus number", () => {
     const snapshot = snapshotOf([
       makeForecast({
