@@ -291,6 +291,10 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // through GitHub history themselves.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-09-23",
+    title: "Footer now points to the MCP server and the x402 API directly — skip the UI, ask an agent instead.",
+  },
+  {
     date: "2026-09-22",
     title:
       "The mobile hot-pools cards now expand (▸) to show the fee-history sparkline too — previously desktop-only. Confidence bars mute at an 8pp spread instead of 3pp, since anything tighter doesn't move a ~32px bar by a visible amount. A gas-hurdle-collapsed Voter ROI result gets its own one-line explanation instead of looking like a broken card. Header status chips and action buttons now group separately instead of piling into one row.",
@@ -2125,20 +2129,39 @@ export default function Dashboard() {
 
           <ChangelogPanel />
 
-          <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
-            <span>
-              Live data: {DISPLAY_PRESET.displayName} Sugar contracts on {DISPLAY_PRESET.networkName} + DefiLlama
-              prices · snapshot{" "}
-              {new Date(snapshot.generatedAt).toLocaleTimeString()}
-            </span>
-            <a
-              href="https://github.com/Hryhorii77/aero-allocator"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-neutral-300"
-            >
-              github.com/Hryhorii77/aero-allocator
-            </a>
+          <footer className="mt-10 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
+            <p className="mb-2">
+              Or skip the UI — ask an agent:{" "}
+              <span className="font-mono text-neutral-400">
+                &quot;recommend a voter_roi allocation for my veAERO&quot;
+              </span>
+              . MCP server (free, self-hosted) or the x402 API (5¢/call, no setup) — same tools, same numbers,
+              see{" "}
+              <a
+                href="https://github.com/Hryhorii77/aero-allocator"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-500 hover:text-sky-400"
+              >
+                the repo
+              </a>
+              .
+            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Live data: {DISPLAY_PRESET.displayName} Sugar contracts on {DISPLAY_PRESET.networkName} + DefiLlama
+                prices · snapshot{" "}
+                {new Date(snapshot.generatedAt).toLocaleTimeString()}
+              </span>
+              <a
+                href="https://github.com/Hryhorii77/aero-allocator"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-neutral-300"
+              >
+                github.com/Hryhorii77/aero-allocator
+              </a>
+            </div>
           </footer>
         </>
       )}
