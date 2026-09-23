@@ -102,12 +102,16 @@ expand (fee-history sparkline) works the same way on the mobile card layout, not
 table. When a small `votingPowerVe` collapses Voter ROI to one or two pools (see gas hurdle above),
 the panel says so directly rather than leaving a short list to read as a failure.
 
-The header carries two freshness/urgency signals, not just a market snapshot: a flip-clock chip
-(neutral above 12h to the next vote flip, amber inside 12h, red — with an explicit "allocation may be
-stale, refresh" — inside the final 2h) and a separate snapshot-age chip that turns red once the data is
-both stale (older than the server's 5-minute cache) and close to the flip. In that last-6h window the
-page also quietly auto-refreshes (one forced live rebuild on entering it, then a 60s poll) instead of
-waiting on the next visitor to trigger a background refresh.
+The header carries two urgency signals with deliberately separate jobs: a flip-clock chip for the
+deadline (neutral above 12h to the next vote flip, amber inside 12h, red and pushing to "vote now"
+inside the final 2h) and a snapshot-age chip for the data, which turns red with its own
+"may be stale, refresh" once the snapshot is both older than the server's 5-minute cache and close to
+the flip. Only one of them ever tells you to refresh. In that last-6h window the page also quietly
+auto-refreshes (one forced live rebuild on entering it, then a 60s poll) instead of waiting on the next
+visitor to trigger a background refresh.
+
+The veAERO amount you type is remembered locally between visits, so a returning voter isn't handed the
+10,000 default again — a shared `?vp=` link still takes precedence, so links keep meaning what they say.
 
 Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation as a real vote: your
 veNFTs are auto-detected via VeSugar (manual id entry as fallback) and all of them are selected by

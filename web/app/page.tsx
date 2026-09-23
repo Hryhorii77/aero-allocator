@@ -155,6 +155,34 @@ interface PaStatus {
 // spinner every time (Grok round 4: "cold start is the first thing I see").
 const DASHBOARD_CACHE_KEY = "aero-allocator:dashboard-cache:v1";
 
+// The 10,000 default is wrong for almost everyone with a real lock, and a
+// returning voter had to retype their own amount (or keep a ?vp= link) on
+// every visit. Remembered locally instead — never sent anywhere, and a
+// shared ?vp= link still wins so those keep meaning what they say.
+const VOTING_POWER_KEY = "aero-allocator:voting-power:v1";
+
+function readSavedVotingPower(): number | null {
+  try {
+    const saved = Number(window.localStorage.getItem(VOTING_POWER_KEY));
+    return Number.isFinite(saved) && saved > 0 ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+/** No-ops on a zero/blank amount: the input passes 0 while it's being
+ * cleared mid-edit, and on the reset that follows a wallet disconnect —
+ * neither is a number the visitor meant to keep. */
+function saveVotingPower(votingPower: number) {
+  if (!(votingPower > 0)) return;
+  try {
+    window.localStorage.setItem(VOTING_POWER_KEY, String(votingPower));
+  } catch {
+    // Quota/private-browsing failures are fine to swallow — this is a
+    // convenience, not state the page depends on.
+  }
+}
+
 interface DashboardCachePayload {
   generatedAt: number;
   epochStart: number;
@@ -294,6 +322,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-24",
+    title:
+      "The dashboard now remembers your veAERO amount between visits instead of resetting to the 10,000 default — a shared ?vp= link still wins. Connecting a wallet says what it gets you, and the flip clock no longer repeats the freshness chip's refresh instruction.",
+  },
   {
     date: "2026-09-23",
     title:
@@ -785,7 +818,13 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
         }`}
       >
         votes flip in {formatCountdown(remainingMs)}
-        {urgent && " — allocation may be stale, refresh"}
+        {/* Deliberately not "…may be stale, refresh" any more: the
+            freshness chip sitting right beside this one already owns that
+            instruction, and inside the final 2h both fire at once — two red
+            pills ending in the same word (external review: "the timer is
+            the only thing that feels urgent, and it should"). This one
+            carries the deadline; that one carries data age. */}
+        {urgent && " — vote now"}
       </span>
     </div>
   );
@@ -1061,7 +1100,8 @@ export default function Dashboard() {
   const [votingPower, setVotingPower] = useState(() => {
     if (typeof window === "undefined") return 10000;
     const vp = Number(new URLSearchParams(window.location.search).get("vp"));
-    return vp > 0 ? vp : 10000;
+    if (vp > 0) return vp;
+    return readSavedVotingPower() ?? 10000;
   });
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
@@ -1506,7 +1546,11 @@ export default function Dashboard() {
                     // typed appends onto it ("0" + "2" = "02") instead of
                     // replacing it, so 10,000 could never become 200.
                     value={votingPower === 0 ? "" : votingPower}
-                    onChange={(e) => setVotingPower(e.target.value === "" ? 0 : Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = e.target.value === "" ? 0 : Number(e.target.value);
+                      setVotingPower(next);
+                      saveVotingPower(next);
+                    }}
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                   <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
@@ -1583,6 +1627,7 @@ export default function Dashboard() {
                     allocations={voterAlloc.allocations}
                     onNftSelected={(vp, votes) => {
                       setVotingPower(vp);
+                      saveVotingPower(vp);
                       setCurrentVotes(votes);
                       recomputeVoterWithPower(vp);
                     }}

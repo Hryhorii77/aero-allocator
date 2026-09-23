@@ -88,7 +88,9 @@ describe("VotePanel (disconnected)", () => {
 
   it("prompts to connect a wallet rather than showing the vote controls", () => {
     renderWithProviders(<VotePanel allocations={allocations} />);
-    expect(screen.getByText(/connect a wallet to cast this allocation/i)).toBeInTheDocument();
+    // The prompt says what connecting buys (your real balance, your current
+    // votes beside the split), not what the button does.
+    expect(screen.getByText(/connect to see your current votes next to this split/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /cast vote/i })).not.toBeInTheDocument();
   });
 

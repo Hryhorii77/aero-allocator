@@ -376,8 +376,12 @@ export function VotePanel({
   if (!isConnected) {
     return (
       <>
+        {/* States what connecting buys you, not what the button is: the
+            split above is sized for a typed guess until a wallet fills in
+            the real balance and the votes already cast against it. */}
         <p className="mt-3 text-xs text-neutral-500">
-          Connect a wallet to cast this allocation as your {DISPLAY_PRESET.veTokenSymbol} vote.
+          Connect to see your current votes next to this split, sized for your real{" "}
+          {DISPLAY_PRESET.veTokenSymbol} balance — then cast it in one signature.
         </p>
         {noWalletOption}
       </>

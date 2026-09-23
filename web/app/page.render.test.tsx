@@ -137,6 +137,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   window.localStorage.clear();
+  // Tests that push a ?vp= link would otherwise leak it into the next
+  // test's initial state, since votingPower reads the URL on mount.
+  window.history.pushState({}, "", "/");
 });
 
 // "POOL-A"/"POOL-B" appear twice once loaded (the hot-pools table row and
@@ -820,6 +823,51 @@ describe("Dashboard", () => {
     expect(screen.getAllByRole("link", { name: "THIN-LP" }).length).toBeGreaterThan(0);
   });
 
+  it("remembers a typed veAERO amount for the next visit instead of resetting to the 10,000 default", async () => {
+    const { unmount } = renderDashboard();
+    await waitForPoolsLoaded();
+
+    const input = screen.getAllByRole("spinbutton")[0];
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, "92");
+    expect(input).toHaveValue(92);
+
+    unmount();
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(92);
+  });
+
+  it("lets a shared ?vp= link win over the remembered amount", async () => {
+    window.localStorage.setItem("aero-allocator:voting-power:v1", "92");
+    window.history.pushState({}, "", "/?vp=5000");
+
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Otherwise a link someone sent would quietly show the recipient's own
+    // size instead of the one in the link.
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(5000);
+  });
+
+  it("does not persist the blank value the input passes while it's being cleared", async () => {
+    window.localStorage.setItem("aero-allocator:voting-power:v1", "92");
+    const { unmount } = renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    await user.clear(screen.getAllByRole("spinbutton")[0]);
+
+    unmount();
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // Still 92, not 10,000 — clearing the field mid-edit isn't an amount.
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(92);
+  });
+
   it("keeps the mobile tab bar in sync with which sections are hidden below sm", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -1257,12 +1305,14 @@ describe("EpochCountdown urgency", () => {
     expect(chip.textContent).not.toMatch(/may be stale/i);
   });
 
-  it("warns the allocation may be stale inside the final 2h before the flip", async () => {
-    // Anchored on "allocation" specifically — the fixture's fixed, ancient
-    // generatedAt also trips the separate SnapshotFreshness chip's own
-    // "may be stale, refresh" copy, so the bare phrase alone matches both.
+  it("pushes to vote inside the final 2h, without repeating the freshness chip's refresh instruction", async () => {
     stubFetchWithHoursLeft(1);
     renderDashboard();
-    expect(await screen.findByText(/allocation may be stale, refresh/i)).toBeInTheDocument();
+
+    const chip = await screen.findByText(/votes flip in/i);
+    expect(chip.textContent).toMatch(/vote now/i);
+    // The chip beside it owns "stale/refresh"; two red pills ending in the
+    // same word was the thing to avoid.
+    expect(chip.textContent).not.toMatch(/refresh/i);
   });
 });
