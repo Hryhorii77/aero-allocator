@@ -1080,8 +1080,50 @@ export function CurrentVsRecommended({
   }
   const estimateIfSwitch = recommended.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
 
+  // The punchline used to be something you had to work out yourself by
+  // subtracting two figures buried in the sentence below (external review:
+  // "after connect: one diff row — you're in A, model wants B, Δ $").
+  // Withheld when some pool you're in has no $/1k rate: the "stay" side is
+  // then missing contributions, which would flatter switching by exactly
+  // the amount we couldn't measure.
+  // Differenced after rounding, not before: the two sides are printed to
+  // the cent in the note below, and a delta taken from the raw values can
+  // land a cent off what subtracting those two printed figures gives.
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+  const deltaUsd = round2(estimateIfSwitch) - round2(estimateIfStay);
+  const deltaComparable = !estimateMissingRate;
+  const currentPoolCount = rows.filter((r) => r.currentPct > 0).length;
+  const recommendedPoolCount = rows.filter((r) => r.recommendedPct > 0).length;
+
   return (
     <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-neutral-800 pb-2">
+        <span className="text-xs text-neutral-400">
+          You&rsquo;re in <span className="font-mono text-neutral-200">{currentPoolCount}</span> pool
+          {currentPoolCount === 1 ? "" : "s"}, this split wants{" "}
+          <span className="font-mono text-neutral-200">{recommendedPoolCount}</span>
+        </span>
+        {deltaComparable ? (
+          <span
+            className={`font-mono text-sm ${
+              Math.abs(deltaUsd) < 0.01
+                ? "text-neutral-400"
+                : deltaUsd > 0
+                  ? "text-emerald-400"
+                  : "text-rose-400"
+            }`}
+            title="Rough: the two sides are estimated on different bases — see the note below."
+          >
+            {Math.abs(deltaUsd) < 0.01
+              ? "≈ same either way"
+              : `≈ ${deltaUsd > 0 ? "+" : "−"}${usd(Math.abs(deltaUsd))} to switch`}
+          </span>
+        ) : (
+          <span className="font-mono text-xs text-neutral-500">
+            switch vs stay not comparable — see below
+          </span>
+        )}
+      </div>
       <div className="mb-2 text-xs text-neutral-500">your current split vs recommended</div>
       <div className="space-y-1">
         {rows.map((r) => {
@@ -1719,11 +1761,9 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setVoteMode((v) => !v)}
-                title={
-                  voteMode
-                    ? "Showing pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand move into the row expand (▸). Click to show every column."
-                    : "Showing every column. Click to collapse to the columns a voter needs, with the rest moved into the row expand (▸)."
-                }
+                // Six words, not a paragraph: a tooltip nobody finishes
+                // reading isn't an explanation (external review).
+                title={voteMode ? "Fewer columns. Vote first." : "Every column. The rest is in ▸."}
                 className={`ml-auto shrink-0 rounded-lg border px-2.5 py-1 font-mono text-xs ${
                   voteMode
                     ? "border-emerald-700 bg-emerald-950/40 text-emerald-300"

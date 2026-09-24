@@ -1200,6 +1200,65 @@ describe("CurrentVsRecommended", () => {
     expect(within(row).getByText("-28.0pp")).toBeInTheDocument();
   });
 
+  it("leads with the dollar difference between staying and switching", () => {
+    render(
+      <CurrentVsRecommended
+        currentVotes={[{ pool: "0xpoolA", weightPct: 100 }]}
+        votingPower={10_000}
+        recommended={[
+          {
+            pool: "0xpoolA",
+            symbol: "POOL-A",
+            weightPct: 100,
+            currentVoteSharePct: 5,
+            predictedDemandSharePct: 6,
+            predictiveEdgePct: 1,
+            tvlUsd: 100,
+            currentVotes: 1000,
+            expectedRewardUsd: 25,
+            confidence: 0.7,
+          },
+        ]}
+        poolMeta={poolMeta}
+      />,
+    );
+
+    // Staying: 10,000 votes at POOL-A's $1.10/1k = $11. Switching: $25.
+    expect(screen.getByText(/≈ \+\$14 to switch/)).toBeInTheDocument();
+    // The counts sit in their own spans, so match on the line, not a node.
+    const headline = screen.getByText(/You.re in/).closest("span")!;
+    expect(headline.textContent).toMatch(/You’re in 1 pool, this split wants 1/);
+  });
+
+  it("withholds the dollar difference when a currently-held pool has no $/1k rate to value it with", () => {
+    render(
+      <CurrentVsRecommended
+        // Not in poolMeta, so the "stay" side can't be priced — showing a
+        // delta anyway would flatter switching by the unmeasured amount.
+        currentVotes={[{ pool: "0xUnratedPool", weightPct: 100 }]}
+        votingPower={10_000}
+        recommended={[
+          {
+            pool: "0xpoolA",
+            symbol: "POOL-A",
+            weightPct: 100,
+            currentVoteSharePct: 5,
+            predictedDemandSharePct: 6,
+            predictiveEdgePct: 1,
+            tvlUsd: 100,
+            currentVotes: 1000,
+            expectedRewardUsd: 25,
+            confidence: 0.7,
+          },
+        ]}
+        poolMeta={poolMeta}
+      />,
+    );
+
+    expect(screen.getByText(/not comparable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/to switch/)).not.toBeInTheDocument();
+  });
+
   it("shows a pool the wallet currently holds but the model doesn't recommend as a 0% target", () => {
     render(
       <CurrentVsRecommended

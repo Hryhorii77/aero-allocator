@@ -172,6 +172,15 @@ function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
 
+/** Money for prose: pads cents so a 20-cent result reads "0.20" rather than
+ * "0.2" (a dropped trailing zero reads as a truncated number, and the
+ * dashboard prints this sentence directly under a hero figure that pads),
+ * while leaving whole amounts whole. */
+function money2(x: number): string {
+  const shown = round2(x);
+  return Number.isInteger(shown) ? String(shown) : shown.toFixed(2);
+}
+
 /**
  * Optimal split of `votingPower` votes across pools where pool i pays
  * rewards R_i shared pro-rata: your payout is R_i * v_i / (E_i + v_i).
@@ -414,8 +423,8 @@ export function recommendAllocation(
           "mispricings between predicted demand and current votes, not raw demand or dilution-optimal ROI. Not " +
           `dilution-aware: pair with voter_roi to size an actual vote for your ${PRESET.veTokenSymbol} amount.`
         : `Dilution-aware optimal split of ${votingPowerVe.toLocaleString()} ${PRESET.veTokenSymbol} across ${allocations.length} pools ` +
-          `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${totalExpected} next epoch ` +
-          `(~$${round2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).` +
+          `(${Math.round(maxWeightFraction * 100)}% per-pool cap): expected ~$${money2(totalExpected)} next epoch ` +
+          `(~$${money2((totalExpected / votingPowerVe) * 1000)}/1k votes after dilution).` +
           (hurdleDroppedCount > 0
             ? ` ${hurdleDroppedCount} more pool${hurdleDroppedCount > 1 ? "s" : ""} cleared the reward floor but not ` +
               `the ~$${gasHurdleUsd}/pool gas hurdle at this voting power — collapsed rather than split further.`
