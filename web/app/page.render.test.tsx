@@ -479,9 +479,59 @@ describe("Dashboard", () => {
     // tweet the warning mode as the homepage".
     expect(window.location.search).not.toMatch(/sort=rewardPer1kVotesUsd/);
 
-    // Sorting by a normal column does restore it into the URL.
-    await user.click(screen.getByRole("button", { name: /^edge/i }));
-    expect(window.location.search).toMatch(/sort=edgePct/);
+    // Sorting by a normal, non-default column does restore it into the URL.
+    // (Edge itself is the default sort, so it is deliberately absent — see
+    // the default-omission tests below.)
+    await user.click(screen.getByRole("button", { name: /predicted fees/i }));
+    expect(window.location.search).toMatch(/sort=predictedFeesUsd/);
+  });
+
+  it("leaves a first-time visitor's URL clean instead of appending every default", async () => {
+    // Landing on aeroallocator.app used to rewrite the address bar to
+    // "?sort=edgePct&dir=desc&lpSort=…&vp=10000" before the visitor touched
+    // anything, which reads as broken and invites "what did it just add?".
+    window.history.pushState({}, "", "/");
+
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(window.location.search).toBe("");
+  });
+
+  it("does not republish a remembered amount restored from localStorage", async () => {
+    // Same leak, quieter route: a returning holder lands on a clean URL and
+    // the restore alone must not put their size back in the address bar.
+    window.localStorage.setItem("aero-allocator:voting-power:v1", "2400000");
+    window.history.pushState({}, "", "/");
+
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(2_400_000);
+    expect(window.location.search).not.toMatch(/vp=/);
+  });
+
+  it("does put a hand-typed amount in the URL, so sharing a sized view still works", async () => {
+    window.history.pushState({}, "", "/");
+
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    const user = userEvent.setup();
+    const input = screen.getAllByRole("spinbutton")[0];
+    await user.clear(input);
+    await user.type(input, "250000");
+
+    expect(window.location.search).toMatch(/vp=250000/);
+  });
+
+  it("keeps republishing an amount that arrived in the link, since it is already public", async () => {
+    window.history.pushState({}, "", "/?vp=5000");
+
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(window.location.search).toMatch(/vp=5000/);
   });
 
   it("shows TVL, current votes, and gauge-share context under a Voter ROI allocation row", async () => {

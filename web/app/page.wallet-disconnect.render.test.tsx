@@ -178,4 +178,34 @@ describe("Dashboard reacting to the wallet disconnecting after a veNFT was alrea
 
     expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(5000);
   });
+
+  it("never writes the connected wallet's real veAERO balance into the URL", async () => {
+    // The leak: connecting sets the amount to the wallet's actual on-chain
+    // balance (92 here, from the mocked veNFT). Publishing that to the
+    // address bar means a copied link — or a screenshot of the page, which
+    // is how this was noticed — hands out the holder's position size.
+    // Connecting a wallet is not a request to broadcast what you hold.
+    // Both mocks have to be restored: the test above leaves useAccountMock
+    // disconnected AND useReadContractMock returning no veNFTs, so without
+    // this the wallet detects nothing and the assertion below would pass
+    // for entirely the wrong reason.
+    useAccountMock.mockReturnValue({
+      address: "0xabc0000000000000000000000000000000abcd",
+      isConnected: true,
+      chainId: DISPLAY_PRESET.chain.id,
+    });
+    useReadContractMock.mockReturnValue({
+      data: [{ id: 118577n, voting_amount: 92n * 10n ** 18n, votes: [{ lp: "0xpoolA", weight: 10_000n }] }],
+      isError: false,
+    });
+    window.history.pushState({}, "", "/");
+
+    renderDashboard();
+    await screen.findAllByText("POOL-A");
+
+    // The amount is detected and used...
+    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(92));
+    // ...but never published.
+    expect(window.location.search).not.toMatch(/vp=/);
+  });
 });

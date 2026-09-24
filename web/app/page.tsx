@@ -347,6 +347,11 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-09-24",
     title:
+      "Your veAERO balance no longer ends up in the address bar. The page used to write its whole state into the URL on load — including your amount, which is restored from your last visit or read from your wallet — so a copied link or a screenshot could hand out your position size. Only settings you actually chose get shared now, and a first visit keeps a clean URL.",
+  },
+  {
+    date: "2026-09-24",
+    title:
       "The hosted Velodrome dashboard is retired, and the protocol switcher with it. Velodrome runs 53 pools to Aerodrome's 276 and pays $1.88 per 10,000 ve against $85.52 — not enough to justify a second site to keep current, and the switcher was sending people to a copy that had quietly stopped updating. Velodrome still works self-hosted via AERO_PROTOCOL=velodrome.",
   },
   {
@@ -1124,6 +1129,17 @@ export default function Dashboard() {
     if (vp > 0) return vp;
     return readSavedVotingPower() ?? 10000;
   });
+  // Whether this amount may be written back into the URL. True only when
+  // publishing it is the visitor's own intent: they arrived on a link that
+  // already carried ?vp= (so it is already public), or they type an amount
+  // in this session (see the input's onChange). A value silently restored
+  // from their own localStorage is NOT intent — republishing that would put
+  // a returning holder's veAERO balance in the address bar, where a copied
+  // link or a screenshot leaks their position size.
+  const [votingPowerIsShareable, setVotingPowerIsShareable] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Number(new URLSearchParams(window.location.search).get("vp")) > 0;
+  });
   const [loading, setLoading] = useState(true);
   const [allocLoading, setAllocLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1159,6 +1175,10 @@ export default function Dashboard() {
     // wallet disconnected"). Reset to the same default a fresh, never-
     // connected visitor sees, and refetch the recommendation to match.
     setVotingPower(10000);
+    // Back to the default, and nothing here was the visitor's own doing —
+    // so the amount drops out of the URL too rather than stranding the
+    // disconnected wallet's balance there.
+    setVotingPowerIsShareable(false);
     recomputeVoterWithPower(10000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
@@ -1197,6 +1217,8 @@ export default function Dashboard() {
   // current vote share) is the one column that answers "where should I
   // actually look first" for a visitor here to vote, which raw fee size
   // doesn't (external review: "fees just ranks size").
+  const DEFAULT_POOL_SORT = { key: "edgePct" as PoolSortKey, dir: "desc" as const };
+  const DEFAULT_LP_SORT = { key: "predictedNextEpochAprPct" as LpSortKey, dir: "desc" as const };
   const [poolSort, setPoolSort] = useState<{ key: PoolSortKey; dir: "asc" | "desc" }>({
     key: "edgePct",
     dir: "desc",
@@ -1244,26 +1266,48 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Keep the URL in sync so the current view is always shareable — except
-  // $/1k votes, which is a volatility *warning* view (thin, near-zero-vote
-  // gauges), not a view worth handing out as "the" link for this app (Grok
-  // round 4: "don't tweet the warning mode as the homepage"). Exploring it
-  // stays purely client-side; the address bar keeps whatever safe sort it
-  // last held, so a copy-pasted link always lands on predicted fees/edge.
+  // Keep the URL in sync so the current view is shareable — but only ever
+  // write what actually differs from what a first-time visitor would see.
+  //
+  // Writing every parameter unconditionally turned a clean aeroallocator.app
+  // into "?sort=edgePct&dir=desc&lpSort=…&vp=10000" before the visitor had
+  // touched anything, which reads as broken. Worse, `vp` is the visitor's own
+  // veAERO balance, restored from localStorage since we started remembering
+  // it — so a returning holder landed on a clean URL and the app immediately
+  // republished their position size into the address bar, ready to be copied
+  // into a share or caught in a screenshot. Nobody asked for that.
+  //
+  // So: defaults stay out of the URL entirely, and `vp` goes in only when
+  // publishing it was the visitor's intent — they typed an amount this
+  // session, or arrived on a link that already carried one. A silent restore
+  // from their own browser is not intent.
+  //
+  // $/1k votes is deliberately never written: it's a volatility *warning*
+  // view (thin, near-zero-vote gauges), not a view worth handing out as "the"
+  // link for this app (Grok round 4: "don't tweet the warning mode as the
+  // homepage"). Exploring it stays client-side and the address bar keeps
+  // whatever safe sort it last held.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (poolSort.key === "rewardPer1kVotesUsd") {
-      params.delete("sort");
-      params.delete("dir");
-    } else {
-      params.set("sort", poolSort.key);
-      params.set("dir", poolSort.dir);
-    }
-    params.set("lpSort", lpSort.key);
-    params.set("lpDir", lpSort.dir);
-    params.set("vp", String(votingPower));
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-  }, [poolSort, lpSort, votingPower]);
+    const setOrDelete = (key: string, value: string, isDefault: boolean) =>
+      isDefault ? params.delete(key) : params.set(key, value);
+
+    const poolSortIsWarningView = poolSort.key === "rewardPer1kVotesUsd";
+    const poolSortIsDefault =
+      poolSortIsWarningView ||
+      (poolSort.key === DEFAULT_POOL_SORT.key && poolSort.dir === DEFAULT_POOL_SORT.dir);
+    setOrDelete("sort", poolSort.key, poolSortIsDefault);
+    setOrDelete("dir", poolSort.dir, poolSortIsDefault);
+
+    const lpSortIsDefault = lpSort.key === DEFAULT_LP_SORT.key && lpSort.dir === DEFAULT_LP_SORT.dir;
+    setOrDelete("lpSort", lpSort.key, lpSortIsDefault);
+    setOrDelete("lpDir", lpSort.dir, lpSortIsDefault);
+
+    setOrDelete("vp", String(votingPower), !votingPowerIsShareable);
+
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+  }, [poolSort, lpSort, votingPower, votingPowerIsShareable]);
 
   // `background` skips the full-page spinner and swallows errors instead of
   // surfacing them in the error banner — used by the urgent-window
@@ -1564,6 +1608,10 @@ export default function Dashboard() {
                       const next = e.target.value === "" ? 0 : Number(e.target.value);
                       setVotingPower(next);
                       saveVotingPower(next);
+                      // Typed by hand — the one case where putting the amount
+                      // in the URL is what the visitor meant, so "share this
+                      // view at 250k ve" keeps working.
+                      setVotingPowerIsShareable(true);
                     }}
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
@@ -1642,6 +1690,13 @@ export default function Dashboard() {
                     onNftSelected={(vp, votes) => {
                       setVotingPower(vp);
                       saveVotingPower(vp);
+                      // Emphatically NOT shareable: this is the connected
+                      // wallet's real on-chain veAERO balance. Writing it to
+                      // the URL would mean connecting a wallet silently
+                      // publishes your exact holdings into the address bar,
+                      // where copying the link — or screenshotting the page —
+                      // hands out your position size.
+                      setVotingPowerIsShareable(false);
                       setCurrentVotes(votes);
                       recomputeVoterWithPower(vp);
                     }}
