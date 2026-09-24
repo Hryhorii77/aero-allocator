@@ -183,12 +183,23 @@ Example agent flow:
 
 ## Paid API (x402)
 
-`GET /api/v1/forecast` on the dashboard deployment is a pay-per-call mirror of the free dashboard's data
-(predicted hot pools, all three allocation objectives, LP staking yield, vote-swing signals) — same engine,
-same numbers, priced at **$0.05/call in USDC on Base mainnet** via the [x402
-protocol](https://www.x402.org/), for agents or treasuries that want programmatic access without
-self-hosting the MCP server and their own RPC. The free dashboard and MCP server are unaffected — this is
-an additional way to get at the data, not a paywall on the existing ones.
+Two pay-per-call endpoints on the dashboard deployment, both **$0.05/call in USDC on Base mainnet** via
+the [x402 protocol](https://www.x402.org/). The free dashboard and MCP server are unaffected — these are
+additional ways to get at the data, not a paywall on the existing ones.
+
+| Endpoint | What it answers |
+|---|---|
+| `GET /api/v1/position?address=0x…` | **What is *this wallet's* current vote worth versus the recommendation?** Reads every veNFT the address holds, blends them into one portfolio-wide split, sizes the recommendation for that combined voting power, and returns the dollar difference between staying and switching. |
+| `GET /api/v1/forecast` | The whole market: predicted hot pools, all three allocation objectives, LP staking yield, vote-swing signals. |
+
+`/api/v1/position` is the one that isn't obtainable free, and that distinction is deliberate. The free
+`/api/dashboard` is address-agnostic — it publishes the map. `position` reads a specific caller's on-chain
+stance off that map and tells them where they're standing, which needs a chain read keyed to their
+address. It's also the shape an agent can act on without a human in the loop: one number, signed sense,
+plus `comparable` so a caller knows when the two sides aren't priced on the same basis.
+
+`/api/v1/forecast` serves the same payload as the free `/api/dashboard` (same engine, same numbers), for
+callers who want it metered and versioned rather than scraped off the site's own endpoint.
 
 Standard x402 flow: a request without an `X-PAYMENT` header gets `402` with the price; a request with a
 valid one is verified by Coinbase's CDP facilitator before the handler runs, and settled on-chain only
@@ -196,7 +207,7 @@ after a successful response — a failed request is never charged. [`SKILL.md`](
 has a copy-pasteable client example (`@x402/fetch`) for calling this directly from an agent — no clone,
 no RPC key, no MCP registration.
 
-Requires three env vars to activate; without all three the route serves a clean `501` rather than
+Requires three env vars to activate; without all three both routes serve a clean `501` rather than
 accepting misrouted or unverifiable payments:
 
 | Var | | |
@@ -363,7 +374,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
-- [x] x402-monetized hosted endpoint — `/api/v1/forecast`, pay-per-forecast in USDC on Base, see [Paid API (x402)](#paid-api-x402)
+- [x] x402-monetized hosted endpoints — `/api/v1/position` (per-wallet vote delta) and `/api/v1/forecast`, pay-per-call in USDC on Base, see [Paid API (x402)](#paid-api-x402)
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`

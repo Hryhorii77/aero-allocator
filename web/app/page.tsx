@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { useAccount } from "wagmi";
 import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
+import { computePositionDelta } from "aero-allocator/position";
 
 const SIBLING_URL = process.env.NEXT_PUBLIC_SIBLING_URL;
 
@@ -345,6 +346,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // is a commit away via the link at the foot of the panel; trimmed entries stay
 // in git history, so nothing is actually lost by pruning here.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-24",
+    title:
+      "New paid endpoint for agents: /api/v1/position takes a wallet address and answers what that wallet's current vote is worth versus the recommended split, in dollars — the same comparison the dashboard shows after you connect, callable without a browser.",
+  },
   {
     date: "2026-09-24",
     title:
@@ -1009,54 +1015,23 @@ export function CurrentVsRecommended({
     );
   }
 
-  const recommendedByPool = new Map(recommended.map((a) => [a.pool.toLowerCase(), a]));
-  const allPools = new Set([
-    ...currentVotes.map((v) => v.pool.toLowerCase()),
-    ...recommended.map((a) => a.pool.toLowerCase()),
-  ]);
-
-  const rows = Array.from(allPools)
-    .map((pool) => {
-      const current = currentVotes.find((v) => v.pool.toLowerCase() === pool);
-      const rec = recommendedByPool.get(pool);
-      const meta = poolMeta.get(pool);
-      return {
-        pool,
-        symbol: meta?.symbol ?? rec?.symbol ?? `${pool.slice(0, 8)}…`,
-        currentPct: current?.weightPct ?? 0,
-        recommendedPct: rec?.weightPct ?? 0,
-        rewardPer1kVotesUsd: meta?.rewardPer1kVotesUsd,
-      };
-    })
-    .sort((a, b) => b.recommendedPct - a.recommendedPct || b.currentPct - a.currentPct);
-
-  let estimateIfStay = 0;
-  let estimateMissingRate = false;
-  for (const r of rows) {
-    if (r.currentPct <= 0) continue;
-    if (r.rewardPer1kVotesUsd === undefined) {
-      estimateMissingRate = true;
-      continue;
-    }
-    const yourVotes = votingPower * (r.currentPct / 100);
-    estimateIfStay += r.rewardPer1kVotesUsd * (yourVotes / 1000);
-  }
-  const estimateIfSwitch = recommended.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
-
+  // The arithmetic lives in the engine (aero-allocator/position), not here:
+  // the paid /api/v1/position endpoint sells this exact number, and if the
+  // free page and the paid answer disagreed about the same wallet, that
+  // would be worse than either being slightly wrong on its own.
+  //
   // The punchline used to be something you had to work out yourself by
   // subtracting two figures buried in the sentence below (external review:
   // "after connect: one diff row — you're in A, model wants B, Δ $").
-  // Withheld when some pool you're in has no $/1k rate: the "stay" side is
-  // then missing contributions, which would flatter switching by exactly
-  // the amount we couldn't measure.
-  // Differenced after rounding, not before: the two sides are printed to
-  // the cent in the note below, and a delta taken from the raw values can
-  // land a cent off what subtracting those two printed figures gives.
-  const round2 = (x: number) => Math.round(x * 100) / 100;
-  const deltaUsd = round2(estimateIfSwitch) - round2(estimateIfStay);
-  const deltaComparable = !estimateMissingRate;
-  const currentPoolCount = rows.filter((r) => r.currentPct > 0).length;
-  const recommendedPoolCount = rows.filter((r) => r.recommendedPct > 0).length;
+  const {
+    rows,
+    deltaUsd,
+    comparable: deltaComparable,
+    currentPoolCount,
+    recommendedPoolCount,
+    estimateIfStayUsd: estimateIfStay,
+    estimateIfSwitchUsd: estimateIfSwitch,
+  } = computePositionDelta({ currentVotes, votingPower, recommended, poolRates: poolMeta });
 
   return (
     <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
@@ -1113,7 +1088,7 @@ export function CurrentVsRecommended({
       </div>
       <p className="mt-3 border-t border-neutral-800 pt-2 text-xs leading-relaxed text-neutral-400">
         Estimated next epoch: <span className="text-neutral-200">{usd(estimateIfStay)}</span> if you keep this
-        split (last epoch&rsquo;s $/1k rate{estimateMissingRate ? "; some pools lack a rate and are excluded" : ""}
+        split (last epoch&rsquo;s $/1k rate{deltaComparable ? "" : "; some pools lack a rate and are excluded"}
         ), vs <span className="text-emerald-400">{usd(estimateIfSwitch)}</span> if you switch to the
         recommendation above (this forecast&rsquo;s next-epoch model) — not apples-to-apples, since the two use
         different bases.

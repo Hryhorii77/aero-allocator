@@ -55,7 +55,9 @@ type RawLp = {
 };
 
 // Public RPCs rate-limit these heavy reads; back off hard before retrying.
-async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+// Exported for lockers.ts, which paginates veSugar under the same rate
+// limits and should not grow a second, subtly-different backoff.
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {

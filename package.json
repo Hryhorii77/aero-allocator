@@ -1,7 +1,7 @@
 {
   "name": "aero-allocator",
   "version": "0.1.0",
-  "description": "Aerodrome Predictive Allocation optimizer — MCP server that forecasts next-epoch pool demand on Base and recommends incentive allocations",
+  "description": "Aerodrome Predictive Allocation optimizer \u2014 MCP server that forecasts next-epoch pool demand on Base and recommends incentive allocations",
   "type": "module",
   "bin": {
     "aero-allocator": "dist/index.js"
@@ -9,11 +9,13 @@
   "main": "dist/index.js",
   "exports": {
     "./scoring": "./dist/scoring.js",
+    "./position": "./dist/position.js",
     "./data": "./dist/data.js",
     "./config": "./dist/config.js",
     "./types": "./dist/types.js",
     "./backtest": "./dist/backtest.js",
-    "./predictive-allocation": "./dist/adapters/predictive-allocation.js"
+    "./predictive-allocation": "./dist/adapters/predictive-allocation.js",
+    "./lockers": "./dist/lockers.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -23,7 +25,8 @@
     "epoch-reminder": "tsx scripts/epoch-reminder.ts",
     "realized-performance": "tsx scripts/realized-performance.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lockers": "tsx scripts/lockers.ts"
   },
   "keywords": [
     "aerodrome",

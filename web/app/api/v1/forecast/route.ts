@@ -22,7 +22,7 @@ const handler = withApiErrorHandling<NextRequest>("v1/forecast", async (req) => 
   const forecast = await buildFullForecast(votingPower, refresh);
   // Only after buildFullForecast succeeds — see logX402Usage's own comment
   // for why this stays in lockstep with what actually gets settled.
-  logX402Usage({ refresh, votingPower });
+  logX402Usage({ route: "v1/forecast", priceUsd: 0.05, refresh, votingPower });
   return NextResponse.json(forecast);
 });
 

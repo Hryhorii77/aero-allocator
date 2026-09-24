@@ -1,8 +1,5 @@
 import { PROTOCOL } from "aero-allocator/config";
 
-// $0.05 fixed price for /api/v1/forecast — see route.ts's routeConfig.accepts.
-const PRICE_USD = 0.05;
-
 /**
  * Structured usage log for the paid /api/v1/forecast endpoint, visible in
  * Vercel's Logs tab (same infra as lib/api-error.ts's error logging — no
@@ -26,14 +23,21 @@ const PRICE_USD = 0.05;
  * — withX402 explicitly cancels settlement when the wrapped handler
  * throws, so this log and "was this call charged" stay in lockstep.
  */
-export function logX402Usage(params: { refresh: boolean; votingPower: number }): void {
+export function logX402Usage(params: {
+  /** Which paid endpoint served this, e.g. "v1/forecast" or "v1/position". */
+  route: string;
+  /** That route's own price — passed in, not assumed, so the two can diverge. */
+  priceUsd: number;
+  refresh: boolean;
+  votingPower: number;
+}): void {
   console.log(
     JSON.stringify({
       level: "info",
       event: "x402_request_served",
-      route: "v1/forecast",
+      route: params.route,
       protocol: PROTOCOL,
-      priceUsd: PRICE_USD,
+      priceUsd: params.priceUsd,
       refresh: params.refresh,
       votingPower: params.votingPower,
     }),
