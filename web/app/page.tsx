@@ -338,7 +338,18 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // commits (not every commit; internal refactors/test-only changes are left
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
+//
+// Kept to the last couple of ship days only. The point of this panel is "this
+// thing is alive", which the newest entries make just as well as eighteen of
+// them — and eighteen made it a wall of text nobody finishes. Anything older
+// is a commit away via the link at the foot of the panel; trimmed entries stay
+// in git history, so nothing is actually lost by pruning here.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-24",
+    title:
+      "Connect a wallet and the comparison now opens with the number you actually want: how many pools you're in versus how many this split wants, and the dollar swing for switching. It stays hidden when a pool you hold has no rate to price, rather than quietly flattering the switch.",
+  },
   {
     date: "2026-09-24",
     title:
@@ -358,66 +369,6 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
     date: "2026-09-23",
     title: "Footer now points to the MCP server and the x402 API directly — skip the UI, ask an agent instead.",
   },
-  {
-    date: "2026-09-22",
-    title:
-      "The mobile hot-pools cards now expand (▸) to show the fee-history sparkline too — previously desktop-only. Confidence bars mute at an 8pp spread instead of 3pp, since anything tighter doesn't move a ~32px bar by a visible amount. A gas-hurdle-collapsed Voter ROI result gets its own one-line explanation instead of looking like a broken card. Header status chips and action buttons now group separately instead of piling into one row.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "Vote mode (on by default) trims the hot-pools table to pool, predicted fees, trend, edge, $/1k votes, and confidence — last epoch and votes-vs-demand fold into the row expand (▸) instead of disappearing. Toggle it off for the full table.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "Hot-pools table now defaults to sorting by edge instead of raw predicted fees — fee size alone doesn't say where to vote, edge (predicted demand share minus current vote share) does.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "Fixed the LP staking-yield table's \"thin\" badge trailing each row's own symbol text instead of lining up in a column, on both the desktop table and the mobile card layout.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "Multi-veNFT batch voting — every detected veAERO NFT is selected by default and cast as one Multicall3 transaction instead of one wallet signature per lock.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "Voter ROI now splits each pool's payout into a bribe floor (posted, already committed) and a fee forecast (the riskier, confidence-blended half) instead of one blended number, and a gas hurdle collapses a small veAERO amount to 1-3 pools instead of an 8-way split not worth the extra calldata.",
-  },
-  {
-    date: "2026-09-22",
-    title:
-      "A persistent snapshot-freshness chip (with quiet auto-refresh in the final 6h before a vote flips) and a tighter flip-clock — amber under 12h, red with an explicit \"may be stale, refresh\" warning under 2h.",
-  },
-  {
-    date: "2026-09-13",
-    title: "Search box + filter chips (stables, AERO pairs, BTC, new pools, positive edge, high confidence) to narrow the hot-pools table.",
-  },
-  { date: "2026-09-13", title: "Mobile card layout for the LP staking-yield table." },
-  {
-    date: "2026-09-13",
-    title: "Personal vote desk — see your current on-chain vote split next to the recommended one, with the $ difference.",
-  },
-  { date: "2026-09-12", title: "Predictive Allocation status indicator on the dashboard." },
-  {
-    date: "2026-09-12",
-    title:
-      "Trust fixes: no more misleading 10,000-veAERO default, new-pool flagging, one-click deep links to vote/add liquidity, and a warning when confidence scores are too clustered to rank by.",
-  },
-  {
-    date: "2026-09-06",
-    title:
-      "Sortable-column indicators, fixed misaligned trend arrows and $/1k-votes amounts, fixed both numeric inputs getting stuck on a leading zero, a real cold-start loading state, and a durable cross-instance cache so the first visitor after a quiet gap isn't stuck waiting on a rebuild.",
-  },
-  { date: "2026-09-05", title: "Base Builder Code attribution on vote transactions." },
-  {
-    date: "2026-09-03",
-    title: "Forecast-accuracy track record panel — how the model's predictions have actually performed, epoch over epoch.",
-  },
 ];
 
 export function ChangelogPanel() {
@@ -434,6 +385,18 @@ export function ChangelogPanel() {
           </li>
         ))}
       </ul>
+      <p className="mt-3 text-xs text-neutral-600">
+        Older changes live in the{" "}
+        <a
+          href="https://github.com/Hryhorii77/aero-allocator/commits/main"
+          target="_blank"
+          rel="noreferrer"
+          className="text-sky-400 hover:underline"
+        >
+          commit history
+        </a>
+        .
+      </p>
     </details>
   );
 }

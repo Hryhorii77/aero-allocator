@@ -584,8 +584,8 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     // Base fixture's voterAlloc has no gasHurdleDroppedCount at all. Scoped
-    // to the Voter ROI panel — the changelog also mentions "gas hurdle" as a
-    // shipped feature, unrelated to whether this particular result hit one.
+    // to the Voter ROI panel so a stray "gas hurdle" elsewhere on the page
+    // (changelog copy, a tooltip) can't make this pass or fail by accident.
     const voterRoiPanel = screen.getByText("Voter ROI").closest("div")!.parentElement as HTMLElement;
     expect(within(voterRoiPanel).queryByText(/gas hurdle/i)).not.toBeInTheDocument();
   });
@@ -1156,7 +1156,18 @@ describe("Dashboard", () => {
     await user.click(screen.getByText(/what's new/i));
 
     expect(details.open).toBe(true);
-    expect(screen.getByText(/search box \+ filter chips/i)).toBeInTheDocument();
+    expect(screen.getByText(/rebuilt around the job/i)).toBeInTheDocument();
+  });
+
+  it("points at the commit history rather than listing every change ever shipped", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    // The panel is deliberately trimmed to the newest ship days, so the
+    // out-link is the only thing standing between a visitor and the older
+    // entries — if it ever goes missing, they're silently gone.
+    const link = screen.getByRole("link", { name: /commit history/i });
+    expect(link).toHaveAttribute("href", "https://github.com/Hryhorii77/aero-allocator/commits/main");
   });
 });
 
