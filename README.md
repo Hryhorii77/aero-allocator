@@ -60,13 +60,17 @@ Aerodrome (Base) and Velodrome (Optimism) are the same ve(3,3) lineage — Aerod
 }
 ```
 
+**Only Aerodrome is hosted.** The Velodrome deployment was retired on 2026-09-24: measured the same day, Velodrome ran 53 pools to Aerodrome's 276, $51k of last-epoch fees to $1.55M, and $1.88 of voter ROI per 10,000 ve to $85.52. A market ~45× smaller per unit of voting power didn't justify a second public surface to keep current — and it had quietly stopped auto-deploying, so it was serving stale code. Velodrome remains fully supported as a **self-hosted** target: `AERO_PROTOCOL=velodrome` runs the MCP server and the dashboard against Optimism exactly as before.
+
 `AERO_PROTOCOL` defaults to `aerodrome` (unchanged behavior if unset). Register both entries to run them side by side — each is a separate process with its own RPC client and caches. Tool descriptions, ve-token naming (`veAERO`/`veVELO`), and reward-token naming (`AERO`/`VELO`) all switch automatically with the configured protocol; `predictive_allocation_status` correctly reports the mechanism as not applicable when running Velodrome, since Dromos Labs' announcement is Aerodrome-specific.
 
 RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; otherwise `BASE_RPC_URL` is honored for backward compatibility when running Aerodrome; otherwise each protocol falls back to a public default (`base-rpc.publicnode.com` / `mainnet.optimism.io`). Every deployment also gets automatic failover to a second public RPC (`RPC_URL_FALLBACK`, overridable) if the primary goes down outright, not just rate-limited.
 
 ### Dashboard
 
-**Live**: https://aeroallocator.app (Aerodrome/Base) · https://aero-allocator-velodrome.vercel.app (Velodrome/Optimism) — each links to the other via a header switcher
+**Live**: https://aeroallocator.app (Aerodrome/Base)
+
+There is no hosted Velodrome dashboard any more — see [Multi-protocol](#multi-protocol-aerodrome--velodrome) for running one yourself.
 
 A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
 

@@ -60,4 +60,17 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
 };
 
 export const DISPLAY_PRESET = DISPLAY[PROTOCOL];
-export const SIBLING_PRESET = DISPLAY[PROTOCOL === "aerodrome" ? "velodrome" : "aerodrome"];
+
+// No SIBLING_PRESET / cross-deployment switcher any more. The hosted
+// Velodrome deployment is retired: measured against Aerodrome on the same
+// day it ran 53 pools to 276, $51k of last-epoch fees to $1.55M, and $1.88
+// of voter ROI per 10k ve to $85.52 — a market too small to justify a second
+// public surface to keep current, and the switcher was sending people from
+// the maintained product to a silently-stale one.
+//
+// The velodrome preset itself stays, and stays supported: AERO_PROTOCOL=
+// velodrome still runs the whole stack against Optimism for anyone
+// self-hosting. Keeping it is also what keeps this abstraction honest — a
+// second real deployment target is the thing that proves the engine isn't
+// quietly Base-specific, which is what will make adding Aero (its own
+// addresses, its own chain) a preset rather than a refactor.

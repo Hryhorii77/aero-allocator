@@ -3,10 +3,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
-import { DISPLAY_PRESET, SIBLING_PRESET } from "@/lib/protocol";
+import { DISPLAY_PRESET } from "@/lib/protocol";
 import { computePositionDelta } from "aero-allocator/position";
-
-const SIBLING_URL = process.env.NEXT_PUBLIC_SIBLING_URL;
 
 interface PoolRow {
   lp: string;
@@ -346,6 +344,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // is a commit away via the link at the foot of the panel; trimmed entries stay
 // in git history, so nothing is actually lost by pruning here.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-24",
+    title:
+      "The hosted Velodrome dashboard is retired, and the protocol switcher with it. Velodrome runs 53 pools to Aerodrome's 276 and pays $1.88 per 10,000 ve against $85.52 — not enough to justify a second site to keep current, and the switcher was sending people to a copy that had quietly stopped updating. Velodrome still works self-hosted via AERO_PROTOCOL=velodrome.",
+  },
   {
     date: "2026-09-24",
     title:
@@ -1471,14 +1474,6 @@ export default function Dashboard() {
           refresh. One scrollable line on a phone rather than five stacked
           pills competing with the bar above. */}
       <div className="mb-8 mt-3 flex items-center gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {SIBLING_URL && (
-          <a
-            href={SIBLING_URL}
-            className="shrink-0 rounded-lg border border-neutral-800 px-2.5 py-1 font-mono text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
-          >
-            switch to {SIBLING_PRESET.displayName}
-          </a>
-        )}
         {paStatus && <PaStatusChip status={paStatus} />}
         {snapshot && (
           <div className="shrink-0">

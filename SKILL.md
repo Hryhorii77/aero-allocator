@@ -75,8 +75,8 @@ Same data `predict_demand` + `recommend_allocation` return combined: predicted h
 allocation objectives (`protocol_efficiency`, `voter_roi`, `edge_hunter`), LP staking yield, and
 vote-swing signals. Optional `?votingPower=<amount>` sizes the `voter_roi` split for your holdings.
 
-Both live at `https://aeroallocator.app` (Aerodrome/Base) and
-`https://aero-allocator-velodrome.vercel.app` (Velodrome/Optimism).
+Both live at `https://aeroallocator.app` (Aerodrome on Base). There is no hosted Velodrome endpoint
+any more — run `AERO_PROTOCOL=velodrome` yourself for Optimism.
 
 Standard x402 flow: a request with no `X-PAYMENT` header gets `402` with the price; a request with a
 valid one (signed by any x402-capable wallet or client) is verified before the request runs and settled
