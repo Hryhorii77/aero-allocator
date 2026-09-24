@@ -8,6 +8,14 @@ describe("usd", () => {
     expect(usd(999.999)).toBe("$1,000");
   });
 
+  it("pads cents rather than dropping a trailing zero, but leaves whole amounts whole", () => {
+    // "$0.2" reads as a truncated number, especially at the size the Voter
+    // ROI hero prints it — but "$42.00" is just noise.
+    expect(usd(0.2)).toBe("$0.20");
+    expect(usd(2.5)).toBe("$2.50");
+    expect(usd(42)).toBe("$42");
+  });
+
   it("rounds amounts at or above 1000 to the nearest whole dollar with thousands separators", () => {
     expect(usd(1000)).toBe("$1,000");
     expect(usd(1234567.89)).toBe("$1,234,568");

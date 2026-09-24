@@ -1254,7 +1254,7 @@ describe("CurrentVsRecommended", () => {
       />,
     );
 
-    expect(screen.getByText("$4.4")).toBeInTheDocument();
+    expect(screen.getByText("$4.40")).toBeInTheDocument();
     expect(screen.getByText("$77")).toBeInTheDocument();
     expect(screen.getByText(/not apples-to-apples/i)).toBeInTheDocument();
   });

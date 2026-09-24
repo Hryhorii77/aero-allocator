@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyConfidenceCalibration,
   detectVoteSwings,
@@ -555,7 +555,23 @@ describe("recommendLpDeposits", () => {
 });
 
 describe("detectVoteSwings", () => {
-  const progress = epochProgress();
+  // Pinned clock. Every fixture here scales itself by how far through the
+  // epoch we are, because the engine compares against a pace-adjusted
+  // baseline (expectedFullBribes * epochProgress()). With a $1,000/epoch
+  // baseline that baseline only clears BRIBE_SPIKE_FLOOR_USD ($50) once an
+  // epoch is >5% elapsed — so these tests passed all week and failed for
+  // the first ~8 hours after every Thursday flip. Caught exactly that way.
+  const progress = 0.6;
+  const pinnedNow = (Math.floor(1_700_000_000 / WEEK) * WEEK + progress * WEEK) * 1000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(pinnedNow);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   function completedEpoch(epochsAgo: number, votes: number, bribesUsd: number): EpochStats {
     return { ts: currentEpochStart() - epochsAgo * WEEK, votes, emissions: 0, feesUsd: 0, bribesUsd };

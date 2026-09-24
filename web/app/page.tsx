@@ -238,8 +238,25 @@ export function formatAgo(ms: number): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-export const usd = (n: number) =>
-  n >= 1000 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+/**
+ * Cents are padded rather than trimmed, so $0.2 renders as "$0.20" — a
+ * dropped trailing zero reads as a truncated number, and it reads as a
+ * broken one at the size the Voter ROI hero prints it. Whole amounts stay
+ * whole ("$42", not "$42.00"): the padding is there to finish a decimal,
+ * not to add one. Past $1,000 cents stop carrying information at all.
+ */
+export const usd = (n: number) => {
+  // Branch on what will actually be shown, not the raw input: 999.999
+  // displays as 1,000, which belongs in the whole-dollar branch rather than
+  // rendering "$1,000.00" right next to a "$1,000" one cent above it.
+  const shown = Math.round(n * 100) / 100;
+  return shown >= 1000
+    ? `$${Math.round(shown).toLocaleString("en-US")}`
+    : `$${shown.toLocaleString("en-US", {
+        minimumFractionDigits: Number.isInteger(shown) ? 0 : 2,
+        maximumFractionDigits: 2,
+      })}`;
+};
 
 /** Deep link to this protocol's own app for a specific pool — confirmed live
  * that both /vote and /liquidity pre-filter to exactly one pool when given
@@ -322,6 +339,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-24",
+    title:
+      "Visual pass: the wordmark picks up the app's own mark, headings and body copy get a real size hierarchy, and cyan is now reserved for things you can click — the epoch bar and the allocation bars no longer borrow the action colour. Amounts under $1,000 keep their cents, so a $0.20 result stops rendering as \"$0.2\".",
+  },
   {
     date: "2026-09-24",
     title:
@@ -626,6 +648,22 @@ function SwingRow({ s, tone }: { s: VoteSwingSignal; tone: "riser" | "faller" })
       </summary>
       <p className="mt-2 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
     </details>
+  );
+}
+
+/**
+ * The same glyph the browser tab already carries (app/icon.svg), reused so
+ * the wordmark has an owner instead of being type alone — deliberately this
+ * app's own abstract mark, not an Aerodrome-derived one: this is an
+ * unofficial third-party desk and shouldn't dress like the protocol.
+ */
+function AllocatorMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-[0.85em] w-[0.85em] shrink-0 text-sky-400">
+      <path d="M6 20 L10 20 L14 7 L10 7 Z" fill="currentColor" />
+      <path d="M12 20 L16 20 L19 9 L15 9 Z" fill="currentColor" />
+      <path d="M15 9 L19 9 L22 2 Z" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -1406,7 +1444,7 @@ export default function Dashboard() {
   }, [snapshot]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 lg:px-8">
       {/* Primary bar: who this is, how long you have, how fresh the data is,
           and the one action that starts the vote. Sticky so the flip clock
           and Connect stay reachable from anywhere in a long page. Everything
@@ -1415,7 +1453,8 @@ export default function Dashboard() {
           land"). */}
       <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            <AllocatorMark />
             {DISPLAY_PRESET.displayName} <span className="text-sky-400">Allocator</span>
           </h1>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1430,13 +1469,13 @@ export default function Dashboard() {
 
       {/* Phone gets the one-liner; desktop gets the fuller sentence below
           instead, so the two don't stack into a redundant pair. */}
-      <p className="text-sm text-neutral-300 sm:hidden">
+      <p className="text-[15px] text-neutral-300 sm:hidden">
         Where to vote {DISPLAY_PRESET.veTokenSymbol} this epoch.
       </p>
       {/* The explainer and the Predictive Allocation note are context, not
           instructions — worth having on a desktop read, half a viewport of
           manifesto above the fold on a phone. */}
-      <p className="mt-1 hidden text-sm text-neutral-400 sm:block">
+      <p className="mt-1 hidden text-[15px] text-neutral-400 sm:block">
         Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} — reward
         where demand is going, not where it was.
       </p>
@@ -1467,7 +1506,7 @@ export default function Dashboard() {
               epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
             </div>
             <div className="h-1 w-32 rounded bg-neutral-800">
-              <div className="h-full rounded bg-sky-600" style={{ width: `${snapshot.epochProgressPct}%` }} />
+              <div className="h-full rounded bg-neutral-500" style={{ width: `${snapshot.epochProgressPct}%` }} />
             </div>
           </div>
         )}
@@ -1581,7 +1620,7 @@ export default function Dashboard() {
                       Same number the summary quotes: the sum of the rows'
                       own post-dilution expected rewards. */}
                   <div className="mb-4">
-                    <div className="font-mono text-3xl tabular-nums text-emerald-400 sm:text-4xl">
+                    <div className="font-mono text-4xl tabular-nums text-emerald-400 sm:text-[40px]">
                       {usd(voterTotalExpectedUsd)}
                     </div>
                     <div className="mt-1 text-xs text-neutral-500">
@@ -1591,7 +1630,7 @@ export default function Dashboard() {
                   </div>
                   <AllocationRows
                     allocations={voterAlloc.allocations}
-                    color="bg-sky-500"
+                    color="bg-emerald-600"
                     right={(a) => (
                       <span className="w-20 text-right font-mono text-xs text-emerald-400">
                         {a.expectedRewardUsd !== undefined ? `+${usd(a.expectedRewardUsd)}` : ""}
@@ -1668,7 +1707,7 @@ export default function Dashboard() {
                   className={`shrink-0 rounded-lg border px-2.5 py-1 font-mono text-xs ${
                     poolFilter === key
                       ? "border-sky-600 bg-sky-950/40 text-sky-300"
-                      : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+                      : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
                   }`}
                 >
                   {label}
