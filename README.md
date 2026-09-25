@@ -79,25 +79,44 @@ npm run build                 # engine dist/ used by the web app
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:3000. The page is built around one question — where to vote this epoch — so it
-leads with the **Voter ROI** panel: your expected $ next epoch as the headline number, then the pool
-split that earns it, then connect/cast. Below that: the hot-pools table (predicted fees, edge,
-confidence, search + category filters, an expandable per-pool fee-history sparkline), sorted by edge by
-default (predicted demand share minus current vote share — the column that says where to look first,
-not just which pools are biggest); **Other splits**, a collapsed panel holding the Protocol Efficiency
-and Edge Hunter allocations (market-wide benchmarks for treasuries and agents, not a personal vote); an
-LP staking-yield table (thin pools — low TVL or an APR too high off too little TVL to mean anything —
-hidden by default, flagged if shown, with a plain empty state when that leaves nothing); a vote-swings
-(risers/fallers) panel, one scannable line per signal with the reasoning behind a tap; a bribe-placement
-simulator; a forecast-accuracy panel (the same walk-forward backtest as `backtest_summary` — see
-[Forecast accuracy](#forecast-accuracy) — so you can judge the model's track record without leaving the
-page); and a collapsed changelog panel. First load builds the onchain snapshot (~1 min), then it's
-cached.
+Open http://localhost:3000. The page is built around one question — where to vote this epoch — and
+answers it above the fold without a wallet: the **Voter ROI** card is the first screen. Type how much
+veAERO you hold (or paste an address and hit **look up**), and it shows your expected $ next epoch as the
+headline, then the pool split that earns it, sized for that amount.
 
-A sticky header carries only what's needed mid-scroll — wordmark, flip clock, snapshot age, connect —
-with the protocol switcher, mechanism chip, epoch progress and refresh demoted to a secondary row.
-**On phones the page splits into vote / LP / swings tabs** rather than one long scroll; desktop keeps
-the single dense page.
+- **Copy weights** puts whole percentages that sum to exactly 100 on the clipboard (largest-remainder
+  rounding, pools that would round to 0% dropped): a header line, one `POOL  35%` line per pool, and a
+  compact `pcts: 35/35/30` line — for typing into the protocol's own vote screen. **Open Aerodrome**
+  links there.
+- **Copy share text** puts one tweet-sized line on the clipboard (`10,000 veAERO → ~$85.52 expected next
+  epoch · 3 pools · votes flip in 5d 13h · aeroallocator.app`), and **share card** opens
+  `/api/share?vp=<amount>`, a 1200×630 PNG of the same figure. The site's own link preview uses that card
+  at the default amount (`NEXT_PUBLIC_SITE_URL` sets the address for other deployments; without it a
+  non-Aerodrome deployment gets no preview image).
+- **Address lookup** reads `VeSugar.byAccount` straight from the browser over the public RPC — the address
+  never reaches our server — sums that address's veNFTs, fills the amount, and shows how its current
+  votes compare with the recommendation. No wallet connection needed; a failed or empty lookup keeps the
+  amount you typed. (The same comparison, callable by agents, is the paid `/api/v1/position`.)
+- **Connect wallet** is only needed to *cast*, and sits next to the cast controls. The header keeps a
+  second connect button.
+- Each row shows pool, vote %, veAERO, expected $ and your share of that gauge; TVL, current votes and
+  the bribe-floor vs fee-forecast split are behind the row's expand (▸).
+
+Below the card: the hot-pools table (predicted fees, edge, confidence, search + category filters, an
+expandable per-pool fee-history sparkline), sorted by edge by default (predicted demand share minus
+current vote share — the column that says where to look first, not just which pools are biggest). Then
+collapsed panels: **Other objectives** (the Protocol Efficiency and Edge Hunter allocations — market-wide
+benchmarks for treasuries and agents, not a personal vote); the LP staking-yield table (thin pools — low
+TVL or an APR too high off too little TVL to mean anything — hidden by default, flagged if shown, with a
+plain empty state when that leaves nothing); vote swings (risers/fallers, one scannable line per signal);
+a bribe-placement simulator; the forecast-accuracy panel (the same walk-forward backtest as
+`backtest_summary` — see [Forecast accuracy](#forecast-accuracy)); and a changelog. First load builds the
+onchain snapshot (~1 min), then it's cached.
+
+The sticky header carries the flip clock, snapshot age and connect. The mechanism ("weekly gauge voting"),
+epoch progress and refresh sit under the headline as quiet text. **On phones the page splits into Vote /
+Pools / More tabs**: Vote is the card and its actions, Pools is the hot-pools table, and More holds
+everything collapsed above; desktop keeps the single page.
 
 **Vote mode** (on by default) trims the hot-pools table to what a voter actually needs — pool,
 predicted fees, trend, edge, $/1k votes, confidence — folding "last epoch" and "votes vs demand" into
@@ -121,18 +140,18 @@ Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation 
 veNFTs are auto-detected via VeSugar (manual id entry as fallback) and all of them are selected by
 default — a wallet holding several locks gets its combined voting power and current split immediately,
 and the "cast vote" button batches one `Voter.vote()` per selected veNFT into a single Multicall3
-transaction (one signature, not N). Uncheck a lock to exclude it. The dashboard shows your actual
-current vote split next to the recommended one (with the $ difference), and you sign in your wallet;
-the app never holds keys.
+transaction (one signature, not N). Uncheck a lock to exclude it. You can also skip connecting and copy
+the unsigned `Voter.vote()` calldata for a veNFT id. The dashboard shows your actual current vote split
+next to the recommended one (with the $ difference), and you sign in your wallet; the app never holds
+keys.
 
 **Multi-protocol**: like the MCP server, one web deployment serves one protocol, fixed at build time
 by `AERO_PROTOCOL` (server) and `NEXT_PUBLIC_AERO_PROTOCOL` (client — must be set to the same value;
 a console warning fires if they ever drift). Contract addresses used in the vote transaction always
 come from the server's `PRESET` via `/api/protocol`, never duplicated client-side, so a mismatched
-`NEXT_PUBLIC_AERO_PROTOCOL` can produce wrong labels but never a wrong-contract vote. To run both
-protocols side by side, deploy `web/` twice with different `AERO_PROTOCOL`/`NEXT_PUBLIC_AERO_PROTOCOL`
-pairs and set `NEXT_PUBLIC_SIBLING_URL` on each to the other's URL — a "switch to {other protocol}"
-link then appears in the header.
+`NEXT_PUBLIC_AERO_PROTOCOL` can produce wrong labels but never a wrong-contract vote. The hosted Velodrome deployment
+was retired on 2026-09-24 (see above), and with it the cross-deployment switcher; a self-hosted Velodrome
+dashboard is simply `web/` built with those two variables set to `velodrome`.
 
 #### Deploying to Vercel
 
@@ -313,6 +332,7 @@ Circle's Arc mainnet (chain ID `5042`, EVM-compatible, gas paid in USDC) launche
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
 | `AERO_DISCORD_WEBHOOK_URL` | unset | If set, `npm run epoch-reminder` also posts its summary to this Discord webhook — see [Epoch reminders](#epoch-reminders) |
 | `AERO_VOTING_POWER` | unset | Your veAERO amount — if set, the epoch-reminder Discord post includes your personal `voter_roi` split, not just the market-wide reference — see [One-click voting from the alert](#one-click-voting-from-the-alert) |
+| `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` on Aerodrome, unset otherwise | Public address of a `web/` deployment, for the link-preview image (`og:image`). Unset on a non-Aerodrome deployment means no preview image |
 | `AERO_DASHBOARD_URL` | unset | Your dashboard deployment's URL — if also set, the Discord post links straight into it with that allocation pre-loaded |
 
 ## Epoch reminders
@@ -382,8 +402,8 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
-- [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol, switcher link between them
-- [x] Dashboard deployed live, both protocols (Vercel, cross-linked) — see [Deploying to Vercel](#deploying-to-vercel)
+- [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol (the cross-linking switcher was retired with the hosted Velodrome site, 2026-09-24)
+- [x] Dashboard deployed live on Vercel (Aerodrome; the hosted Velodrome deployment was retired 2026-09-24) — see [Deploying to Vercel](#deploying-to-vercel)
 - [x] Semi-automated voting: epoch-reminder posts your personal split with a one-click approve link — see [One-click voting from the alert](#one-click-voting-from-the-alert)
 - [x] Realized-vs-recommended tracking: `realized_performance` compares logged recommendations against actual outcomes — see [Realized performance tracking](#realized-performance-tracking)
 - [x] Personal vote desk: dashboard shows your actual on-chain vote split next to the recommendation, with the $ difference
@@ -392,6 +412,10 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Vote mode: hot-pools table defaults to edge sort and a trimmed column set, with the rest folded into the row expand
 - [x] Mobile row-expand parity, tighter confidence-cluster threshold, a gas-hurdle empty state, and a grouped (status vs actions) header
 - [x] Vote-first information architecture: Voter ROI leads with an expected-$ headline, other objectives collapse behind "Other splits", sticky header, phone tabs (vote / LP / swings), and real empty states
+- [x] First screen answers without a wallet: type an amount or paste an address, copy whole-percent weights that sum to 100, open Aerodrome; connect only to cast. Phone tabs are Vote / Pools / More, and "Other objectives", LP, swings, bribe sim and accuracy are collapsed
+- [x] Read-only address lookup: veNFTs summed via `VeSugar.byAccount` from the browser over the public RPC, filling the amount and the current-vs-recommended comparison (the address never reaches our server)
+- [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
+- [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer

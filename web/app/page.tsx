@@ -322,12 +322,27 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 //
-// Kept to the last couple of ship days only. The point of this panel is "this
+// Kept to the last two ship days only. The point of this panel is "this
 // thing is alive", which the newest entries make just as well as eighteen of
 // them — and eighteen made it a wall of text nobody finishes. Anything older
 // is a commit away via the link at the foot of the panel; trimmed entries stay
 // in git history, so nothing is actually lost by pruning here.
 const CHANGELOG: Array<{ date: string; title: string }> = [
+  {
+    date: "2026-09-25",
+    title:
+      "Sharing: \"copy share text\" puts one line on your clipboard — amount, expected $, pools, time left to vote — and \"share card\" opens a 1200×630 image of the same number. Pasting the site's link into a post now previews that card instead of a bare URL. Both say \"expected\": it's a forecast, not a promise.",
+  },
+  {
+    date: "2026-09-25",
+    title:
+      "The first screen answers without a wallet. Type how much veAERO you hold — or paste any address and hit \"look up\" — and the expected $ and the split are right there, with a \"copy weights\" button that gives whole percentages summing to exactly 100, ready to type into Aerodrome. The lookup reads the chain straight from your browser, so the address never reaches our server. Connecting a wallet is only needed to cast.",
+  },
+  {
+    date: "2026-09-25",
+    title:
+      "Tidier page: rows show pool, vote %, veAERO, expected $ and your share of the gauge, with TVL and the floor-vs-forecast split behind ▸. \"Other objectives\", LP yield, vote swings, bribe sim and the accuracy panel are collapsed, and phones get Vote / Pools / More tabs.",
+  },
   {
     date: "2026-09-24",
     title:
@@ -357,15 +372,6 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
     date: "2026-09-24",
     title:
       "The dashboard now remembers your veAERO amount between visits instead of resetting to the 10,000 default — a shared ?vp= link still wins. Connecting a wallet says what it gets you, and the flip clock no longer repeats the freshness chip's refresh instruction.",
-  },
-  {
-    date: "2026-09-23",
-    title:
-      "Rebuilt around the job: Voter ROI leads the page with the expected-$ total as the headline, the other two splits collapse behind \"Other splits\", and phones get vote/LP/swings tabs instead of one 7,000px scroll. Sticky header keeps the flip clock and connect button in reach; vote-swing signals are one scannable line each; an all-thin LP list says so instead of rendering an empty table.",
-  },
-  {
-    date: "2026-09-23",
-    title: "Footer now points to the MCP server and the x402 API directly — skip the UI, ask an agent instead.",
   },
 ];
 
