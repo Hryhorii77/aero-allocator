@@ -14,6 +14,7 @@
     "./config": "./dist/config.js",
     "./types": "./dist/types.js",
     "./backtest": "./dist/backtest.js",
+    "./bribe-target": "./dist/bribe-target.js",
     "./predictive-allocation": "./dist/adapters/predictive-allocation.js",
     "./lockers": "./dist/lockers.js"
   },

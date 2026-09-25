@@ -29,7 +29,10 @@ export function logX402Usage(params: {
   /** That route's own price — passed in, not assumed, so the two can diverge. */
   priceUsd: number;
   refresh: boolean;
-  votingPower: number;
+  /** Only the endpoints sized for a voting-power amount have one; others (e.g. v1/bribe-target) log what they were asked instead. */
+  votingPower?: number;
+  /** Free-form request params for endpoints that aren't keyed by voting power. */
+  params?: Record<string, string | number>;
 }): void {
   console.log(
     JSON.stringify({
@@ -40,6 +43,7 @@ export function logX402Usage(params: {
       priceUsd: params.priceUsd,
       refresh: params.refresh,
       votingPower: params.votingPower,
+      params: params.params,
     }),
   );
 }
