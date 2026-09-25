@@ -1,0 +1,51 @@
+name: Vote Alerts
+
+# Hourly check of the pools in your voter_roi split against the previous
+# hour's reading — posts to Discord only when one took >= 2x its votes or its
+# edge flipped sign (see scripts/vote-alerts.ts). Silent otherwise.
+#
+# Off until you opt in: set the repo variable AERO_ALERTS_ENABLED=true (and
+# AERO_DASHBOARD_URL, plus the AERO_DISCORD_WEBHOOK_URL / AERO_VOTING_POWER
+# secrets the epoch reminder already uses). Without the webhook it still
+# runs, but only prints what it would have sent.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  watch:
+    if: vars.AERO_ALERTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The last reading lives in the Actions cache rather than being committed
+      # every hour. Cache entries are immutable, so each run saves under a
+      # fresh key and the next one restores the newest by prefix.
+      - name: Restore last reading
+        uses: actions/cache/restore@v4
+        with:
+          path: data/vote-alert-state.json
+          key: vote-alert-state-none
+          restore-keys: vote-alert-state-
+
+      - run: npm run vote-alerts
+        env:
+          AERO_DASHBOARD_URL: ${{ vars.AERO_DASHBOARD_URL }}
+          AERO_VOTING_POWER: ${{ secrets.AERO_VOTING_POWER }}
+          AERO_DISCORD_WEBHOOK_URL: ${{ secrets.AERO_DISCORD_WEBHOOK_URL }}
+
+      - name: Save this reading
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: data/vote-alert-state.json
+          key: vote-alert-state-${{ github.run_id }}

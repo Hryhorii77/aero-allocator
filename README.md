@@ -381,6 +381,20 @@ can't know whether you actually followed a given logged recommendation — the "
 reconciles against is the pool's whole recorded total for that epoch, which may or may not already
 include yours.
 
+### Vote alerts
+
+`npm run vote-alerts` (`scripts/vote-alerts.ts`) is the mid-week counterpart to the reminder: it reads
+your `voter_roi` split from the deployed dashboard's `/api/dashboard` (served from the shared snapshot
+cache, so it needs no RPC key), compares it with its last reading, and posts to Discord **only** when a
+pool in that split took at least 2x its votes (and at least 10,000 veAERO more), or its edge flipped
+sign past a ±0.05pp deadband. The first run of an epoch has nothing to compare with and never alerts.
+Without `AERO_DISCORD_WEBHOOK_URL` it just prints what it would have sent.
+
+`.github/workflows/vote-alerts.yml` runs it hourly, keeping the last reading in the Actions cache. It's
+off until you set the repo variable `AERO_ALERTS_ENABLED=true` (plus `AERO_DASHBOARD_URL` and the
+`AERO_DISCORD_WEBHOOK_URL` / `AERO_VOTING_POWER` secrets the reminder already uses). `AERO_ALERT_MIN_VOTES`
+raises the smallest vote growth that can alert; `AERO_ALERT_STATE_PATH` moves the state file.
+
 ## Contracts used
 
 Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
@@ -415,6 +429,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] First screen answers without a wallet: type an amount or paste an address, copy whole-percent weights that sum to 100, open Aerodrome; connect only to cast. Phone tabs are Vote / Pools / More, and "Other objectives", LP, swings, bribe sim and accuracy are collapsed
 - [x] Read-only address lookup: veNFTs summed via `VeSugar.byAccount` from the browser over the public RPC, filling the amount and the current-vs-recommended comparison (the address never reaches our server)
 - [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
+- [x] Vote alerts: hourly check of your split for a pool that took 2x its votes or whose edge flipped, to Discord (opt-in workflow) — see [Vote alerts](#vote-alerts)
 - [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
