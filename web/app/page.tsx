@@ -464,19 +464,44 @@ export function weightsClipboardText(
   ].join("\n");
 }
 
-function CopyWeightsButton({ text }: { text: string }) {
+/**
+ * Tweet-sized, one line. "expected", not a bare $: the figure is a forecast,
+ * and a screenshot-able line that reads as a promise is how a number gets
+ * held against you. The clock is read when copied, not when rendered, so a
+ * tab left open overnight doesn't share yesterday's countdown.
+ */
+export function shareText(votingPower: number, totalExpectedUsd: number, poolCount: number, flipInMs: number): string {
+  return (
+    `${votingPower.toLocaleString("en-US")} ${DISPLAY_PRESET.veTokenSymbol} → ~${usd(totalExpectedUsd)} expected next epoch` +
+    ` · ${poolCount} pool${poolCount === 1 ? "" : "s"} · votes flip in ${formatCountdown(flipInMs)} · aeroallocator.app`
+  );
+}
+
+function CopyButton({
+  getText,
+  label,
+  primary,
+}: {
+  getText: () => string;
+  label: string;
+  primary?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(getText());
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500"
+      className={
+        primary
+          ? "rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500"
+          : "rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+      }
     >
-      {copied ? "copied!" : "copy weights"}
+      {copied ? "copied!" : label}
     </button>
   );
 }
@@ -1747,20 +1772,20 @@ export default function Dashboard() {
                       expected next epoch for {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol} — your
                       voter $, not pool fees
                     </div>
-                    {/* TODO(miss-rate chip): "Last N settled epochs, this split
-                        vs 100% into the then-top pool: +X%". Nothing in the
-                        payload measures that yet — trackRecord is per-pool
-                        fee-forecast error, and computeRealizedPerformance
-                        needs a recommendation log the server doesn't keep.
-                        Needs an engine-side replay (voter_roi re-run at each
-                        past epoch on trailing data, scored with realized
-                        R·v/(E+v) against the single best-looking pool) before
-                        a number can go here. Hidden until then rather than
-                        approximated. */}
+                    {/* No miss-rate chip ("this split vs 100% into the then-top
+                        pool"), on purpose. It was built and run on live data
+                        (2026-09-25): the split lost to the single top pool for
+                        holders under ~100k ve over the last 5 epochs, and the
+                        forecast ran ~40% above what was paid. Parked until the
+                        engine improves and there's more than 8 weeks of
+                        history to judge it on — not hidden for looking bad,
+                        held because 5 epochs isn't a verdict either way. */}
                   </div>
                   <div className="mb-5 flex flex-wrap items-center gap-2">
-                    <CopyWeightsButton
-                      text={weightsClipboardText(voterAlloc.allocations, votingPower, voterTotalExpectedUsd)}
+                    <CopyButton
+                      primary
+                      label="copy weights"
+                      getText={() => weightsClipboardText(voterAlloc.allocations, votingPower, voterTotalExpectedUsd)}
                     />
                     <a
                       href={`${DISPLAY_PRESET.appUrl}/vote`}
@@ -1770,6 +1795,17 @@ export default function Dashboard() {
                     >
                       open {DISPLAY_PRESET.displayName} ↗
                     </a>
+                    <CopyButton
+                      label="copy share text"
+                      getText={() =>
+                        shareText(
+                          votingPower,
+                          voterTotalExpectedUsd,
+                          voterAlloc.allocations.length,
+                          (snapshot.epochStart + WEEK_SECONDS) * 1000 - Date.now(),
+                        )
+                      }
+                    />
                     <span className="text-xs text-neutral-600">
                       whole percentages, summing to 100 — cast or copy calldata below
                     </span>

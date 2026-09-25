@@ -1444,3 +1444,20 @@ describe("EpochCountdown urgency", () => {
     expect(chip.textContent).not.toMatch(/refresh/i);
   });
 });
+
+describe("Dashboard — copy buttons", () => {
+  it("copies whole-percent weights, and a one-line share text with the visitor's amount", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "copy weights" }));
+    const weights = await navigator.clipboard.readText();
+    expect(weights.split("\n")[0]).toMatch(/^Aerodrome Allocator voter_roi · 10,000 veAERO · expected \$42 next epoch$/);
+    expect(weights).toMatch(/\npcts: 100$/);
+
+    await user.click(screen.getByRole("button", { name: "copy share text" }));
+    const share = await navigator.clipboard.readText();
+    expect(share).toMatch(/^10,000 veAERO → ~\$42 expected next epoch · 1 pool · votes flip in .+ · aeroallocator\.app$/);
+  });
+});
