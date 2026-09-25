@@ -1446,6 +1446,12 @@ describe("EpochCountdown urgency", () => {
 });
 
 describe("Dashboard — copy buttons", () => {
+  it("links the share card at the amount currently on screen", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    expect(screen.getByRole("link", { name: /share card/i })).toHaveAttribute("href", "/api/share?vp=10000");
+  });
+
   it("copies whole-percent weights, and a one-line share text with the visitor's amount", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
