@@ -833,7 +833,7 @@ describe("Dashboard", () => {
     // to the status group specifically now that it's split from the
     // actions group (refresh/connect wallet), which doesn't need to wrap —
     // two buttons never squeeze the way a row of status chips does.
-    const flipClock = screen.getByText(/votes flip in/i);
+    const flipClock = screen.getByText(/votes close in|voting closed|epoch just flipped/i);
     expect(flipClock.closest(".flex-wrap")).not.toBeNull();
   });
 
@@ -872,6 +872,8 @@ describe("Dashboard", () => {
     // Previously: heading + a one-line link + a table with a header row and
     // nothing under it, which reads as a failed fetch.
     expect(screen.getByText(/too thin to mean anything/i)).toBeInTheDocument();
+    // One quiet line, not a collapsible section with a heading of its own.
+    expect(screen.getByText("LP staking yield").closest("details")).toBeNull();
     const unhide = screen.getByRole("button", { name: /show anyway/i });
     expect(unhide.closest("div")!.textContent).toMatch(/too thin to mean anything/i);
 
@@ -937,7 +939,7 @@ describe("Dashboard", () => {
     // jsdom applies no CSS, so assert the class contract the breakpoint
     // relies on: inactive sections carry `hidden`, all of them carry an
     // sm: override so desktop still renders one dense page.
-    const lpSection = screen.getByText(/LP staking yield/i).closest("section")!;
+    const lpSection = screen.getByText(/LP staking yield/i).closest("[class*=\"sm:block\"]")!;
     expect(lpSection.className).toMatch(/\bhidden\b/);
     expect(lpSection.className).toMatch(/\bsm:block\b/);
 
@@ -1409,13 +1411,56 @@ describe("CurrentVsRecommended", () => {
   });
 });
 
+describe("EpochCountdown after the vote lock", () => {
+  const WEEK_SECONDS = 7 * 24 * 60 * 60;
+
+  it("says voting is closed in the last hour, and counts to the flip instead", async () => {
+    // 30 minutes to the flip = 30 minutes past the lock.
+    const epochStart = Math.floor(Date.now() / 1000) - WEEK_SECONDS + 30 * 60;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, epochStart });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    const chip = await screen.findByText(/voting closed/i);
+    expect(chip.textContent).toMatch(/flips in \d+m/);
+    // Not the red "vote now" — there's nothing left to vote.
+    expect(chip.textContent).not.toMatch(/vote now/i);
+    expect(chip.closest("div")).not.toHaveClass("animate-pulse");
+  });
+
+  it("explains the lock in the tooltip", async () => {
+    const epochStart = Math.floor(Date.now() / 1000) - WEEK_SECONDS + 3 * 24 * 3600;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, epochStart });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+    renderDashboard();
+    const chip = await screen.findByText(/votes close in/i);
+    expect(chip.closest("div")).toHaveAttribute("title", expect.stringMatching(/Voting locks .* an hour before the epoch flips/));
+  });
+});
+
 describe("EpochCountdown urgency", () => {
   // BNKR/Grok: "your chip is too polite" — neutral above 12h, amber inside
   // 12h, red with an explicit stale-data warning inside the final 2h.
   const WEEK_SECONDS = 7 * 24 * 60 * 60;
 
+  // Hours until the vote LOCK, which is an hour before the flip — the
+  // chip counts to the deadline that matters, not to the flip.
+  const LOCK_HOURS = 1;
   function stubFetchWithHoursLeft(hoursLeft: number) {
-    const epochStart = Math.floor(Date.now() / 1000) - WEEK_SECONDS + Math.round(hoursLeft * 3600);
+    const epochStart = Math.floor(Date.now() / 1000) - WEEK_SECONDS + Math.round((hoursLeft + LOCK_HOURS) * 3600);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string | URL) => {
@@ -1430,14 +1475,14 @@ describe("EpochCountdown urgency", () => {
   it("says nothing about staleness more than 12h before the flip", async () => {
     stubFetchWithHoursLeft(20);
     renderDashboard();
-    const chip = await screen.findByText(/votes flip in/i);
+    const chip = await screen.findByText(/votes close in/i);
     expect(chip.textContent).not.toMatch(/may be stale/i);
   });
 
   it("turns amber inside 12h but still says nothing about staleness", async () => {
     stubFetchWithHoursLeft(8);
     renderDashboard();
-    const chip = await screen.findByText(/votes flip in/i);
+    const chip = await screen.findByText(/votes close in/i);
     expect(chip.textContent).not.toMatch(/may be stale/i);
   });
 
@@ -1445,7 +1490,7 @@ describe("EpochCountdown urgency", () => {
     stubFetchWithHoursLeft(1);
     renderDashboard();
 
-    const chip = await screen.findByText(/votes flip in/i);
+    const chip = await screen.findByText(/votes close in/i);
     expect(chip.textContent).toMatch(/vote now/i);
     // The chip beside it owns "stale/refresh"; two red pills ending in the
     // same word was the thing to avoid.
@@ -1461,6 +1506,17 @@ describe("Dashboard — copy buttons", () => {
   });
 
   it("copies whole-percent weights, and a one-line share text with the visitor's amount", async () => {
+    // A live-looking epoch, so the share text carries a real "closes in".
+    const epochStart = Math.floor(Date.now() / 1000) - 4 * 24 * 3600;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, epochStart });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
     renderDashboard();
     await waitForPoolsLoaded();
     const user = userEvent.setup();
@@ -1472,6 +1528,56 @@ describe("Dashboard — copy buttons", () => {
 
     await user.click(screen.getByRole("button", { name: "copy share text" }));
     const share = await navigator.clipboard.readText();
-    expect(share).toMatch(/^10,000 veAERO → ~\$42 expected next epoch · 1 pool · votes flip in .+ · aeroallocator\.app$/);
+    expect(share).toMatch(/^10,000 veAERO → ~\$42 expected next epoch · 1 pool · votes close in \d+d \d+h · aeroallocator\.app$/);
+  });
+});
+
+describe("Dashboard — bribe simulator price", () => {
+  const bribe = (usdPer1kIncrementalVotes: number | null) => ({
+    pool: "0xpoolA",
+    symbol: "POOL-A",
+    bribeBudgetUsd: 5000,
+    baselineVoteSharePct: 1,
+    projectedVoteSharePct: 2,
+    voteShareGainPct: 1,
+    usdPer1kIncrementalVotes,
+    diluted: [],
+    assumptions: "test assumptions",
+  });
+
+  function stubWithBribe(result: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/bribe")) return jsonResponse(result);
+        if (s.includes("/api/dashboard")) return jsonResponse(dashboardPayload);
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+  }
+
+  it("shows what one dollar buys, alongside the $ per 1k votes it's the inverse of", async () => {
+    stubWithBribe(bribe(4)); // $4 per 1k votes → 250 votes per $1
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "simulate" }));
+
+    expect(await screen.findByText("votes bought per $1")).toBeInTheDocument();
+    expect(screen.getByText("$4.00")).toBeInTheDocument();
+    expect(screen.getByText("250")).toBeInTheDocument();
+  });
+
+  it("says n/a rather than dividing by nothing when the simulation has no price", async () => {
+    stubWithBribe(bribe(null));
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "simulate" }));
+
+    const label = await screen.findByText("votes bought per $1");
+    expect(label.nextElementSibling?.textContent).toBe("n/a");
   });
 });

@@ -31,3 +31,12 @@ export function formatCountdown(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** Voter.vote() reverts in the final hour before the epoch flips, so the real deadline to cast is an hour before the flip the clocks used to count to. */
+export const VOTE_LOCK_MS = 60 * 60 * 1000;
+
+/** Ms until voting locks for the epoch that started at `epochStartSec` (Unix seconds); <= 0 once it has. */
+export function msUntilVoteLock(epochStartSec: number, nowMs: number = Date.now()): number {
+  return epochStartSec * 1000 + WEEK_MS - VOTE_LOCK_MS - nowMs;
+}

@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 import { calibratedSnapshot } from "@/lib/snapshot";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { usd, formatCountdown } from "@/lib/format";
+import { usd, formatCountdown, msUntilVoteLock } from "@/lib/format";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { recommendAllocation } from "aero-allocator/scoring";
-import { SETTINGS, WEEK, currentEpochStart } from "aero-allocator/config";
+import { SETTINGS, currentEpochStart } from "aero-allocator/config";
 
 export const maxDuration = 60;
 
@@ -29,7 +29,8 @@ export async function GET(req: Request) {
     const snap = await calibratedSnapshot(false);
     const rec = recommendAllocation(snap, "voter_roi", 8, votingPower);
     const totalUsd = rec.allocations.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
-    const flipMs = (currentEpochStart() + WEEK) * 1000 - Date.now();
+    // To the vote lock (an hour before the flip): the last moment a vote can land.
+    const closeMs = msUntilVoteLock(currentEpochStart());
     const pools = rec.allocations.length;
 
     return new ImageResponse(
@@ -60,7 +61,7 @@ export async function GET(req: Request) {
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 34, color: "#a3a3a3" }}>
             <div style={{ display: "flex" }}>
               {votingPower.toLocaleString("en-US")} {DISPLAY_PRESET.veTokenSymbol} · {pools} pool
-              {pools === 1 ? "" : "s"} · votes close in {formatCountdown(flipMs)}
+              {pools === 1 ? "" : "s"} · {closeMs > 0 ? `votes close in ${formatCountdown(closeMs)}` : "voting closed"}
             </div>
             <div style={{ display: "flex", color: "#38bdf8" }}>aeroallocator.app</div>
           </div>
