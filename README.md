@@ -333,7 +333,7 @@ Circle's Arc mainnet (chain ID `5042`, EVM-compatible, gas paid in USDC) launche
 | `AERO_DISCORD_WEBHOOK_URL` | unset | If set, `npm run epoch-reminder` also posts its summary to this Discord webhook — see [Epoch reminders](#epoch-reminders) |
 | `AERO_VOTING_POWER` | unset | Your veAERO amount — if set, the epoch-reminder Discord post includes your personal `voter_roi` split, not just the market-wide reference — see [One-click voting from the alert](#one-click-voting-from-the-alert) |
 | `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` on Aerodrome, unset otherwise | Public address of a `web/` deployment, for the link-preview image (`og:image`). Unset on a non-Aerodrome deployment means no preview image |
-| `AERO_DASHBOARD_URL` | unset | Your dashboard deployment's URL — if also set, the Discord post links straight into it with that allocation pre-loaded |
+| `AERO_DASHBOARD_URL` | unset | Your dashboard deployment's URL. **Required by `npm run vote-alerts`**, which reads its `/api/dashboard`. For the epoch reminder it's optional: if also set, the Discord post links straight into it with that allocation pre-loaded |
 
 ## Epoch reminders
 
