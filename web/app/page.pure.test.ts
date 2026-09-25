@@ -236,14 +236,16 @@ describe("weightsClipboardText", () => {
 describe("shareText", () => {
   it("is one tweet-sized line: amount, expected $, pool count, clock, link", () => {
     const text = shareText(10000, 85.52, 3, (5 * 24 + 13) * 3_600_000);
-    expect(text).toBe("10,000 veAERO → ~$85.52 expected next epoch · 3 pools · votes flip in 5d 13h · aeroallocator.app");
+    expect(text).toBe("10,000 veAERO → ~$85.52 expected next epoch · 3 pools · votes close in 5d 13h · aeroallocator.app");
     expect(text).not.toContain("\n");
     expect(text.length).toBeLessThan(140);
   });
 
   it("says 'pool' for one pool, and words a passed deadline instead of a negative time", () => {
     expect(shareText(500, 3.2, 1, 90 * 60_000)).toContain("1 pool ·");
-    expect(shareText(500, 3.2, 1, 90 * 60_000)).toContain("votes flip in 1h 30m");
-    expect(shareText(500, 3.2, 1, -1)).toContain("votes flip in epoch just flipped");
+    expect(shareText(500, 3.2, 1, 90 * 60_000)).toContain("votes close in 1h 30m");
+    // Past the lock there's nothing left to close — say so rather than count a negative.
+    expect(shareText(500, 3.2, 1, -1)).toContain("voting closed");
+    expect(shareText(500, 3.2, 1, -1)).not.toContain("votes close in");
   });
 });

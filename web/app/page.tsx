@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { useAccount } from "wagmi";
 import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET } from "@/lib/protocol";
-import { usd, formatCountdown } from "@/lib/format";
+import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/format";
 
 // Re-exported so existing importers (and the tests) keep working from here.
 export { usd, formatCountdown };
@@ -331,6 +331,11 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-09-25",
     title:
+      "The clock now counts to the real deadline. Voting locks an hour before the epoch flips (Wednesday 23:00 UTC), but the clock, share text and share card counted to the flip — an hour too generous. They now count to the lock instead, and say so once it has passed. Also: the LP yield section is a single line when nothing is worth staking, and the bribe simulator shows how many votes a dollar buys.",
+  },
+  {
+    date: "2026-09-25",
+    title:
       "Sharing: \"copy share text\" puts one line on your clipboard — amount, expected $, pools, time left to vote — and \"share card\" opens a 1200×630 image of the same number. Pasting the site's link into a post now previews that card instead of a bare URL. Both say \"expected\": it's a forecast, not a promise.",
   },
   {
@@ -460,10 +465,13 @@ export function weightsClipboardText(
  * held against you. The clock is read when copied, not when rendered, so a
  * tab left open overnight doesn't share yesterday's countdown.
  */
-export function shareText(votingPower: number, totalExpectedUsd: number, poolCount: number, flipInMs: number): string {
+export function shareText(votingPower: number, totalExpectedUsd: number, poolCount: number, closeInMs: number): string {
+  // Counts to the vote lock, not the flip: the last hour before the flip
+  // can't be voted in, so "flips in" would promise a window that's gone.
+  const clock = closeInMs > 0 ? `votes close in ${formatCountdown(closeInMs)}` : "voting closed";
   return (
     `${votingPower.toLocaleString("en-US")} ${DISPLAY_PRESET.veTokenSymbol} → ~${usd(totalExpectedUsd)} expected next epoch` +
-    ` · ${poolCount} pool${poolCount === 1 ? "" : "s"} · votes flip in ${formatCountdown(flipInMs)} · aeroallocator.app`
+    ` · ${poolCount} pool${poolCount === 1 ? "" : "s"} · ${clock} · aeroallocator.app`
   );
 }
 
@@ -837,11 +845,17 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
     return () => clearInterval(id);
   }, []);
 
+  // The deadline that matters is the vote lock, an hour before the flip:
+  // Voter.vote() reverts in that last hour, so counting to the flip told
+  // people they had an hour they didn't. Past the lock the chip says so and
+  // counts to the flip instead.
   const nextFlipMs = (epochStart + WEEK_SECONDS) * 1000;
-  const remainingMs = nextFlipMs - now;
+  const lockMs = nextFlipMs - VOTE_LOCK_MS;
+  const remainingMs = msUntilVoteLock(epochStart, now);
+  const closed = remainingMs <= 0;
   const hoursLeft = remainingMs / (60 * 60 * 1000);
-  const urgent = hoursLeft <= EPOCH_RED_HOURS;
-  const soon = hoursLeft <= EPOCH_AMBER_HOURS;
+  const urgent = !closed && hoursLeft <= EPOCH_RED_HOURS;
+  const soon = !closed && hoursLeft <= EPOCH_AMBER_HOURS;
 
   return (
     <div
@@ -852,7 +866,7 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
             ? "border-amber-800 bg-amber-950/30"
             : "border-neutral-800 bg-neutral-900/40"
       }`}
-      title={`Next epoch flips ${new Date(nextFlipMs).toUTCString()}`}
+      title={`Voting locks ${new Date(lockMs).toUTCString()} — an hour before the epoch flips at ${new Date(nextFlipMs).toUTCString()}`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
@@ -864,7 +878,11 @@ function EpochCountdown({ epochStart }: { epochStart: number }) {
           urgent ? "text-rose-300" : soon ? "text-amber-300" : "text-neutral-400"
         }`}
       >
-        votes flip in {formatCountdown(remainingMs)}
+        {closed
+          ? nextFlipMs - now > 0
+            ? `voting closed — flips in ${formatCountdown(nextFlipMs - now)}`
+            : "epoch just flipped"
+          : `votes close in ${formatCountdown(remainingMs)}`}
         {/* Deliberately not "…may be stale, refresh" any more: the
             freshness chip sitting right beside this one already owns that
             instruction, and inside the final 2h both fire at once — two red
@@ -1781,7 +1799,7 @@ export default function Dashboard() {
                           votingPower,
                           voterTotalExpectedUsd,
                           voterAlloc.allocations.length,
-                          (snapshot.epochStart + WEEK_SECONDS) * 1000 - Date.now(),
+                          msUntilVoteLock(snapshot.epochStart),
                         )
                       }
                     />
@@ -2214,6 +2232,27 @@ export default function Dashboard() {
             </div>
           </details>
 
+          {/* Nothing viable to stake into (routinely every pool is thin) is one
+              quiet line, not a section with a heading and a table's worth of
+              apology — a permanently empty panel on the page reads as a
+              broken feature (external review: "dead UI sections... hurts
+              perceived reliability"). The unhide control stays in the line. */}
+          {lpOpportunities.length === 0 ? (
+            <div className={`mb-4 rounded-xl border border-neutral-800 px-4 py-3 text-xs text-neutral-500 sm:block ${onTab("more")}`}>
+              <span className="font-medium uppercase tracking-wider text-neutral-400">LP staking yield</span> —{" "}
+              {lpThinCount > 0
+                ? `nothing worth staking this epoch: all ${lpThinCount} ${DISPLAY_PRESET.displayName} pool${lpThinCount === 1 ? " is" : "s are"} too thin to mean anything (staked TVL under $50k, or an APR computed off too little TVL to be real).`
+                : "no opportunities in this snapshot."}
+              {lpThinCount > 0 && (
+                <ThinLpToggle
+                  count={lpThinCount}
+                  shown={showThinLp}
+                  onToggle={() => setShowThinLp((s) => !s)}
+                  className="mt-1 block underline hover:text-neutral-300"
+                />
+              )}
+            </div>
+          ) : (
           <section className={`mb-4 sm:block ${onTab("more")}`}>
             <CollapsibleSection
               title={
@@ -2234,29 +2273,6 @@ export default function Dashboard() {
                 onToggle={() => setShowThinLp((s) => !s)}
                 className="mb-3 -mt-1 block text-xs text-neutral-500 underline hover:text-neutral-300"
               />
-            )}
-            {/* Every remaining pool filtered out (routinely: all of them are
-                thin) used to render as a heading, a one-line link, and a
-                header-only table with nothing under it — indistinguishable
-                from a failed fetch (external review: "LP block can look
-                broken... looks like a failed fetch"). Say what happened and
-                put the unhide control inside the same card. */}
-            {lpOpportunities.length === 0 && (
-              <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-6 text-center">
-                <p className="text-sm text-neutral-400">
-                  {lpThinCount > 0
-                    ? `Nothing here worth staking into this epoch — all ${lpThinCount} ${DISPLAY_PRESET.displayName} pool${lpThinCount === 1 ? " is" : "s are"} too thin to mean anything (staked TVL under $50k, or an APR computed off too little TVL to be real).`
-                    : "No LP staking opportunities in this snapshot."}
-                </p>
-                {lpThinCount > 0 && (
-                  <ThinLpToggle
-                    count={lpThinCount}
-                    shown={showThinLp}
-                    onToggle={() => setShowThinLp((s) => !s)}
-                    className="mt-3 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white"
-                  />
-                )}
-              </div>
             )}
             {/* Card layout below sm: same reasoning as the predicted-hot-pools
                 table above — a 6-column table clipped to ~2 visible columns
@@ -2384,6 +2400,7 @@ export default function Dashboard() {
             </p>
             </CollapsibleSection>
           </section>
+          )}
 
           <section className={`mb-4 sm:block ${onTab("more")}`}>
             <CollapsibleSection title="Vote swings">
@@ -2488,6 +2505,17 @@ export default function Dashboard() {
                       <div className="font-mono text-xs text-neutral-500">$ / 1k incremental votes</div>
                       <div className="font-mono text-sm text-neutral-100">
                         {bribeResult.usdPer1kIncrementalVotes !== null ? `$${bribeResult.usdPer1kIncrementalVotes.toFixed(2)}` : "n/a"}
+                      </div>
+                    </div>
+                    {/* The same price the other way round — what one dollar
+                        buys — since "how many votes for my budget" is the
+                        question a bribe placer is actually asking. */}
+                    <div>
+                      <div className="font-mono text-xs text-neutral-500">votes bought per $1</div>
+                      <div className="font-mono text-sm text-neutral-100">
+                        {bribeResult.usdPer1kIncrementalVotes !== null && bribeResult.usdPer1kIncrementalVotes > 0
+                          ? Math.round(1000 / bribeResult.usdPer1kIncrementalVotes).toLocaleString("en-US")
+                          : "n/a"}
                       </div>
                     </div>
                   </div>

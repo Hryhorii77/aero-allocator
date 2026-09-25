@@ -89,7 +89,7 @@ headline, then the pool split that earns it, sized for that amount.
   compact `pcts: 35/35/30` line — for typing into the protocol's own vote screen. **Open Aerodrome**
   links there.
 - **Copy share text** puts one tweet-sized line on the clipboard (`10,000 veAERO → ~$85.52 expected next
-  epoch · 3 pools · votes flip in 5d 13h · aeroallocator.app`), and **share card** opens
+  epoch · 3 pools · votes close in 5d 13h · aeroallocator.app`), and **share card** opens
   `/api/share?vp=<amount>`, a 1200×630 PNG of the same figure. The site's own link preview uses that card
   at the default amount (`NEXT_PUBLIC_SITE_URL` sets the address for other deployments; without it a
   non-Aerodrome deployment gets no preview image).
@@ -113,7 +113,7 @@ a bribe-placement simulator; the forecast-accuracy panel (the same walk-forward 
 `backtest_summary` — see [Forecast accuracy](#forecast-accuracy)); and a changelog. First load builds the
 onchain snapshot (~1 min), then it's cached.
 
-The sticky header carries the flip clock, snapshot age and connect. The mechanism ("weekly gauge voting"),
+The sticky header carries the vote clock, snapshot age and connect. The mechanism ("weekly gauge voting"),
 epoch progress and refresh sit under the headline as quiet text. **On phones the page splits into Vote /
 Pools / More tabs**: Vote is the card and its actions, Pools is the hot-pools table, and More holds
 everything collapsed above; desktop keeps the single page.
@@ -125,9 +125,10 @@ expand (fee-history sparkline) works the same way on the mobile card layout, not
 table. When a small `votingPowerVe` collapses Voter ROI to one or two pools (see gas hurdle above),
 the panel says so directly rather than leaving a short list to read as a failure.
 
-The header carries two urgency signals with deliberately separate jobs: a flip-clock chip for the
-deadline (neutral above 12h to the next vote flip, amber inside 12h, red and pushing to "vote now"
-inside the final 2h) and a snapshot-age chip for the data, which turns red with its own
+The header carries two urgency signals with deliberately separate jobs: a vote-clock chip for the
+deadline (it counts to the vote *lock* — `Voter.vote()` reverts in the final hour before the Thursday
+00:00 UTC flip, so the cast deadline is Wednesday 23:00 UTC; neutral above 12h, amber inside 12h, red and
+pushing to "vote now" inside the final 2h, then "voting closed — flips in …" for the last hour) and a snapshot-age chip for the data, which turns red with its own
 "may be stale, refresh" once the snapshot is both older than the server's 5-minute cache and close to
 the flip. Only one of them ever tells you to refresh. In that last-6h window the page also quietly
 auto-refreshes (one forced live rebuild on entering it, then a 60s poll) instead of waiting on the next
