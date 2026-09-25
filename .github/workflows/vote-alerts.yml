@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      send_test:
+        description: "Send one test line to Discord instead of checking the pools (checks the webhook)"
+        type: boolean
+        default: false
 
 jobs:
   watch:
@@ -42,9 +47,10 @@ jobs:
           AERO_DASHBOARD_URL: ${{ vars.AERO_DASHBOARD_URL }}
           AERO_VOTING_POWER: ${{ secrets.AERO_VOTING_POWER }}
           AERO_DISCORD_WEBHOOK_URL: ${{ secrets.AERO_DISCORD_WEBHOOK_URL }}
+          AERO_ALERT_TEST: ${{ inputs.send_test }}
 
       - name: Save this reading
-        if: success()
+        if: success() && !inputs.send_test
         uses: actions/cache/save@v4
         with:
           path: data/vote-alert-state.json

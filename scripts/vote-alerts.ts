@@ -13,6 +13,9 @@
 //   AERO_DISCORD_WEBHOOK_URL    optional — without it, alerts are only printed (a dry run)
 //   AERO_ALERT_STATE_PATH       where the last reading is kept (default data/vote-alert-state.json)
 //   AERO_ALERT_MIN_VOTES        smallest vote growth that can alert (default 10000)
+//   AERO_ALERT_TEST=true        send one "connected" line to Discord and stop — checks the webhook
+//                               without waiting for a real event; fails loudly if it isn't set,
+//                               and leaves the saved reading alone
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { alertStateFromDashboard, detectAlerts, type AlertState } from "../src/alerts.js";
@@ -25,6 +28,32 @@ if (!dashboardUrl) {
 const votingPower = Number(process.env.AERO_VOTING_POWER) > 0 ? Number(process.env.AERO_VOTING_POWER) : 10_000;
 const statePath = process.env.AERO_ALERT_STATE_PATH ?? "data/vote-alert-state.json";
 const minVoteIncrease = Number(process.env.AERO_ALERT_MIN_VOTES) > 0 ? Number(process.env.AERO_ALERT_MIN_VOTES) : undefined;
+
+if (process.env.AERO_ALERT_TEST === "true") {
+  const hook = process.env.AERO_DISCORD_WEBHOOK_URL;
+  if (!hook) {
+    console.error("Test failed: AERO_DISCORD_WEBHOOK_URL isn't set, so there's nowhere to send it.");
+    process.exit(1);
+  }
+  try {
+    const post = await fetch(hook, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        content: `✅ Aero Allocator vote alerts are connected. Watching the ${votingPower.toLocaleString()} veAERO split on ${dashboardUrl}. You'll only hear from me when a pool in it takes 2x its votes or its edge flips.`,
+      }),
+    });
+    if (!post.ok) {
+      console.error(`Test failed: Discord answered HTTP ${post.status} ${await post.text()}`);
+      process.exit(1);
+    }
+    console.log("Test message sent to Discord.");
+    process.exit(0);
+  } catch (e) {
+    console.error(`Test failed: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
+}
 
 function readState(): AlertState | null {
   if (!existsSync(statePath)) return null;
