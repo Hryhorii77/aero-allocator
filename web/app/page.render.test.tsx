@@ -1581,3 +1581,64 @@ describe("Dashboard — bribe simulator price", () => {
     expect(label.nextElementSibling?.textContent).toBe("n/a");
   });
 });
+
+describe("Dashboard — highlighted token pools", () => {
+  const BNKR = "0x22af33fe49fd1fa80c7149773dde5890d3c76f3b";
+  const pool = (over: Record<string, unknown>) => ({ ...dashboardPayload.pools[0], ...over });
+
+  function stubWith(pools: unknown[], voteSwings?: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, pools, ...(voteSwings ? { voteSwings } : {}) });
+        if (s.includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+        throw new Error(`unexpected fetch: ${s}`);
+      }),
+    );
+  }
+
+  it("badges a pool that holds BNKR by address, in the table and the mobile card, but not a look-alike", async () => {
+    stubWith([
+      pool({ lp: "0xreal", symbol: "CL200-BNKR/WETH", token0: BNKR, token1: "0xweth" }),
+      // Same NAME, different token — must not get the badge.
+      pool({ lp: "0xfake", symbol: "CL200-BNKR/USDC", token0: "0x9999999999999999999999999999999999999999", token1: "0xusdc", edgePct: 1 }),
+    ]);
+    renderDashboard();
+    await screen.findAllByText("CL200-BNKR/WETH");
+
+    const table = document.querySelector("table") as HTMLElement;
+    const realRow = within(table).getByText("CL200-BNKR/WETH").closest("tr")!;
+    const fakeRow = within(table).getByText("CL200-BNKR/USDC").closest("tr")!;
+    expect(within(realRow).getByText("BNKR")).toBeInTheDocument();
+    expect(within(fakeRow).queryByText("BNKR")).not.toBeInTheDocument();
+    expect(within(realRow).getByText("BNKR").getAttribute("title")).toMatch(/not a recommendation/i);
+
+    const grid = document.querySelector(".grid.gap-2.sm\\:hidden") as HTMLElement;
+    expect(within(grid).getAllByText("BNKR")).toHaveLength(1);
+  });
+
+  it("marks the same pool in the vote swings, looked up from the snapshot", async () => {
+    stubWith(
+      [pool({ lp: "0xreal", symbol: "CL200-BNKR/WETH", token0: BNKR, token1: "0xweth" })],
+      {
+        epochProgressPct: 42.5,
+        risers: [{ pool: "0xREAL", symbol: "CL200-BNKR/WETH", currentBribesUsd: 500, bribeSpikeRatio: 3, voteSwingPct: 20, expectedVotesSoFar: 1000, rationale: "r" }],
+        fallers: [],
+      },
+    );
+    renderDashboard();
+    await screen.findAllByText("CL200-BNKR/WETH");
+
+    // "Vote swings" is the section title and each panel's heading; any of them sits inside the same <details>.
+    const swings = screen.getAllByText("Vote swings")[0].closest("details") as HTMLElement;
+    expect(within(swings).getByText("BNKR")).toBeInTheDocument();
+  });
+
+  it("shows no badge when the payload carries no token addresses (an older cached snapshot)", async () => {
+    stubWith([pool({ lp: "0xold", symbol: "CL200-BNKR/WETH" })]);
+    renderDashboard();
+    await screen.findAllByText("CL200-BNKR/WETH");
+    expect(screen.queryByText("BNKR")).not.toBeInTheDocument();
+  });
+});

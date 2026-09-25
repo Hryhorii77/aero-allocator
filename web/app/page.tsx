@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/format";
+import { highlightForPool } from "@/lib/highlight";
 
 // Re-exported so existing importers (and the tests) keep working from here.
 export { usd, formatCountdown };
@@ -25,6 +26,9 @@ interface PoolRow {
   rewardPer1kVotesUsd: number;
   confidence: number;
   feeHistory: number[];
+  /** Optional: dashboard caches written before these were served lack them. */
+  token0?: string;
+  token1?: string;
 }
 
 type PoolSortKey = "predictedFeesUsd" | "lastEpochFeesUsd" | "feeTrendUsdPerEpoch" | "edgePct" | "rewardPer1kVotesUsd" | "confidence";
@@ -659,13 +663,25 @@ function NewPoolBadge() {
   );
 }
 
+/** A pool that holds a token we call out (see lib/highlight.ts) — a marker, not a recommendation. */
+function TokenBadge({ label, name }: { label: string; name: string }) {
+  return (
+    <span
+      className="ml-2 inline-block rounded bg-violet-950 px-1.5 py-0.5 font-mono text-[10px] text-violet-300"
+      title={`Holds ${name} (${label}). Highlighted so it's easy to find — not a recommendation.`}
+    >
+      {label}
+    </span>
+  );
+}
+
 /**
  * One vote-swing signal as a single scannable line — symbol, bribe pace,
  * vote delta — with the full rationale behind a tap (<details>, same
  * pattern as the changelog panel) rather than three lines of prose per
  * card, ten cards deep.
  */
-function SwingRow({ s, tone }: { s: VoteSwingSignal; tone: "riser" | "faller" }) {
+function SwingRow({ s, tone, token }: { s: VoteSwingSignal; tone: "riser" | "faller"; token?: { label: string; name: string } | null }) {
   const riser = tone === "riser";
   const accent = riser ? "text-emerald-400" : "text-rose-400";
   // A gauge with no meaningful prior-epoch vote history divides by a 1-vote
@@ -679,7 +695,10 @@ function SwingRow({ s, tone }: { s: VoteSwingSignal; tone: "riser" | "faller" })
       }`}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-sm text-neutral-100">{s.symbol}</span>
+        <span className="min-w-0 truncate text-sm text-neutral-100">
+          {s.symbol}
+          {token && <TokenBadge {...token} />}
+        </span>
         <span className="flex shrink-0 items-center gap-3 font-mono text-xs">
           <span className={accent}>
             {s.bribeSpikeRatio !== null ? `${s.bribeSpikeRatio}x pace` : riser ? "new bribe" : "flat pace"}
@@ -1575,6 +1594,17 @@ export default function Dashboard() {
     return map;
   }, [snapshot]);
 
+  // Swing signals carry a pool address, not its tokens — look them up from
+  // the full snapshot so a highlighted pool is marked wherever it shows up.
+  const highlightByPool = useMemo(() => {
+    const map = new Map<string, { label: string; name: string }>();
+    for (const p of snapshot?.pools ?? []) {
+      const h = highlightForPool(p);
+      if (h) map.set(p.lp.toLowerCase(), h);
+    }
+    return map;
+  }, [snapshot]);
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 lg:px-8">
       {/* Primary bar: who this is, how long you have, how fresh the data is,
@@ -1982,6 +2012,7 @@ export default function Dashboard() {
                         </a>
                         <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
                         {noHistory && <NewPoolBadge />}
+                        {highlightForPool(p) && <TokenBadge {...highlightForPool(p)!} />}
                       </div>
                       {noHistory ? (
                         <span
@@ -2081,6 +2112,7 @@ export default function Dashboard() {
                           </a>
                           <span className="ml-2 font-mono text-xs text-neutral-500">{p.poolType}</span>
                           {noHistory && <NewPoolBadge />}
+                          {highlightForPool(p) && <TokenBadge {...highlightForPool(p)!} />}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-neutral-100">{usd(p.predictedFeesUsd)}</td>
                         {!voteMode && (
@@ -2420,7 +2452,7 @@ export default function Dashboard() {
               )}
               <div className="space-y-1.5">
                 {voteSwings && voteSwings.risers.length > 0 ? (
-                  voteSwings.risers.map((s) => <SwingRow key={s.pool} s={s} tone="riser" />)
+                  voteSwings.risers.map((s) => <SwingRow key={s.pool} s={s} tone="riser" token={highlightByPool.get(s.pool.toLowerCase())} />)
                 ) : (
                   <p className="text-sm text-neutral-500">No bribe pace anomalies right now.</p>
                 )}
@@ -2438,7 +2470,7 @@ export default function Dashboard() {
               )}
               <div className="space-y-1.5">
                 {voteSwings && voteSwings.fallers.length > 0 ? (
-                  voteSwings.fallers.map((s) => <SwingRow key={s.pool} s={s} tone="faller" />)
+                  voteSwings.fallers.map((s) => <SwingRow key={s.pool} s={s} tone="faller" token={highlightByPool.get(s.pool.toLowerCase())} />)
                 ) : (
                   <p className="text-sm text-neutral-500">No pools running behind their normal vote pace.</p>
                 )}
