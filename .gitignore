@@ -8,3 +8,6 @@ dist/
 .claude/
 .agents/
 skills-lock.json
+
+# Last reading kept by scripts/vote-alerts.ts (CI keeps it in the Actions cache instead)
+data/vote-alert-state.json
