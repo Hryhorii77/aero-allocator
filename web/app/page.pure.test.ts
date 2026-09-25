@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints, isThinLpOpportunity } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints, isThinLpOpportunity, wholePercentWeights, weightsClipboardText } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -176,5 +176,59 @@ describe("toCsv", () => {
       { pool: "0x2", weightPct: 20 },
     ]);
     expect(csv).toBe("pool,weightPct\n0x1,10\n0x2,20");
+  });
+});
+
+describe("wholePercentWeights", () => {
+  const sum = (rows: Array<{ wholePct: number }>) => rows.reduce((s, r) => s + r.wholePct, 0);
+
+  it("sums to exactly 100 where plain rounding would land on 99 or 101", () => {
+    // Math.round gives 33+33+33 = 99 here, and 17+17+17+17+17+17 = 102 below.
+    const thirds = wholePercentWeights([{ weightPct: 33.33 }, { weightPct: 33.33 }, { weightPct: 33.34 }]);
+    expect(sum(thirds)).toBe(100);
+    const sixths = wholePercentWeights(Array.from({ length: 6 }, () => ({ weightPct: 100 / 6 })));
+    expect(sum(sixths)).toBe(100);
+    expect(sixths.every((r) => Number.isInteger(r.wholePct))).toBe(true);
+  });
+
+  it("gives the leftover points to the rows that lost the most to the floor", () => {
+    const rows = wholePercentWeights([{ weightPct: 40.9 }, { weightPct: 30.2 }, { weightPct: 28.9 }]);
+    expect(rows.map((r) => r.wholePct)).toEqual([41, 30, 29]);
+  });
+
+  it("renormalizes weights that don't already sum to 100", () => {
+    expect(wholePercentWeights([{ weightPct: 1 }, { weightPct: 3 }]).map((r) => r.wholePct)).toEqual([25, 75]);
+  });
+
+  it("drops a row that rounds to 0% rather than listing a pool nobody should type in", () => {
+    const rows = wholePercentWeights([{ weightPct: 99.8 }, { weightPct: 0.2 }]);
+    expect(rows).toHaveLength(1);
+    expect(sum(rows)).toBe(100);
+  });
+
+  it("returns nothing for an empty or all-zero split", () => {
+    expect(wholePercentWeights([])).toEqual([]);
+    expect(wholePercentWeights([{ weightPct: 0 }])).toEqual([]);
+  });
+});
+
+describe("weightsClipboardText", () => {
+  it("is a header line, one line per pool, then a compact pcts line", () => {
+    const text = weightsClipboardText(
+      [
+        { symbol: "vAMM-WETH/USDC", weightPct: 35.4 },
+        { symbol: "CL100-cbBTC/WETH", weightPct: 34.6 },
+        { symbol: "vAMM-AERO/USDC", weightPct: 30 },
+      ],
+      10000,
+      85.52,
+    );
+    expect(text.split("\n")).toEqual([
+      "Aerodrome Allocator voter_roi · 10,000 veAERO · expected $85.52 next epoch",
+      "vAMM-WETH/USDC  35%",
+      "CL100-cbBTC/WETH  35%",
+      "vAMM-AERO/USDC  30%",
+      "pcts: 35/35/30",
+    ]);
   });
 });

@@ -11,6 +11,9 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
+import { readContract } from "wagmi/actions";
+import { getAddress, isAddress } from "viem";
+import { blendVotes } from "aero-allocator/position";
 import {
   voterAbi,
   veSugarAbi,
@@ -152,6 +155,125 @@ interface VeNftOption {
   votes: CurrentVote[];
 }
 
+/** VeSugar.byAccount rows with voting power, each vote normalized to a
+ * percentage of its own NFT's total. Shared by the connected-wallet panel
+ * and the read-only address lookup so both read a lock the same way. */
+function toVeNftOptions(
+  veNfts: ReadonlyArray<{ id: bigint; voting_amount: bigint; votes: ReadonlyArray<{ lp: string; weight: bigint }> }>,
+): VeNftOption[] {
+  return veNfts
+    .filter((n) => n.voting_amount > 0n)
+    .map((n) => {
+      // LpVotes.weight is relative, not a fixed 0-100/0-10000 scale (same
+      // convention Voter.vote() itself uses) — normalize to a percentage
+      // of this NFT's own total so it's directly comparable to the
+      // recommended split's weightPct. BigInt math throughout to avoid
+      // precision loss before the final /100.
+      const totalWeight = n.votes.reduce((s, v) => s + v.weight, 0n);
+      return {
+        id: n.id,
+        votingAmount: n.voting_amount,
+        votes: n.votes.map((v) => ({
+          pool: v.lp,
+          weightPct: totalWeight > 0n ? Number((v.weight * 10000n) / totalWeight) / 100 : 0,
+        })),
+      };
+    });
+}
+
+type LookupStatus = "idle" | "loading" | "invalid" | "empty" | "error";
+
+/**
+ * Paste any address, get its combined voting power and current split —
+ * no wallet connection. The read goes from this browser straight to the
+ * public RPC in lib/wagmi.ts (VeSugar.byAccount), never through our API, so
+ * the address itself doesn't reach our server. Same answer the paid
+ * /api/v1/position route sells to agents; free here because a human is
+ * looking at it once, not a bot polling it.
+ *
+ * A failed or empty lookup leaves the typed amount alone — the caller only
+ * hears about a successful read.
+ */
+export function AddressLookup({
+  onFound,
+}: {
+  onFound: (votingPower: number, currentVotes: CurrentVote[], address: `0x${string}`) => void;
+}) {
+  const { data: addresses } = useProtocolAddresses();
+  const [input, setInput] = useState("");
+  const [status, setStatus] = useState<LookupStatus>("idle");
+
+  const lookup = async () => {
+    const raw = input.trim();
+    if (!isAddress(raw)) {
+      setStatus("invalid");
+      return;
+    }
+    if (!addresses) return;
+    const account = getAddress(raw);
+    setStatus("loading");
+    try {
+      // Loaded on use rather than at module scope: it's the same config the
+      // provider already holds, and the lookup is the only caller here.
+      const { wagmiConfig } = await import("@/lib/wagmi");
+      const veNfts = await readContract(wagmiConfig, {
+        address: addresses.veSugarAddress,
+        abi: veSugarAbi,
+        functionName: "byAccount",
+        args: [account],
+        chainId: DISPLAY_PRESET.chain.id,
+      });
+      const locks = toVeNftOptions(veNfts);
+      if (locks.length === 0) {
+        setStatus("empty");
+        return;
+      }
+      const { votingPower, votes } = blendVotes(
+        locks.map((l) => ({ votingPower: Number(l.votingAmount) / 1e18, votes: l.votes })),
+      );
+      setStatus("idle");
+      onFound(Math.round(votingPower), votes, account);
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => {
+          setInput(e.target.value);
+          if (status !== "loading") setStatus("idle");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") lookup();
+        }}
+        placeholder="or paste an address (0x…)"
+        aria-label="address to look up"
+        spellCheck={false}
+        className="w-64 max-w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+      />
+      <button
+        type="button"
+        onClick={lookup}
+        disabled={status === "loading" || input.trim() === "" || !addresses}
+        className="rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
+      >
+        {status === "loading" ? "looking up…" : "look up"}
+      </button>
+      {status === "invalid" && <span className="text-xs text-amber-500">That isn&rsquo;t an address.</span>}
+      {status === "empty" && (
+        <span className="text-xs text-amber-500">
+          No {DISPLAY_PRESET.veTokenSymbol} locks with voting power there — kept your amount.
+        </span>
+      )}
+      {status === "error" && <span className="text-xs text-rose-400">Lookup failed — kept your amount.</span>}
+    </div>
+  );
+}
+
 export function VotePanel({
   allocations,
   onNftSelected,
@@ -191,28 +313,7 @@ export function VotePanel({
     query: { enabled: !!address && !!addresses, retry: 1 },
   });
 
-  const options: VeNftOption[] = useMemo(
-    () =>
-      (veNfts ?? [])
-        .filter((n) => n.voting_amount > 0n)
-        .map((n) => {
-          // LpVotes.weight is relative, not a fixed 0-100/0-10000 scale (same
-          // convention Voter.vote() itself uses) — normalize to a percentage
-          // of this NFT's own total so it's directly comparable to the
-          // recommended split's weightPct. BigInt math throughout to avoid
-          // precision loss before the final /100.
-          const totalWeight = n.votes.reduce((s, v) => s + v.weight, 0n);
-          return {
-            id: n.id,
-            votingAmount: n.voting_amount,
-            votes: n.votes.map((v) => ({
-              pool: v.lp,
-              weightPct: totalWeight > 0n ? Number((v.weight * 10000n) / totalWeight) / 100 : 0,
-            })),
-          };
-        }),
-    [veNfts],
-  );
+  const options: VeNftOption[] = useMemo(() => toVeNftOptions(veNfts ?? []), [veNfts]);
 
   // Manual fallback (auto-detect failed or found nothing) also accepts a
   // comma/whitespace-separated list, so a multi-lock holder isn't forced
@@ -376,13 +477,16 @@ export function VotePanel({
   if (!isConnected) {
     return (
       <>
-        {/* States what connecting buys you, not what the button is: the
-            split above is sized for a typed guess until a wallet fills in
-            the real balance and the votes already cast against it. */}
-        <p className="mt-3 text-xs text-neutral-500">
-          Connect to see your current votes next to this split, sized for your real{" "}
-          {DISPLAY_PRESET.veTokenSymbol} balance — then cast it in one signature.
-        </p>
+        {/* Connect sits here, next to the thing it unlocks, rather than in
+            the input row: the amount box and the address lookup already
+            answer "what's my $" without it. Casting is the only step that
+            actually needs a wallet. */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <ConnectButton />
+          <p className="text-xs text-neutral-500">
+            Connect to cast in one tx — not needed to see the numbers above.
+          </p>
+        </div>
         {noWalletOption}
       </>
     );

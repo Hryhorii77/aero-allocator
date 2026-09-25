@@ -534,15 +534,22 @@ describe("Dashboard", () => {
     expect(window.location.search).toMatch(/vp=5000/);
   });
 
-  it("shows TVL, current votes, and gauge-share context under a Voter ROI allocation row", async () => {
+  it("shows gauge share on a Voter ROI row, with TVL and current votes behind its expand", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
     // Regression coverage for a real trust gap Grok flagged: two rows with
     // the same weightPct look identical without this — one could be an
     // established gauge, the other a thin one your vote would dominate.
+    //
+    // The size of the vote and its share of the gauge stay on the row; TVL
+    // and current votes sit one tap down in the row expand.
+    expect(screen.getByText(/≈ 12\.1% of this gauge/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$1,000,000 TVL/)).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /expand POOL-A details/i }));
     expect(screen.getByText(/\$1,000,000 TVL/)).toBeInTheDocument();
     expect(screen.getByText(/58,330 votes now/)).toBeInTheDocument();
-    expect(screen.getByText(/your vote ≈ 12\.1% of this gauge/)).toBeInTheDocument();
   });
 
   it("leads the Voter ROI panel with the expected-$ total, captioned as voter $ rather than pool fees", async () => {
@@ -812,7 +819,8 @@ describe("Dashboard", () => {
   it("shows the wallet-connect prompt (not connected by default in tests)", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
-    expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
+    // Once in the header, once beside Cast — never in the amount row.
+    expect(screen.getAllByRole("button", { name: /connect wallet/i })).toHaveLength(2);
   });
 
   it("lets the header's status chips (epoch countdown, snapshot freshness, epoch progress) wrap onto their own lines on narrow viewports", async () => {
@@ -923,7 +931,7 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
 
     const voteTab = screen.getByRole("tab", { name: "vote" });
-    const lpTab = screen.getByRole("tab", { name: "LP yield" });
+    const moreTab = screen.getByRole("tab", { name: "more" });
     expect(voteTab).toHaveAttribute("aria-selected", "true");
 
     // jsdom applies no CSS, so assert the class contract the breakpoint
@@ -934,9 +942,9 @@ describe("Dashboard", () => {
     expect(lpSection.className).toMatch(/\bsm:block\b/);
 
     const user = userEvent.setup();
-    await user.click(lpTab);
+    await user.click(moreTab);
 
-    expect(lpTab).toHaveAttribute("aria-selected", "true");
+    expect(moreTab).toHaveAttribute("aria-selected", "true");
     expect(voteTab).toHaveAttribute("aria-selected", "false");
     expect(lpSection.className).not.toMatch(/\bhidden\b/);
   });
