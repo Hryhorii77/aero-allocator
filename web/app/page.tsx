@@ -4,6 +4,10 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { useAccount } from "wagmi";
 import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET } from "@/lib/protocol";
+import { usd, formatCountdown } from "@/lib/format";
+
+// Re-exported so existing importers (and the tests) keep working from here.
+export { usd, formatCountdown };
 import { computePositionDelta } from "aero-allocator/position";
 
 interface PoolRow {
@@ -236,26 +240,6 @@ export function formatAgo(ms: number): string {
   if (hr < 24) return `${hr}h ago`;
   return `${Math.floor(hr / 24)}d ago`;
 }
-
-/**
- * Cents are padded rather than trimmed, so $0.2 renders as "$0.20" — a
- * dropped trailing zero reads as a truncated number, and it reads as a
- * broken one at the size the Voter ROI hero prints it. Whole amounts stay
- * whole ("$42", not "$42.00"): the padding is there to finish a decimal,
- * not to add one. Past $1,000 cents stop carrying information at all.
- */
-export const usd = (n: number) => {
-  // Branch on what will actually be shown, not the raw input: 999.999
-  // displays as 1,000, which belongs in the whole-dollar branch rather than
-  // rendering "$1,000.00" right next to a "$1,000" one cent above it.
-  const shown = Math.round(n * 100) / 100;
-  return shown >= 1000
-    ? `$${Math.round(shown).toLocaleString("en-US")}`
-    : `$${shown.toLocaleString("en-US", {
-        minimumFractionDigits: Number.isInteger(shown) ? 0 : 2,
-        maximumFractionDigits: 2,
-      })}`;
-};
 
 /** Deep link to this protocol's own app for a specific pool — confirmed live
  * that both /vote and /liquidity pre-filter to exactly one pool when given
@@ -837,17 +821,6 @@ function hoursUntilFlip(epochStart: number): number {
 function isUrgentWindow(epochStart: number): boolean {
   const hoursLeft = hoursUntilFlip(epochStart);
   return hoursLeft > 0 && hoursLeft <= URGENT_WINDOW_HOURS;
-}
-
-export function formatCountdown(ms: number): string {
-  if (ms <= 0) return "epoch just flipped";
-  const totalMin = Math.floor(ms / 60_000);
-  const d = Math.floor(totalMin / (24 * 60));
-  const h = Math.floor((totalMin % (24 * 60)) / 60);
-  const m = totalMin % 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function EpochCountdown({ epochStart }: { epochStart: number }) {
@@ -1806,6 +1779,14 @@ export default function Dashboard() {
                         )
                       }
                     />
+                    <a
+                      href={`/api/share?vp=${votingPower}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                    >
+                      share card ↗
+                    </a>
                     <span className="text-xs text-neutral-600">
                       whole percentages, summing to 100 — cast or copy calldata below
                     </span>
