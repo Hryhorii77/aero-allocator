@@ -207,7 +207,7 @@ Example agent flow:
 
 ## Paid API (x402)
 
-Two pay-per-call endpoints on the dashboard deployment, both **$0.05/call in USDC on Base mainnet** via
+Three pay-per-call endpoints on the dashboard deployment — **$0.05/call** for `position` and `forecast`, **$0.10/call** for `bribe-target` — in USDC on Base mainnet via
 the [x402 protocol](https://www.x402.org/). The free dashboard and MCP server are unaffected — these are
 additional ways to get at the data, not a paywall on the existing ones.
 
@@ -215,12 +215,17 @@ additional ways to get at the data, not a paywall on the existing ones.
 |---|---|
 | `GET /api/v1/position?address=0x…` | **What is *this wallet's* current vote worth versus the recommendation?** Reads every veNFT the address holds, blends them into one portfolio-wide split, sizes the recommendation for that combined voting power, and returns the dollar difference between staying and switching. |
 | `GET /api/v1/forecast` | The whole market: predicted hot pools, all three allocation objectives, LP staking yield, vote-swing signals. |
+| `GET /api/v1/bribe-target?pool=0x…&targetSharePct=N` | **For protocols paying bribes: what is the least that could move this pool to N% of all votes?** The bribe simulator run backwards — a bisection over the same model — returning the floor, the votes it represents, a cost curve at 25/50/75/100% of the way there, and what's already posted on the pool. **A floor, not a quote:** the simulator is a theoretical ceiling on vote pull, so the real bribe needed is at least this. It says so in `basis`, and reports `feasible: false` (with why) for targets past the 35% concentration cap. |
 
 `/api/v1/position` is the one that isn't obtainable free, and that distinction is deliberate. The free
 `/api/dashboard` is address-agnostic — it publishes the map. `position` reads a specific caller's on-chain
 stance off that map and tells them where they're standing, which needs a chain read keyed to their
 address. It's also the shape an agent can act on without a human in the loop: one number, signed sense,
 plus `comparable` so a caller knows when the two sides aren't priced on the same basis.
+
+`/api/v1/bribe-target` is aimed at a different buyer — a protocol or treasury budgeting a bribe, not a voter — and is
+priced accordingly. The free dashboard's bribe simulator still answers "what does $X buy"; this answers the inverse,
+which is the question a budget owner actually starts from.
 
 `/api/v1/forecast` serves the same payload as the free `/api/dashboard` (same engine, same numbers), for
 callers who want it metered and versioned rather than scraped off the site's own endpoint.
@@ -231,7 +236,7 @@ after a successful response — a failed request is never charged. [`SKILL.md`](
 has a copy-pasteable client example (`@x402/fetch`) for calling this directly from an agent — no clone,
 no RPC key, no MCP registration.
 
-Requires three env vars to activate; without all three both routes serve a clean `501` rather than
+Requires three env vars to activate; without all three every paid route serves a clean `501` rather than
 accepting misrouted or unverifiable payments:
 
 | Var | | |
@@ -417,7 +422,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
-- [x] x402-monetized hosted endpoints — `/api/v1/position` (per-wallet vote delta) and `/api/v1/forecast`, pay-per-call in USDC on Base, see [Paid API (x402)](#paid-api-x402)
+- [x] x402-monetized hosted endpoints — `/api/v1/position` (per-wallet vote delta), `/api/v1/forecast`, and `/api/v1/bribe-target` (minimum-bribe floor for a target vote share), pay-per-call in USDC on Base, see [Paid API (x402)](#paid-api-x402)
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`

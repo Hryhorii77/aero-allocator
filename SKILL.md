@@ -41,7 +41,7 @@ Optional env: `BASE_RPC_URL` (defaults to the public Base RPC; a dedicated RPC m
 ## Instant access (hosted, no setup — x402)
 
 Skip the clone/install/MCP-registration path entirely: pay-per-call over HTTP via the [x402
-protocol](https://www.x402.org/), $0.05 in USDC on Base mainnet, verified and settled automatically —
+protocol](https://www.x402.org/), $0.05–$0.10 (per endpoint) in USDC on Base mainnet, verified and settled automatically —
 no RPC key, no self-hosting, no wallet ever connects to this project.
 
 **`GET /api/v1/position?address=0x…` — is this wallet's vote any good?**
@@ -75,7 +75,19 @@ Same data `predict_demand` + `recommend_allocation` return combined: predicted h
 allocation objectives (`protocol_efficiency`, `voter_roi`, `edge_hunter`), LP staking yield, and
 vote-swing signals. Optional `?votingPower=<amount>` sizes the `voter_roi` split for your holdings.
 
-Both live at `https://aeroallocator.app` (Aerodrome on Base). There is no hosted Velodrome endpoint
+**`GET /api/v1/bribe-target?pool=0x…&targetSharePct=N` — for protocols paying bribes ($0.10).**
+
+The least bribe that could move a pool to N% of all votes: the bribe simulator run backwards. It returns
+`minBribeUsd`, `votesNeeded`, `usdPer1kIncrementalVotes`, `postedBribesUsd` (already on the pool), and a
+`costCurve` showing the price of each step toward the target.
+
+**Treat `minBribeUsd` as a floor, not a quote.** The underlying simulator is a theoretical ceiling on how
+many votes a bribe pulls (instant, frictionless whole-market re-optimization), so the real bribe needed is at
+least this — budget above it. Use it to compare pools and rule out hopeless targets. A target beyond what the
+model can reach (no pool takes more than 35% of votes) comes back `feasible: false` with a `reason`, not a
+price; an unknown or ineligible pool is a `404` and is not charged.
+
+All three live at `https://aeroallocator.app` (Aerodrome on Base). There is no hosted Velodrome endpoint
 any more — run `AERO_PROTOCOL=velodrome` yourself for Optimism.
 
 Standard x402 flow: a request with no `X-PAYMENT` header gets `402` with the price; a request with a

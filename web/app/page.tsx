@@ -2629,7 +2629,7 @@ export default function Dashboard() {
               <span className="font-mono text-neutral-400">
                 &quot;recommend a voter_roi allocation for my veAERO&quot;
               </span>
-              . MCP server (free, self-hosted) or the x402 API (5¢/call, no setup) — same tools, same numbers,
+              . MCP server (free, self-hosted) or the x402 API (from 5¢/call, no setup) — same tools, same numbers,
               see{" "}
               <a
                 href="https://github.com/Hryhorii77/aero-allocator"
