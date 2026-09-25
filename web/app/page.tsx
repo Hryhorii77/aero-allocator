@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { ConnectButton, VotePanel, type CurrentVote } from "./wallet";
+import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { computePositionDelta } from "aero-allocator/position";
 
@@ -428,6 +428,59 @@ export function toCsv(rows: Array<Record<string, string | number>>): string {
   return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
 }
 
+/**
+ * Whole-number percentages summing to exactly 100 — what a person can type
+ * into the protocol's own vote screen, one box per pool. Largest-remainder
+ * rounding: floor everything, then hand the leftover points to the rows
+ * that lost the most to the floor. Plain Math.round can land on 99 or 101,
+ * which is the one thing a "paste these in" list must never do. A row that
+ * rounds to 0 is dropped — typing 0% into a pool is not voting for it.
+ */
+export function wholePercentWeights<T extends { weightPct: number }>(rows: T[]): Array<T & { wholePct: number }> {
+  const total = rows.reduce((s, r) => s + r.weightPct, 0);
+  if (total <= 0) return [];
+  const scaled = rows.map((r, i) => ({ i, exact: (r.weightPct / total) * 100 }));
+  const floors = scaled.map((x) => Math.floor(x.exact));
+  let leftover = 100 - floors.reduce((s, x) => s + x, 0);
+  const byRemainder = [...scaled].sort((a, b) => b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)) || a.i - b.i);
+  for (const { i } of byRemainder) {
+    if (leftover <= 0) break;
+    floors[i] += 1;
+    leftover -= 1;
+  }
+  return rows.map((r, i) => ({ ...r, wholePct: floors[i] })).filter((r) => r.wholePct > 0);
+}
+
+export function weightsClipboardText(
+  rows: Array<{ symbol: string; weightPct: number }>,
+  votingPower: number,
+  totalExpectedUsd: number,
+): string {
+  const whole = wholePercentWeights(rows);
+  return [
+    `${DISPLAY_PRESET.displayName} Allocator voter_roi · ${votingPower.toLocaleString("en-US")} ${DISPLAY_PRESET.veTokenSymbol} · expected ${usd(totalExpectedUsd)} next epoch`,
+    ...whole.map((r) => `${r.symbol}  ${r.wholePct}%`),
+    `pcts: ${whole.map((r) => r.wholePct).join("/")}`,
+  ].join("\n");
+}
+
+function CopyWeightsButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500"
+    >
+      {copied ? "copied!" : "copy weights"}
+    </button>
+  );
+}
+
 function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
   if (rows.length === 0) return;
   const blob = new Blob([toCsv(rows)], { type: "text/csv;charset=utf-8;" });
@@ -772,31 +825,6 @@ export function formatCountdown(ms: number): string {
   return `${m}m`;
 }
 
-/** Not live yet as of this writing — Dromos Labs hasn't published Predictive
- * Allocation's contracts/ABI. `status.live` flips purely from env vars once
- * they are (src/adapters/predictive-allocation.ts), with no code change
- * needed here: this chip and its copy update automatically. */
-function PaStatusChip({ status }: { status: PaStatus }) {
-  if (!status.applicable) return null;
-  return (
-    <div
-      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
-        status.live ? "border-emerald-800 bg-emerald-950/30" : "border-neutral-800 bg-neutral-900/40"
-      }`}
-      title={
-        status.live
-          ? "Predictive Allocation is live — the vote panel below now submits directly to it instead of the classic weekly gauge vote."
-          : "Dromos Labs' Predictive Allocation (real-time incentive allocation, dated September 2026) is expected to replace weekly gauge voting. Not live yet — this app still casts the classic weekly vote."
-      }
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${status.live ? "bg-emerald-400" : "bg-neutral-500"}`} />
-      <span className={`font-mono text-xs ${status.live ? "text-emerald-300" : "text-neutral-400"}`}>
-        {status.live ? "Predictive Allocation live" : "weekly gauge voting"}
-      </span>
-    </div>
-  );
-}
-
 function EpochCountdown({ epochStart }: { epochStart: number }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -888,6 +916,24 @@ function SnapshotFreshness({ generatedAt, urgent }: { generatedAt: number; urgen
   );
 }
 
+/**
+ * A below-the-fold panel folded to its heading. Everything under the pools
+ * table answers a question a first-time voter didn't ask (LP yield, swings,
+ * bribe sim, forecast accuracy), so it's one tap away instead of a scroll
+ * past it. The heading stays a real <h2> inside the summary.
+ */
+function CollapsibleSection({ title, children }: { title: ReactNode; children: ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-neutral-800 px-4 py-3">
+      <summary className="flex cursor-pointer select-none list-none items-center gap-2 text-neutral-400 hover:text-neutral-200">
+        <span className="w-3 text-center text-xs text-neutral-600 transition-transform group-open:rotate-90">▸</span>
+        <h2 className="text-sm font-medium uppercase tracking-wider">{title}</h2>
+      </summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  );
+}
+
 function WeightBar({ pct, color }: { pct: number; color: string }) {
   return (
     <div className="h-2 flex-1 rounded bg-neutral-800">
@@ -947,6 +993,7 @@ function AllocationRows({
   color: string;
   right: (a: AllocationRow) => ReactNode;
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   return (
     <div className="space-y-2.5">
       {allocations.map((a) => {
@@ -959,6 +1006,21 @@ function AllocationRows({
           a.votesAllocated !== undefined && a.currentVotes + a.votesAllocated > 0
             ? (a.votesAllocated / (a.currentVotes + a.votesAllocated)) * 100
             : undefined;
+        const open = expanded === a.pool;
+        const detail = (
+          <>
+            {usd(a.tvlUsd)} TVL · {Math.round(a.currentVotes).toLocaleString("en-US")} votes now
+            {a.bribeFloorUsd !== undefined && a.feeForecastUsd !== undefined && (
+              <span
+                title="Bribe floor: posted incentives already committed this epoch — collected regardless of whether the fee forecast is right. Fee forecast: the confidence-blended predicted-vs-last-epoch estimate — the risky half of the payout."
+              >
+                {" "}
+                · <span className="text-neutral-500">{usd(a.bribeFloorUsd)} floor</span> +{" "}
+                <span className="text-amber-600">{usd(a.feeForecastUsd)} forecast</span>
+              </span>
+            )}
+          </>
+        );
         return (
           <div key={a.pool}>
             <div className="flex items-center gap-3">
@@ -969,19 +1031,31 @@ function AllocationRows({
               <span className="w-14 text-right font-mono text-sm text-neutral-100">{a.weightPct.toFixed(1)}%</span>
               {right(a)}
             </div>
-            <div className="mt-0.5 text-[11px] text-neutral-600">
-              {usd(a.tvlUsd)} TVL · {Math.round(a.currentVotes).toLocaleString("en-US")} votes now
-              {gaugeSharePct !== undefined && ` · your vote ≈ ${gaugeSharePct.toFixed(1)}% of this gauge`}
-              {a.bribeFloorUsd !== undefined && a.feeForecastUsd !== undefined && (
-                <span
-                  title="Bribe floor: posted incentives already committed this epoch — collected regardless of whether the fee forecast is right. Fee forecast: the confidence-blended predicted-vs-last-epoch estimate — the risky half of the payout."
+            {/* Voter rows keep only what you act on — how much to put here
+                and how big that is next to the gauge — in view; TVL and the
+                floor/forecast split are one tap away rather than a second
+                line of small print under every row. The benchmark splits
+                have no absolute vote size, so they keep the old line. */}
+            {a.votesAllocated !== undefined ? (
+              <div className="mt-0.5 text-[11px] text-neutral-600">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : a.pool)}
+                  aria-expanded={open}
+                  aria-label={`${open ? "collapse" : "expand"} ${a.symbol} details`}
+                  className="mr-1 inline-block w-3 text-center hover:text-neutral-300"
                 >
-                  {" "}
-                  · <span className="text-neutral-500">{usd(a.bribeFloorUsd)} floor</span> +{" "}
-                  <span className="text-amber-600">{usd(a.feeForecastUsd)} forecast</span>
+                  {open ? "▾" : "▸"}
+                </button>
+                <span className="font-mono text-neutral-400">
+                  {Math.round(a.votesAllocated).toLocaleString("en-US")} {DISPLAY_PRESET.veTokenSymbol}
                 </span>
-              )}
-            </div>
+                {gaugeSharePct !== undefined && ` · ≈ ${gaugeSharePct.toFixed(1)}% of this gauge`}
+                {open && <div className="mt-0.5 pl-4">{detail}</div>}
+              </div>
+            ) : (
+              <div className="mt-0.5 text-[11px] text-neutral-600">{detail}</div>
+            )}
           </div>
         );
       })}
@@ -1147,6 +1221,10 @@ export default function Dashboard() {
   // veNFT is selected) — read once via wallet.tsx's onNftSelected, not
   // re-fetched here.
   const [currentVotes, setCurrentVotes] = useState<CurrentVote[] | null>(null);
+  // Set when currentVotes came from the read-only address lookup rather than
+  // a connected wallet — only changes the badge wording ("from 0x12…ab" vs
+  // "from wallet"); everything downstream treats the two the same.
+  const [lookedUpAddress, setLookedUpAddress] = useState<string | null>(null);
   // Disconnecting (or the wallet extension's own session lapsing) doesn't
   // unmount anything here, so without this, currentVotes — and the "from
   // wallet" badge / current-vs-recommended panel it drives — would keep
@@ -1168,6 +1246,7 @@ export default function Dashboard() {
     wasConnectedRef.current = isConnected;
     if (isConnected || !wasConnected) return;
     setCurrentVotes(null);
+    setLookedUpAddress(null);
     // The veAERO amount itself is also wallet-derived once connected — left
     // at "92" after a real disconnect, it would keep showing a stale
     // balance next to a recommendation split that's no longer anyone's
@@ -1240,8 +1319,12 @@ export default function Dashboard() {
   // the single dense page — the tab bar and this state are inert above sm
   // (external review: "do not render all three sections on one scroll on
   // mobile", with "desktop keeps the dense table").
-  const [mobileTab, setMobileTab] = useState<"vote" | "lp" | "swings">("vote");
-  const onTab = (t: "vote" | "lp" | "swings") => (mobileTab === t ? "" : "hidden");
+  //
+  // Vote is the answer and the buttons that act on it, nothing else; Pools is
+  // the table behind it; everything a first-time voter doesn't need lives
+  // under More, collapsed.
+  const [mobileTab, setMobileTab] = useState<"vote" | "pools" | "more">("vote");
+  const onTab = (t: "vote" | "pools" | "more") => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
   // once. last epoch and votes-vs-demand move into the row expand
@@ -1480,10 +1563,10 @@ export default function Dashboard() {
           land"). */}
       <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          <div className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             <AllocatorMark />
             {DISPLAY_PRESET.displayName} <span className="text-sky-400">Allocator</span>
-          </h1>
+          </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
             {snapshot && (
@@ -1494,45 +1577,35 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Phone gets the one-liner; desktop gets the fuller sentence below
-          instead, so the two don't stack into a redundant pair. */}
-      <p className="text-[15px] text-neutral-300 sm:hidden">
-        Where to vote {DISPLAY_PRESET.veTokenSymbol} this epoch.
+      {/* The job in one line, then the three steps. Mechanism and epoch
+          progress used to be pills of their own competing with the flip
+          clock; they're quiet text now, and the Predictive Allocation note
+          lives in the Voter ROI card's "How this works". */}
+      <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+        Where to vote your {DISPLAY_PRESET.veTokenSymbol} this week.
+      </h1>
+      <p className="mt-1 text-[15px] text-neutral-400">
+        Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
       </p>
-      {/* The explainer and the Predictive Allocation note are context, not
-          instructions — worth having on a desktop read, half a viewport of
-          manifesto above the fold on a phone. */}
-      <p className="mt-1 hidden text-[15px] text-neutral-400 sm:block">
-        Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on {DISPLAY_PRESET.networkName} — reward
-        where demand is going, not where it was.
-      </p>
-      {paStatus?.applicable && (
-        <p className="mt-1 hidden text-xs text-neutral-500 sm:block">
-          {paStatus.live
-            ? "Predictive Allocation is live — the vote panel below now submits directly to it."
-            : "Weekly gauge voting today; Dromos Labs' Predictive Allocation is expected to replace it — this forecast and your expected $ apply either way."}
-        </p>
-      )}
-
-      {/* Secondary chrome: protocol switch, mechanism status, epoch progress,
-          refresh. One scrollable line on a phone rather than five stacked
-          pills competing with the bar above. */}
-      <div className="mb-8 mt-3 flex items-center gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {paStatus && <PaStatusChip status={paStatus} />}
+      <div className="mb-8 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-neutral-500">
+        {paStatus?.applicable && (
+          <>
+            <span className={paStatus.live ? "text-emerald-400" : undefined}>
+              {paStatus.live ? "Predictive Allocation live" : "weekly gauge voting"}
+            </span>
+            <span className="text-neutral-700">·</span>
+          </>
+        )}
         {snapshot && (
-          <div className="shrink-0">
-            <div className="mb-1 font-mono text-[11px] text-neutral-500">
-              epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed
-            </div>
-            <div className="h-1 w-32 rounded bg-neutral-800">
-              <div className="h-full rounded bg-neutral-500" style={{ width: `${snapshot.epochProgressPct}%` }} />
-            </div>
-          </div>
+          <>
+            <span>epoch {snapshot.epochProgressPct.toFixed(1)}% elapsed</span>
+            <span className="text-neutral-700">·</span>
+          </>
         )}
         <button
           onClick={() => loadAll(true)}
           disabled={loading}
-          className="shrink-0 rounded-lg border border-neutral-800 px-2.5 py-1 font-mono text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200 disabled:opacity-40"
+          className="text-neutral-400 underline decoration-neutral-700 hover:text-neutral-200 disabled:opacity-40"
         >
           {loading ? "loading…" : "refresh"}
         </button>
@@ -1566,8 +1639,8 @@ export default function Dashboard() {
             {(
               [
                 ["vote", "vote"],
-                ["lp", "LP yield"],
-                ["swings", "swings"],
+                ["pools", "pools"],
+                ["more", "more"],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -1589,7 +1662,7 @@ export default function Dashboard() {
 
           <section className={`mb-10 sm:block ${onTab("vote")}`}>
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-medium text-white">
                   Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
                 </h2>
@@ -1619,21 +1692,45 @@ export default function Dashboard() {
                   {currentVotes && (
                     <span
                       className="whitespace-nowrap font-mono text-[10px] text-emerald-400"
-                      title="This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
+                      title={
+                        lookedUpAddress
+                          ? "This amount was filled from that address's onchain veNFTs, read directly from a public RPC."
+                          : "This amount was auto-filled from your connected veNFT's real voting balance, not typed in manually."
+                      }
                     >
-                      ✓ from wallet
+                      ✓ from {lookedUpAddress ? `${lookedUpAddress.slice(0, 6)}…${lookedUpAddress.slice(-4)}` : "wallet"}
                     </span>
                   )}
                   <button
                     onClick={recomputeVoter}
                     disabled={allocLoading}
-                    className="rounded-lg bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
+                    className="rounded-lg border border-neutral-700 px-3 py-1 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white disabled:opacity-40"
                   >
                     {allocLoading ? "…" : "recompute"}
                   </button>
-                  {voterAlloc && <ExportCsvButton objective="voter_roi" allocations={voterAlloc.allocations} />}
                 </div>
               </div>
+              <AddressLookup
+                onFound={(vp, votes, address) => {
+                  setVotingPower(vp);
+                  saveVotingPower(vp);
+                  // Not shareable, same as a connected wallet: this is
+                  // someone's real onchain balance, not a number typed to
+                  // share a view.
+                  setVotingPowerIsShareable(false);
+                  setCurrentVotes(votes);
+                  setLookedUpAddress(address);
+                  recomputeVoterWithPower(vp);
+                }}
+              />
+              {/* Worded to what's actually true, not what would read best:
+                  recompute does send the amount to /api/dashboard, so "nothing
+                  is sent to us" would be false. The address is the part that
+                  never leaves the browser — see AddressLookup. */}
+              <p className="mt-2 text-xs text-neutral-500">
+                Read-only until you hit Cast. Address lookup reads voting power straight from a public{" "}
+                {DISPLAY_PRESET.networkName} RPC — your address never reaches our server.
+              </p>
               {voterAlloc && (
                 <>
                   {/* The whole point of the page, at the size of the whole
@@ -1642,7 +1739,7 @@ export default function Dashboard() {
                       epoch and it's a footnote under a wall of TVL text").
                       Same number the summary quotes: the sum of the rows'
                       own post-dilution expected rewards. */}
-                  <div className="mb-4">
+                  <div className="mb-4 mt-5">
                     <div className="font-mono text-4xl tabular-nums text-emerald-400 sm:text-[40px]">
                       {usd(voterTotalExpectedUsd)}
                     </div>
@@ -1650,6 +1747,32 @@ export default function Dashboard() {
                       expected next epoch for {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol} — your
                       voter $, not pool fees
                     </div>
+                    {/* TODO(miss-rate chip): "Last N settled epochs, this split
+                        vs 100% into the then-top pool: +X%". Nothing in the
+                        payload measures that yet — trackRecord is per-pool
+                        fee-forecast error, and computeRealizedPerformance
+                        needs a recommendation log the server doesn't keep.
+                        Needs an engine-side replay (voter_roi re-run at each
+                        past epoch on trailing data, scored with realized
+                        R·v/(E+v) against the single best-looking pool) before
+                        a number can go here. Hidden until then rather than
+                        approximated. */}
+                  </div>
+                  <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <CopyWeightsButton
+                      text={weightsClipboardText(voterAlloc.allocations, votingPower, voterTotalExpectedUsd)}
+                    />
+                    <a
+                      href={`${DISPLAY_PRESET.appUrl}/vote`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                    >
+                      open {DISPLAY_PRESET.displayName} ↗
+                    </a>
+                    <span className="text-xs text-neutral-600">
+                      whole percentages, summing to 100 — cast or copy calldata below
+                    </span>
                   </div>
                   <AllocationRows
                     allocations={voterAlloc.allocations}
@@ -1674,9 +1797,6 @@ export default function Dashboard() {
                       here instead of split into for pennies each.
                     </p>
                   )}
-                  <p className="mt-4 border-t border-neutral-800 pt-3 text-xs leading-relaxed text-neutral-400">
-                    {voterAlloc.summary}
-                  </p>
                   {currentVotes && (
                     <CurrentVsRecommended
                       currentVotes={currentVotes}
@@ -1698,15 +1818,33 @@ export default function Dashboard() {
                       // hands out your position size.
                       setVotingPowerIsShareable(false);
                       setCurrentVotes(votes);
+                      setLookedUpAddress(null);
                       recomputeVoterWithPower(vp);
                     }}
                   />
+                  <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-neutral-800 pt-3">
+                    <details className="min-w-0 flex-1">
+                      <summary className="cursor-pointer select-none text-xs text-neutral-400 hover:text-neutral-200">
+                        How this works
+                      </summary>
+                      <p className="mt-2 text-xs leading-relaxed text-neutral-400">{voterAlloc.summary}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+                        Next-epoch fee-demand forecast for {DISPLAY_PRESET.displayName} on{" "}
+                        {DISPLAY_PRESET.networkName} — reward where demand is going, not where it was.
+                        {paStatus?.applicable &&
+                          (paStatus.live
+                            ? " Predictive Allocation is live — the vote panel above now submits directly to it."
+                            : " Weekly gauge voting today; Dromos Labs' Predictive Allocation is expected to replace it — this forecast and your expected $ apply either way.")}
+                      </p>
+                    </details>
+                    <ExportCsvButton objective="voter_roi" allocations={voterAlloc.allocations} />
+                  </div>
                 </>
               )}
             </div>
           </section>
 
-          <section className={`mb-10 sm:block ${onTab("vote")}`}>
+          <section className={`mb-10 sm:block ${onTab("pools")}`}>
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
               {sortedByRewardPer1k ? "Highest $/1k votes — thin gauges" : "Predicted hot pools"}
             </h2>
@@ -1991,9 +2129,9 @@ export default function Dashboard() {
               to Voter ROI read as "pick one of three" (external review:
               "showing all three equal-width tells a voter they failed a
               quiz"), so they collapse behind one line instead. */}
-          <details className={`mb-10 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("vote")}`}>
+          <details className={`mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("more")}`}>
             <summary className="cursor-pointer list-none text-sm font-medium text-neutral-300">
-              Other splits{" "}
+              Other objectives{" "}
               <span className="text-xs font-normal text-neutral-500">
                 protocol efficiency · edge hunter — market-wide benchmarks, not a personal vote
               </span>
@@ -2053,10 +2191,19 @@ export default function Dashboard() {
             </div>
           </details>
 
-          <section className={`mb-10 sm:block ${onTab("lp")}`}>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
-              LP staking yield {lpDeposits && <span className="text-neutral-600">({lpDeposits.rewardTokenSymbol} emissions, not fees)</span>}
-            </h2>
+          <section className={`mb-4 sm:block ${onTab("more")}`}>
+            <CollapsibleSection
+              title={
+                <>
+                  LP staking yield{" "}
+                  {lpDeposits && (
+                    <span className="normal-case tracking-normal text-neutral-600">
+                      ({lpDeposits.rewardTokenSymbol} emissions, not fees)
+                    </span>
+                  )}
+                </>
+              }
+            >
             {lpThinCount > 0 && lpOpportunities.length > 0 && (
               <ThinLpToggle
                 count={lpThinCount}
@@ -2212,9 +2359,12 @@ export default function Dashboard() {
               {lpConfClustered &&
                 " Confidence is calibrated and clusters tightly across these pools this epoch — the number is the signal, not bar length."}
             </p>
+            </CollapsibleSection>
           </section>
 
-          <section className={`mb-10 gap-6 sm:grid lg:grid-cols-2 ${mobileTab === "swings" ? "grid" : "hidden"}`}>
+          <section className={`mb-4 sm:block ${onTab("more")}`}>
+            <CollapsibleSection title="Vote swings">
+            <div className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <h3 className="font-medium text-white">
                 Vote swings <span className="text-xs font-normal text-neutral-500">risers</span>
@@ -2254,10 +2404,12 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+            </div>
+            </CollapsibleSection>
           </section>
 
-          <section className={`mb-10 sm:block ${onTab("swings")}`}>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">Bribe placement</h2>
+          <section className={`mb-4 sm:block ${onTab("more")}`}>
+            <CollapsibleSection title="Bribe placement">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="flex flex-wrap items-end gap-3">
                 <div>
@@ -2332,13 +2484,19 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            </CollapsibleSection>
           </section>
 
           {trackRecord && (
-            <section className="mb-10">
-              <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-neutral-400">
-                Forecast accuracy <span className="text-neutral-600">(walk-forward backtest)</span>
-              </h2>
+            <section className={`mb-4 sm:block ${onTab("more")}`}>
+              <CollapsibleSection
+                title={
+                  <>
+                    Forecast accuracy{" "}
+                    <span className="normal-case tracking-normal text-neutral-600">(walk-forward backtest)</span>
+                  </>
+                }
+              >
               <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
                 {/* Plain-language headline before the metric grid — "skill vs.
                     naive baseline: +5.6%" doesn't read as an answer to "does
@@ -2406,10 +2564,13 @@ export default function Dashboard() {
 
                 <p className="mt-4 text-xs leading-relaxed text-neutral-500">{trackRecord.methodology}</p>
               </div>
+              </CollapsibleSection>
             </section>
           )}
 
-          <ChangelogPanel />
+          <div className={`sm:block ${onTab("more")}`}>
+            <ChangelogPanel />
+          </div>
 
           <footer className="mt-10 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
             <p className="mb-2">
