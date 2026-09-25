@@ -1214,7 +1214,15 @@ describe("Dashboard", () => {
     await user.click(screen.getByText(/what's new/i));
 
     expect(details.open).toBe(true);
-    expect(screen.getByText(/rebuilt around the job/i)).toBeInTheDocument();
+    expect(screen.getByText(/first screen answers without a wallet/i)).toBeInTheDocument();
+  });
+
+  it("only carries the last two ship days", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
+    const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
+    expect(new Set(dates)).toEqual(new Set(["2026-09-25", "2026-09-24"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {
