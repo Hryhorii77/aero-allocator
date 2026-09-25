@@ -92,7 +92,7 @@ export const GET = x402Configured
           payTo: payToAddress!,
         },
         description:
-          `The least bribe that could move a ${PRESET.displayName} pool to a target share of all votes: pass ` +
+          `The least bribe that could move a pool on ${PRESET.displayName} to a target share of all votes: pass ` +
           "?pool=0x…&targetSharePct=N, get a model FLOOR (the bribe simulator run backwards — real voters move " +
           "slower, so budget above it), the cost curve to get there, and what's already posted on the pool.",
       },

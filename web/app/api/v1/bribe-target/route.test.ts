@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { withX402 } from "@x402/next";
 
 // Same module-boundary mock as the sibling paid-route tests: @x402/next's
 // dist build can't be resolved by Vitest, and what's under test is this
@@ -54,6 +55,20 @@ describe("GET /api/v1/bribe-target", () => {
     const res = await call(`?pool=${POOL}&targetSharePct=5`);
     expect(res.status).toBe(501);
     expect((await res.json()).error).toMatch(/X402_PAYTO_ADDRESS/);
+  });
+
+  it("describes itself in grammatical, protocol-neutral words to the payment layer", async () => {
+    stubConfigured();
+    await import("./route");
+    const config = (withX402 as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![1] as {
+      accepts: { price: string };
+      description: string;
+    };
+    // Agents read this in the 402 challenge before deciding to pay.
+    expect(config.accepts.price).toBe("$0.1");
+    expect(config.description).toMatch(/^The least bribe that could move a pool on \w+ to a target share of all votes/);
+    expect(config.description).not.toMatch(/\ba [AEIOU]/); // "a Aerodrome"
+    expect(config.description).toMatch(/floor/i);
   });
 
   it("rejects a missing or malformed pool, or a target that isn't a share, with 400 before any snapshot work", async () => {
