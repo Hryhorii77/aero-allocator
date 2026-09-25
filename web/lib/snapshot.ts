@@ -273,6 +273,10 @@ export async function buildFullForecast(votingPower: number, refresh = false) {
       lp: f.pool.lp,
       symbol: f.pool.symbol,
       poolType: f.pool.poolType,
+      // Both token addresses, so the page can recognise a pool by what it
+      // holds (see lib/highlight.ts) instead of by a spoofable symbol.
+      token0: f.pool.token0,
+      token1: f.pool.token1,
       tvlUsd: Math.round(f.pool.tvlUsd),
       predictedFeesUsd: f.predictedFeesUsd,
       lastEpochFeesUsd: f.lastEpochFeesUsd,
