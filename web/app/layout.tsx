@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
-import { DISPLAY_PRESET } from "@/lib/protocol";
+import { siteMetadata } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,12 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: `${DISPLAY_PRESET.displayName} Allocator — predicted hot pools`,
-  description:
-    `Live forecast of next-epoch fee demand across ${DISPLAY_PRESET.displayName} pools on ${DISPLAY_PRESET.networkName}, ` +
-    `with dilution-aware ${DISPLAY_PRESET.veTokenSymbol} allocation recommendations.`,
-};
+export const metadata: Metadata = siteMetadata();
 
 // This UI is always dark — declaring that explicitly (also set as a CSS
 // property in globals.css) stops some mobile browsers from applying their
