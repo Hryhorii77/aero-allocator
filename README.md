@@ -395,6 +395,10 @@ off until you set the repo variable `AERO_ALERTS_ENABLED=true` (plus `AERO_DASHB
 `AERO_DISCORD_WEBHOOK_URL` / `AERO_VOTING_POWER` secrets the reminder already uses). `AERO_ALERT_MIN_VOTES`
 raises the smallest vote growth that can alert; `AERO_ALERT_STATE_PATH` moves the state file.
 
+To check the Discord connection without waiting for a real event, run the workflow by hand with
+**send_test** ticked (or `AERO_ALERT_TEST=true npm run vote-alerts`): it posts one "connected" line and
+fails loudly if the webhook isn't set. A test run leaves the saved reading alone.
+
 ## Contracts used
 
 Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
