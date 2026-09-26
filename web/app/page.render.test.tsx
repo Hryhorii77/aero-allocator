@@ -1642,3 +1642,38 @@ describe("Dashboard — highlighted token pools", () => {
     expect(screen.queryByText("BNKR")).not.toBeInTheDocument();
   });
 });
+
+describe("AeroLaunchNotice", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("uses the launch instant the article gives in both of its forms", async () => {
+    const { AERO_LAUNCH_AT_MS } = await import("./page");
+    // "October 21, 2026 at 8:00 PM EDT (October 22, 00:00 UTC)"
+    expect(AERO_LAUNCH_AT_MS).toBe(Date.parse("2026-10-22T00:00:00Z"));
+    expect(AERO_LAUNCH_AT_MS).toBe(Date.parse("2026-10-21T20:00:00-04:00"));
+  });
+
+  it("states the date and what this app covers, and links the source, before launch", async () => {
+    const { AeroLaunchNotice, AERO_LAUNCH_AT_MS } = await import("./page");
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS - 24 * 3600 * 1000);
+    render(<AeroLaunchNotice />);
+
+    expect(await screen.findByText(/Aero launches 22 Oct 2026, 00:00 UTC/)).toBeInTheDocument();
+    // Attributed to Aero, not asserted as our own claim, and says what this app covers.
+    expect(screen.getByText(/weekly voting is replaced by continuous Predictive Allocation and veAERO must be upgraded/)).toBeInTheDocument();
+    expect(screen.getByText(/covers the\s+classic weekly gauge vote for now/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Aero.s FAQ/i });
+    expect(link).toHaveAttribute("href", "https://aero.xyz/articles/aero-predictive-allocation-faq/");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+  });
+
+  it("is gone once the launch instant has passed, rather than going on saying 'launches'", async () => {
+    const { AeroLaunchNotice, AERO_LAUNCH_AT_MS } = await import("./page");
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS);
+    const { container } = render(<AeroLaunchNotice />);
+    // The effect runs after mount; give it a tick, then it must still be empty.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText(/Aero launches/)).not.toBeInTheDocument();
+  });
+});
