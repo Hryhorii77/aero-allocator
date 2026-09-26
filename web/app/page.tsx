@@ -384,6 +384,32 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   },
 ];
 
+// Aero's launch update (aero.xyz/articles/aero-launch-update-all-systems-go)
+// gives October 21, 2026, 8:00 PM EDT — October 22, 00:00 UTC. It says
+// guidance for veNFT holders will follow, and says nothing yet about what
+// happens to existing voters, so this states only the date and what this app
+// covers today, and points at the source for the rest.
+export const AERO_LAUNCH_AT_MS = Date.UTC(2026, 9, 22, 0, 0, 0);
+const AERO_LAUNCH_URL = "https://aero.xyz/articles/aero-launch-update-all-systems-go/";
+
+/** One quiet line until the launch instant, then gone — it must not go on saying "launches" afterwards. Mounted state, not a render-time Date.now(), so server and client HTML agree. */
+export function AeroLaunchNotice() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    setShow(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() < AERO_LAUNCH_AT_MS);
+  }, []);
+  if (!show) return null;
+  return (
+    <p className="mt-1 text-xs text-neutral-500">
+      Aero launches 22 Oct 2026, 00:00 UTC. This app covers the classic weekly gauge vote; see{" "}
+      <a href={AERO_LAUNCH_URL} target="_blank" rel="noreferrer" className="text-sky-500 hover:text-sky-400">
+        Aero&rsquo;s launch update
+      </a>{" "}
+      for what changes for veNFT holders.
+    </p>
+  );
+}
+
 export function ChangelogPanel() {
   return (
     <details className="mt-6 rounded-lg border border-neutral-800 px-3 py-2">
@@ -1639,6 +1665,7 @@ export default function Dashboard() {
       <p className="mt-1 text-[15px] text-neutral-400">
         Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
       </p>
+      <AeroLaunchNotice />
       <div className="mb-8 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-neutral-500">
         {paStatus?.applicable && (
           <>
