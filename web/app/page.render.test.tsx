@@ -1659,9 +1659,11 @@ describe("AeroLaunchNotice", () => {
     render(<AeroLaunchNotice />);
 
     expect(await screen.findByText(/Aero launches 22 Oct 2026, 00:00 UTC/)).toBeInTheDocument();
-    expect(screen.getByText(/covers the classic weekly gauge vote/)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Aero.s launch update/i });
-    expect(link).toHaveAttribute("href", "https://aero.xyz/articles/aero-launch-update-all-systems-go/");
+    // Attributed to Aero, not asserted as our own claim, and says what this app covers.
+    expect(screen.getByText(/weekly voting is replaced by continuous Predictive Allocation and veAERO must be upgraded/)).toBeInTheDocument();
+    expect(screen.getByText(/covers the\s+classic weekly gauge vote for now/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Aero.s FAQ/i });
+    expect(link).toHaveAttribute("href", "https://aero.xyz/articles/aero-predictive-allocation-faq/");
     expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
   });
 
