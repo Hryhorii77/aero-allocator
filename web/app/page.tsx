@@ -387,13 +387,13 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
 // Aero's launch update (aero.xyz/articles/aero-launch-update-all-systems-go)
 // gives October 21, 2026, 8:00 PM EDT — October 22, 00:00 UTC. Its Predictive
 // Allocation FAQ (aero.xyz/articles/aero-predictive-allocation-faq) says the
-// weekly vote is replaced by continuous allocation by sAERO holders and that
-// AERO, veAERO, VELO and veVELO "will need to be upgraded". So this states
-// the date, attributes those two claims to Aero, and says what this app
-// covers today. It makes no claim about migration steps or timing: the FAQ
-// doesn't give them.
+// weekly vote is replaced by continuous allocation by sAERO holders. Its
+// Upgrade Hub (aero.xyz/aero-upgrade) says final voting closes October 21,
+// 6:59 PM EDT (22:59 UTC), all old gauges are then deactivated, and veAERO is
+// upgraded to sAERO. So this states the date, attributes those claims to Aero,
+// and says what this app covers until then. Migration steps stay on Aero's hub.
 export const AERO_LAUNCH_AT_MS = Date.UTC(2026, 9, 22, 0, 0, 0);
-const AERO_FAQ_URL = "https://aero.xyz/articles/aero-predictive-allocation-faq/";
+const AERO_UPGRADE_URL = "https://aero.xyz/aero-upgrade/";
 
 /** One quiet line until the launch instant, then gone — it must not go on saying "launches" afterwards. Mounted state, not a render-time Date.now(), so server and client HTML agree. */
 export function AeroLaunchNotice() {
@@ -405,11 +405,11 @@ export function AeroLaunchNotice() {
   return (
     <p className="mt-1 text-xs text-neutral-500">
       Aero launches 22 Oct 2026, 00:00 UTC. Per{" "}
-      <a href={AERO_FAQ_URL} target="_blank" rel="noreferrer" className="text-sky-500 hover:text-sky-400">
-        Aero&rsquo;s FAQ
+      <a href={AERO_UPGRADE_URL} target="_blank" rel="noreferrer" className="text-sky-500 hover:text-sky-400">
+        Aero&rsquo;s Upgrade Hub
       </a>
-      , weekly voting is replaced by continuous Predictive Allocation and veAERO must be upgraded. This app covers the
-      classic weekly gauge vote for now.
+      , weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated and veAERO must be upgraded to
+      sAERO. This app covers the classic weekly gauge vote until then.
     </p>
   );
 }
