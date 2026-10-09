@@ -40,6 +40,30 @@ Sources: [Launch update](https://aero.xyz/articles/aero-launch-update-all-system
   cooldowns (`reduceCooldown`) and message lifetimes. No Sugar-style reader
   contracts are in either repo.
 
+## Update 2026-10-10: the Upgrade Hub settles the cutover
+
+Source: [Aero Upgrade Hub](https://aero.xyz/aero-upgrade/) (read through a page
+summary; re-verify the dates on the page itself).
+
+- **Hard cutover, not a transition.** "All gauges will be deactivated." Final
+  voting closes **Oct 21, 6:59 PM EDT (22:59 UTC)**, an hour before launch. After
+  that the veAERO `vote()` flow has no use. The hub does not say whether the old
+  Voter contract still answers calls.
+- **Upgrade schedule.** Portals on aerodrome.finance / velodrome.finance open at
+  launch (Oct 22 00:00 UTC); final-epoch voters wait one more hour. Withdraw veNFTs
+  from Relays/vaults by Oct 20. veAERO/veVELO become sAERO: lock time carries over
+  (rounded up to a full week), the veNFT id is retired, a new position is created.
+  1 AERO -> 1 AERO; 1 VELO -> about 0.044 AERO; upgrades are irreversible.
+- **Autopilot** makes its first allocation Oct 22, 16:00 UTC.
+- **Addresses** go to the public GitHub repos first, then a security page in the
+  docs; the AERO token address on launch day. As of 2026-10-10 `deployment-addresses/`
+  still holds only `arc.json`.
+- **Still unpublished:** docs/SDK URLs, gauge-cap rules, any read path.
+
+Consequences: the decision test below ("does the old Voter still accept `vote()`")
+resolves to **hard cutover**, so plan the rebuild; the launch notice now states the
+Oct 21 22:59 UTC close.
+
 ## What this means for this repo
 
 | Area | Today | Likely to break because |
