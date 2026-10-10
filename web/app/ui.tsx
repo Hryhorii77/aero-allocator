@@ -1,22 +1,20 @@
 // Shared control styles. Every button/chip in the dashboard goes through
 // these so a color or padding change is one edit, not thirty.
 //
-// Color roles: sky = primary action / selected, emerald = commit ("cast",
-// kept distinct from the blue connect button on purpose), amber = caution,
+// Color roles: sky = primary action / selected (copy weights, connect, cast), amber = caution,
 // neutral = everything else. Emerald/rose otherwise mean positive/negative
 // money only.
 //
 // Corners: rounded-xl for cards and panels, rounded-lg for controls and the
 // callouts nested inside a card.
 
-type Variant = "primary" | "commit" | "secondary" | "warn" | "warnSolid";
+type Variant = "primary" | "secondary" | "warn" | "warnSolid";
 type Size = "sm" | "md";
 
 const BASE = "rounded-lg disabled:opacity-40";
 
 const VARIANT: Record<Variant, string> = {
   primary: "bg-sky-600 text-white hover:bg-sky-500",
-  commit: "bg-emerald-600 text-white hover:bg-emerald-500",
   secondary: "border border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white",
   warn: "border border-amber-800 bg-amber-950/40 text-amber-300 hover:border-amber-600",
   warnSolid: "bg-amber-700 text-white hover:bg-amber-600",

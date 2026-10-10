@@ -560,13 +560,10 @@ export function VotePanel({
           <button
             onClick={requestCastVote}
             disabled={tokenIds.length === 0 || signing || confirming || allocations.length === 0 || !addresses}
-            // Same shade depth as the "connect wallet" button (sky-600 /
-            // hover:sky-500) — was emerald-700/600, a darker pair that read
-            // as visually secondary next to it despite identical size and
-            // weight (external review: "same visual weight as connect
-            // wallet"). Color still carries the connect (blue) vs go
-            // (green) distinction; only the brightness now matches.
-            className={btn("commit")}
+            // Same primary style as "connect wallet" and "copy weights" (the
+            // earlier green was a deliberate connect-vs-go cue; one primary
+            // color reads more consistently).
+            className={btn("primary")}
           >
             {signing
               ? "confirm in wallet…"
