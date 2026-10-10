@@ -201,6 +201,21 @@ describe("recommendAllocation — voter_roi", () => {
     expect(diluted.expectedRewardUsd!).toBeLessThan(undiluted.expectedRewardUsd! / 5);
   });
 
+  it("skips gauges with no vote history, so a brand-new pool can't absorb the allocation", () => {
+    const fresh = makeForecast({ predictedFeesUsd: 15_000, lastEpochFeesUsd: 0, currentVotes: 24_000, lastEpochVotes: 0 });
+    const established = makeForecast({ predictedFeesUsd: 20_000, lastEpochFeesUsd: 20_000, currentVotes: 1_000_000, lastEpochVotes: 1_000_000, rewardPer1kVotesUsd: 0.02 });
+    const rec = recommendAllocation(snapshotOf([fresh, established]), "voter_roi", 8, 10_000);
+    expect(rec.allocations.map((a) => a.pool)).toEqual([established.pool.lp]);
+  });
+
+  it("also skips gauges that had votes but paid nothing last epoch", () => {
+    const unpaid = makePool({ lp: "0xunpaid" });
+    const noPayout = makeForecast({ pool: unpaid, predictedFeesUsd: 15_000, lastEpochFeesUsd: 0, currentVotes: 24_000, lastEpochVotes: 20_000, rewardPer1kVotesUsd: 0 });
+    const established = makeForecast({ pool: makePool({ lp: "0xok" }), predictedFeesUsd: 20_000, lastEpochFeesUsd: 20_000, currentVotes: 1_000_000, lastEpochVotes: 1_000_000, rewardPer1kVotesUsd: 0.02 });
+    const rec = recommendAllocation(snapshotOf([noPayout, established]), "voter_roi", 8, 10_000);
+    expect(rec.allocations.map((a) => a.pool)).toEqual(["0xok"]);
+  });
+
   it("excludes pools below the minimum reward-capacity floor", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 100_000, lastEpochFeesUsd: 100_000 }),

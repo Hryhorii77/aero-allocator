@@ -153,6 +153,7 @@ async function buildSnapshot(): Promise<MarketSnapshot> {
       history: p.history,
       currentVotes: Math.round(votes),
       projectedVotes: Math.round(Math.max(votes, lastVotes)),
+      lastEpochVotes: Math.round(lastVotes),
       predictedFeesUsd: round2(p.predicted),
       lastEpochFeesUsd: round2(last?.feesUsd ?? 0),
       feeTrendUsdPerEpoch: round2(p.trend),
@@ -285,9 +286,19 @@ interface VoterRoiCandidate {
  * payout), plus incentives already posted. Shared by recommendAllocation
  * and simulateBribeImpact so both reason about the same market.
  */
-function voterRoiCandidates(snapshot: MarketSnapshot, minRewardsUsd = SETTINGS.minVoterRewardCapacityUsd): VoterRoiCandidate[] {
+function voterRoiCandidates(
+  snapshot: MarketSnapshot,
+  minRewardsUsd = SETTINGS.minVoterRewardCapacityUsd,
+  requireVoteHistory = false,
+): VoterRoiCandidate[] {
   return snapshot.forecasts
     .filter((f) => f.pool.gaugeAlive && f.confidence > 0)
+    // A gauge with no votes or no payout last epoch has no track record: no
+    // honest dilution base (votes so far is a tiny, still-growing number), so the optimizer would pile into
+    // it and quote ~100x the market's $/1k. Sizing a real vote skips it; the
+    // bribe simulator keeps it, since showing pools a bribe could bring into
+    // contention is its job.
+    .filter((f) => !requireVoteHistory || f.lastEpochVotes === undefined || (f.lastEpochVotes > 0 && f.rewardPer1kVotesUsd > 0))
     .map((f) => {
       const bribeFloorUsd = f.currentBribesUsd;
       const feeForecastUsd = f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd;
@@ -350,7 +361,7 @@ export function recommendAllocation(
           rationaleFor(f, "demand"),
       }));
   } else {
-    const candidates = voterRoiCandidates(snapshot);
+    const candidates = voterRoiCandidates(snapshot, undefined, true);
 
     const votes = waterfillCapped(
       candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: dilutionVotes(c.f) })),

@@ -42,6 +42,8 @@ export interface PoolForecast {
   currentVotes: number;
   /** Estimated end-of-epoch votes on this gauge: max(votes so far, last completed epoch's final votes). The dilution base for voter_roi — votes so far understates what the pool will hold once voting closes, which inflates early-week payout-per-vote. Optional for hand-built forecasts; falls back to currentVotes. */
   projectedVotes?: number;
+  /** Final votes the gauge held in the last completed epoch; 0 = no track record (brand-new gauge). voter_roi skips these, and gauges that paid nothing last epoch (rewardPer1kVotesUsd 0): without a vote and payout history there is no honest dilution base. Optional for hand-built forecasts (treated as unknown, not excluded). */
+  lastEpochVotes?: number;
   /** Current vote share across analyzed pools (0..1). */
   voteShare: number;
   /** Predicted fee-demand share across analyzed pools (0..1). */
