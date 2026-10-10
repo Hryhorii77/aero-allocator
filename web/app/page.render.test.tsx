@@ -1219,11 +1219,12 @@ describe("Dashboard", () => {
     expect(screen.getByText(/expected \$ no longer overstates early in the week/i)).toBeInTheDocument();
   });
 
-  it("only carries the two latest entries", async () => {
+  it("only carries the last two ship days", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
     const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
-    expect(details.querySelectorAll("li")).toHaveLength(2);
+    const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
+    expect(new Set(dates)).toEqual(new Set(["2026-10-10", "2026-09-26"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {

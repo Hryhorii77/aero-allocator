@@ -328,22 +328,27 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 //
-// Kept to the two latest entries only. The point of this panel is "this
+// Kept to the last two ship days only. The point of this panel is "this
 // thing is alive", which the newest entries make just as well as eighteen of
 // them — and eighteen made it a wall of text nobody finishes. Anything older
 // is a commit away via the link at the foot of the panel; trimmed entries stay
-// in git history, so nothing is actually lost by pruning here. When adding an
-// entry, drop the oldest so there are still two.
+// in git history, so nothing is actually lost by pruning here. When a third
+// ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-10",
     title:
-      "The expected $ no longer overstates early in the week. It used to measure your share against the few votes cast so far, which could make 100,000 veAERO look like $12k when last epoch actually paid about $150. It now dilutes against what each pool held last epoch, skips brand-new gauges with no vote or payout history, and when the forecast is more than 3x last epoch's real payout it leads with the real number and shows the forecast as a ceiling. Also: if you edit the veAERO amount after your wallet filled it in, the page now says the amount was edited instead of still claiming your wallet balance.",
+      "The expected $ no longer overstates early in the week. It was measured against the few votes cast so far, so 100,000 veAERO could show $12k when last epoch paid about $150. It now uses each pool's last-epoch votes, skips brand-new gauges, and leads with the real payout when the forecast is over 3x it.",
   },
   {
     date: "2026-10-10",
     title:
       "Aero launch notice now follows Aero's Upgrade Hub: weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated, and veAERO must be upgraded to sAERO. This app covers the classic weekly gauge vote until then.",
+  },
+  {
+    date: "2026-09-26",
+    title:
+      "Aero launch notice: a line under the clock says Aero launches 22 Oct 2026, 00:00 UTC and replaces the weekly vote with continuous allocation by sAERO holders, citing Aero's own FAQ.",
   },
 ];
 
