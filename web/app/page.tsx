@@ -6,6 +6,7 @@ import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wal
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/format";
 import { highlightForPool } from "@/lib/highlight";
+import { btn, chip, LINK } from "./ui";
 
 // Re-exported so existing importers (and the tests) keep working from here.
 export { usd, formatCountdown };
@@ -371,9 +372,9 @@ export function AeroLaunchNotice() {
   }, []);
   if (!show) return null;
   return (
-    <p className="mt-1 text-xs text-neutral-500">
+    <p className="mt-3 rounded-lg border border-sky-900/60 bg-sky-950/30 px-3 py-2 text-sm text-sky-100/90">
       Aero launches 22 Oct 2026, 00:00 UTC. Per{" "}
-      <a href={AERO_UPGRADE_URL} target="_blank" rel="noreferrer" className="text-sky-500 hover:text-sky-400">
+      <a href={AERO_UPGRADE_URL} target="_blank" rel="noreferrer" className={LINK}>
         Aero&rsquo;s Upgrade Hub
       </a>
       , weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated and veAERO must be upgraded to
@@ -524,11 +525,7 @@ function CopyButton({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className={
-        primary
-          ? "rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500"
-          : "rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
-      }
+      className={btn(primary ? "primary" : "secondary")}
     >
       {copied ? "copied!" : label}
     </button>
@@ -566,7 +563,7 @@ function ExportCsvButton({ objective, allocations }: { objective: string; alloca
   return (
     <button
       onClick={() => exportAllocationCsv(objective, allocations)}
-      className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:border-neutral-500 hover:text-white"
+      className={btn("secondary", "sm")}
     >
       export CSV
     </button>
@@ -1588,7 +1585,17 @@ export default function Dashboard() {
     .filter((p) => matchesPoolFilter(p, poolFilter, DISPLAY_PRESET.tokenSymbol))
     .filter((p) => !trimmedSearch || p.symbol.toLowerCase().includes(trimmedSearch));
   const pools = [...matchingPools]
-    .sort((a, b) => (poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key]))
+    .sort((a, b) => {
+      // A pool with no completed epoch has no meaningful edge (shown as n/a),
+      // so when ranking by edge it sinks to the bottom in either direction
+      // instead of topping the table on a number we ourselves disclaim.
+      if (poolSort.key === "edgePct") {
+        const aNew = a.lastEpochFeesUsd === 0;
+        const bNew = b.lastEpochFeesUsd === 0;
+        if (aNew !== bNew) return aNew ? 1 : -1;
+      }
+      return poolSort.dir === "desc" ? b[poolSort.key] - a[poolSort.key] : a[poolSort.key] - b[poolSort.key];
+    })
     .slice(0, 20);
   // Retitle/relabel the section when sorted this way — "predicted hot pools"
   // sorted by $/1k votes surfaces empty-denominator gauges (tiny fees, ~0
@@ -1798,7 +1805,7 @@ export default function Dashboard() {
                   <button
                     onClick={recomputeVoter}
                     disabled={allocLoading}
-                    className="rounded-lg border border-neutral-700 px-3 py-1 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white disabled:opacity-40"
+                    className={btn()}
                   >
                     {allocLoading ? "…" : "recompute"}
                   </button>
@@ -1868,7 +1875,7 @@ export default function Dashboard() {
                       href={`${DISPLAY_PRESET.appUrl}/vote`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                      className={btn()}
                     >
                       open {DISPLAY_PRESET.displayName} ↗
                     </a>
@@ -1887,7 +1894,7 @@ export default function Dashboard() {
                       href={`/api/share?vp=${votingPower}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white"
+                      className={btn()}
                     >
                       share card ↗
                     </a>
@@ -1995,11 +2002,7 @@ export default function Dashboard() {
                   key={key}
                   type="button"
                   onClick={() => setPoolFilter(key)}
-                  className={`shrink-0 rounded-lg border px-2.5 py-1 font-mono text-xs ${
-                    poolFilter === key
-                      ? "border-sky-600 bg-sky-950/40 text-sky-300"
-                      : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
-                  }`}
+                  className={chip(poolFilter === key)}
                 >
                   {label}
                 </button>
@@ -2567,7 +2570,7 @@ export default function Dashboard() {
                 <button
                   onClick={simulateBribe}
                   disabled={bribeLoading || !bribePool}
-                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
+                  className={btn("primary")}
                 >
                   {bribeLoading ? "simulating…" : "simulate"}
                 </button>
@@ -2719,7 +2722,7 @@ export default function Dashboard() {
                 href="https://github.com/Hryhorii77/aero-allocator"
                 target="_blank"
                 rel="noreferrer"
-                className="text-sky-500 hover:text-sky-400"
+                className={LINK}
               >
                 the repo
               </a>

@@ -24,6 +24,7 @@ import {
   buildMulticallVoteArgs,
 } from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
+import { btn } from "./ui";
 
 interface ProtocolAddresses {
   protocol: Protocol;
@@ -104,7 +105,7 @@ export function ConnectButton() {
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={isPending}
-        className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500 disabled:opacity-40"
+        className={btn("primary")}
       >
         {isPending ? "connecting…" : "connect wallet"}
       </button>
@@ -259,7 +260,7 @@ export function AddressLookup({
         type="button"
         onClick={lookup}
         disabled={status === "loading" || input.trim() === "" || !addresses}
-        className="rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
+        className={btn("secondary", "sm")}
       >
         {status === "loading" ? "looking up…" : "look up"}
       </button>
@@ -469,7 +470,7 @@ export function VotePanel({
         <button
           onClick={copyCalldata}
           disabled={!calldataId || allocations.length === 0}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500 hover:text-white disabled:opacity-40"
+          className={btn()}
         >
           {copied ? "copied!" : "copy calldata"}
         </button>
@@ -500,7 +501,7 @@ export function VotePanel({
       <>
         <button
           onClick={() => switchChain({ chainId: DISPLAY_PRESET.chain.id })}
-          className="mt-3 rounded-lg border border-amber-800 bg-amber-950/40 px-3 py-1.5 text-sm text-amber-300 hover:border-amber-600"
+          className={`mt-3 ${btn("warn")}`}
         >
           switch to {DISPLAY_PRESET.networkName} to vote
         </button>
@@ -566,7 +567,7 @@ export function VotePanel({
             // weight (external review: "same visual weight as connect
             // wallet"). Color still carries the connect (blue) vs go
             // (green) distinction; only the brightness now matches.
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-500 disabled:opacity-40"
+            className={btn("commit")}
           >
             {signing
               ? "confirm in wallet…"
@@ -605,13 +606,13 @@ export function VotePanel({
             <div className="flex gap-2">
               <button
                 onClick={requestCastVote}
-                className="rounded-lg bg-amber-700 px-3 py-1 text-white hover:bg-amber-600"
+                className={btn("warnSolid")}
               >
                 cast anyway
               </button>
               <button
                 onClick={() => setShowThinGaugeConfirm(false)}
-                className="rounded-lg border border-neutral-700 px-3 py-1 text-neutral-300 hover:border-neutral-500"
+                className={btn()}
               >
                 cancel
               </button>
