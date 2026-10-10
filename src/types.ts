@@ -40,6 +40,8 @@ export interface PoolForecast {
   currentBribesUsd: number;
   /** Votes currently cast on this pool's gauge (veAERO units). */
   currentVotes: number;
+  /** Estimated end-of-epoch votes on this gauge: max(votes so far, last completed epoch's final votes). The dilution base for voter_roi — votes so far understates what the pool will hold once voting closes, which inflates early-week payout-per-vote. Optional for hand-built forecasts; falls back to currentVotes. */
+  projectedVotes?: number;
   /** Current vote share across analyzed pools (0..1). */
   voteShare: number;
   /** Predicted fee-demand share across analyzed pools (0..1). */

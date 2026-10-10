@@ -188,6 +188,19 @@ describe("recommendAllocation — voter_roi", () => {
     expect(a.rationale).toContain("$300 bribe floor");
   });
 
+  it("dilutes against projected end-of-epoch votes, not votes cast so far", () => {
+    // Early in the week only 1k votes are in, but the pool closed last epoch
+    // with 1M. Sizing against the 1k would credit a 100k voter with nearly the
+    // whole pool payout.
+    const early = makeForecast({ predictedFeesUsd: 12_000, lastEpochFeesUsd: 12_000, currentVotes: 1_000, projectedVotes: 1_000_000 });
+    const naive = makeForecast({ predictedFeesUsd: 12_000, lastEpochFeesUsd: 12_000, currentVotes: 1_000 });
+    const diluted = recommendAllocation(snapshotOf([early]), "voter_roi", 8, 100_000).allocations[0];
+    const undiluted = recommendAllocation(snapshotOf([naive]), "voter_roi", 8, 100_000).allocations[0];
+    // 12k * 100k / (1M + 100k) ~= $1,091 vs 12k * 100k / (1k + 100k) ~= $11,881
+    expect(diluted.expectedRewardUsd).toBeCloseTo((12_000 * 100_000) / 1_100_000, 0);
+    expect(diluted.expectedRewardUsd!).toBeLessThan(undiluted.expectedRewardUsd! / 5);
+  });
+
   it("excludes pools below the minimum reward-capacity floor", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 100_000, lastEpochFeesUsd: 100_000 }),
