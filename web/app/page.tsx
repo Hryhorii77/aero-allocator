@@ -332,57 +332,23 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // thing is alive", which the newest entries make just as well as eighteen of
 // them — and eighteen made it a wall of text nobody finishes. Anything older
 // is a commit away via the link at the foot of the panel; trimmed entries stay
-// in git history, so nothing is actually lost by pruning here.
+// in git history, so nothing is actually lost by pruning here. When a third
+// ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
-    date: "2026-09-25",
+    date: "2026-10-10",
     title:
-      "The clock now counts to the real deadline. Voting locks an hour before the epoch flips (Wednesday 23:00 UTC), but the clock, share text and share card counted to the flip — an hour too generous. They now count to the lock instead, and say so once it has passed. Also: the LP yield section is a single line when nothing is worth staking, and the bribe simulator shows how many votes a dollar buys.",
+      "The expected $ no longer overstates early in the week. It was measured against the few votes cast so far, so 100,000 veAERO could show $12k when last epoch paid about $150. It now uses each pool's last-epoch votes, skips brand-new gauges, and leads with the real payout when the forecast is over 3x it.",
   },
   {
-    date: "2026-09-25",
+    date: "2026-10-10",
     title:
-      "Sharing: \"copy share text\" puts one line on your clipboard — amount, expected $, pools, time left to vote — and \"share card\" opens a 1200×630 image of the same number. Pasting the site's link into a post now previews that card instead of a bare URL. Both say \"expected\": it's a forecast, not a promise.",
+      "Aero launch notice now follows Aero's Upgrade Hub: weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated, and veAERO must be upgraded to sAERO. This app covers the classic weekly gauge vote until then.",
   },
   {
-    date: "2026-09-25",
+    date: "2026-09-26",
     title:
-      "The first screen answers without a wallet. Type how much veAERO you hold — or paste any address and hit \"look up\" — and the expected $ and the split are right there, with a \"copy weights\" button that gives whole percentages summing to exactly 100, ready to type into Aerodrome. The lookup reads the chain straight from your browser, so the address never reaches our server. Connecting a wallet is only needed to cast.",
-  },
-  {
-    date: "2026-09-25",
-    title:
-      "Tidier page: rows show pool, vote %, veAERO, expected $ and your share of the gauge, with TVL and the floor-vs-forecast split behind ▸. \"Other objectives\", LP yield, vote swings, bribe sim and the accuracy panel are collapsed, and phones get Vote / Pools / More tabs.",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "Your veAERO balance no longer ends up in the address bar. The page used to write its whole state into the URL on load — including your amount, which is restored from your last visit or read from your wallet — so a copied link or a screenshot could hand out your position size. Only settings you actually chose get shared now, and a first visit keeps a clean URL.",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "The hosted Velodrome dashboard is retired, and the protocol switcher with it. Velodrome runs 53 pools to Aerodrome's 276 and pays $1.88 per 10,000 ve against $85.52 — not enough to justify a second site to keep current, and the switcher was sending people to a copy that had quietly stopped updating. Velodrome still works self-hosted via AERO_PROTOCOL=velodrome.",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "New paid endpoint for agents: /api/v1/position takes a wallet address and answers what that wallet's current vote is worth versus the recommended split, in dollars — the same comparison the dashboard shows after you connect, callable without a browser.",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "Connect a wallet and the comparison now opens with the number you actually want: how many pools you're in versus how many this split wants, and the dollar swing for switching. It stays hidden when a pool you hold has no rate to price, rather than quietly flattering the switch.",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "Visual pass: the wordmark picks up the app's own mark, headings and body copy get a real size hierarchy, and cyan is now reserved for things you can click — the epoch bar and the allocation bars no longer borrow the action colour. Amounts under $1,000 keep their cents, so a $0.20 result stops rendering as \"$0.2\".",
-  },
-  {
-    date: "2026-09-24",
-    title:
-      "The dashboard now remembers your veAERO amount between visits instead of resetting to the 10,000 default — a shared ?vp= link still wins. Connecting a wallet says what it gets you, and the flip clock no longer repeats the freshness chip's refresh instruction.",
+      "Aero launch notice: a line under the clock says Aero launches 22 Oct 2026, 00:00 UTC and replaces the weekly vote with continuous allocation by sAERO holders, citing Aero's own FAQ.",
   },
 ];
 
