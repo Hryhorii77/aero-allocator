@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints, isThinLpOpportunity, wholePercentWeights, weightsClipboardText, shareText } from "./page";
+import { usd, toCsv, formatCountdown, isConfidenceClustered, matchesPoolFilter, sparklinePoints, isThinLpOpportunity, wholePercentWeights, weightsClipboardText, shareText, headlineEstimate } from "./page";
 
 describe("usd", () => {
   it("formats amounts under 1000 with up to 2 decimal places", () => {
@@ -247,5 +247,27 @@ describe("shareText", () => {
     // Past the lock there's nothing left to close — say so rather than count a negative.
     expect(shareText(500, 3.2, 1, -1)).toContain("voting closed");
     expect(shareText(500, 3.2, 1, -1)).not.toContain("votes close in");
+  });
+});
+
+describe("headlineEstimate", () => {
+  it("keeps the forecast when it is in line with the realized rate", () => {
+    const h = headlineEstimate([{ votesAllocated: 100_000, rewardPer1kVotesUsd: 1.5 }], 200);
+    expect(h.realizedUsd).toBeCloseTo(150);
+    expect(h.forecastIsUpperBound).toBe(false);
+    expect(h.headlineUsd).toBe(200);
+  });
+
+  it("leads with the realized rate when the forecast is far above it ($11,995 vs $146.82)", () => {
+    const h = headlineEstimate([{ votesAllocated: 100_000, rewardPer1kVotesUsd: 1.4682 }], 11_995);
+    expect(h.forecastIsUpperBound).toBe(true);
+    expect(h.headlineUsd).toBeCloseTo(146.82);
+    expect(h.forecastUsd).toBe(11_995);
+  });
+
+  it("falls back to the forecast when any row has no realized rate", () => {
+    const h = headlineEstimate([{ votesAllocated: 1000, rewardPer1kVotesUsd: 1 }, { votesAllocated: 1000 }], 500);
+    expect(h.realizedUsd).toBeNull();
+    expect(h.headlineUsd).toBe(500);
   });
 });

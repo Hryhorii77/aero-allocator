@@ -276,6 +276,7 @@ export function AddressLookup({
 
 export function VotePanel({
   allocations,
+  sizedForSelection = true,
   onNftSelected,
 }: {
   allocations: Array<{
@@ -286,6 +287,8 @@ export function VotePanel({
     currentVotes?: number;
     votesAllocated?: number;
   }>;
+  /** False once the amount box was edited away from the selected veNFT's own balance. */
+  sizedForSelection?: boolean;
   /** Fired with the veNFT's real voting balance and its current on-chain
    * vote split when the user picks one from the dropdown (or it's
    * auto-selected), so the caller can both re-size the recommendation and
@@ -623,7 +626,13 @@ export function VotePanel({
             </button>
           </p>
         )}
-        {selectedIds.size > 0 && onNftSelected && (
+        {selectedIds.size > 0 && onNftSelected && !sizedForSelection && (
+          <p className="mt-2 text-xs text-amber-400">
+            Weights above are sized for the amount typed in the box, not the selected veNFT’s own voting balance.
+            The percentages still apply, but the dollar figures are for the typed amount.
+          </p>
+        )}
+        {selectedIds.size > 0 && onNftSelected && sizedForSelection && (
           <p className="mt-2 text-xs text-sky-400">
             {selectedIds.size === 1
               ? `Weights above were re-sized for veNFT #${[...selectedIds][0]}’s real voting balance.`

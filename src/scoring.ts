@@ -152,6 +152,7 @@ async function buildSnapshot(): Promise<MarketSnapshot> {
       pool: p.pool,
       history: p.history,
       currentVotes: Math.round(votes),
+      projectedVotes: Math.round(Math.max(votes, lastVotes)),
       predictedFeesUsd: round2(p.predicted),
       lastEpochFeesUsd: round2(last?.feesUsd ?? 0),
       feeTrendUsdPerEpoch: round2(p.trend),
@@ -166,6 +167,11 @@ async function buildSnapshot(): Promise<MarketSnapshot> {
 
   forecasts.sort((a, b) => b.predictedFeesUsd - a.predictedFeesUsd);
   return { generatedAt: Date.now(), forecasts };
+}
+
+/** Dilution base for voter_roi: end-of-epoch votes, not votes cast so far. */
+function dilutionVotes(f: PoolForecast): number {
+  return f.projectedVotes ?? f.currentVotes;
 }
 
 function round2(x: number): number {
@@ -347,7 +353,7 @@ export function recommendAllocation(
     const candidates = voterRoiCandidates(snapshot);
 
     const votes = waterfillCapped(
-      candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: c.f.currentVotes })),
+      candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: dilutionVotes(c.f) })),
       votingPowerVe,
       maxWeightFraction,
     );
@@ -355,7 +361,7 @@ export function recommendAllocation(
     scored = candidates
       .map((c, i) => {
         const v = votes[i];
-        const expected = (c.rewardsUsd * v) / (Math.max(c.f.currentVotes, 1) + v);
+        const expected = (c.rewardsUsd * v) / (Math.max(dilutionVotes(c.f), 1) + v);
         return {
           f: c.f,
           weight: v / votingPowerVe,
@@ -366,7 +372,7 @@ export function recommendAllocation(
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
             `($${Math.round(c.bribeFloorUsd).toLocaleString()} bribe floor + $${Math.round(c.feeForecastUsd).toLocaleString()} fee forecast ` +
-            `pool payout, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes); ` +
+            `pool payout, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes so far, ~${dilutionVotes(c.f).toLocaleString()} projected at close); ` +
             rationaleFor(c.f, "roi"),
         };
       })

@@ -66,6 +66,8 @@ interface AllocationRow {
   predictiveEdgePct: number;
   tvlUsd: number;
   currentVotes: number;
+  /** Last completed epoch's realized (fees + bribes) USD per 1k votes on this pool. */
+  rewardPer1kVotesUsd?: number;
   votesAllocated?: number;
   expectedRewardUsd?: number;
   /** Posted bribes already committed this epoch, USD — a floor, not a forecast (voter_roi only). */
@@ -478,6 +480,35 @@ export function wholePercentWeights<T extends { weightPct: number }>(rows: T[]):
     leftover -= 1;
   }
   return rows.map((r, i) => ({ ...r, wholePct: floors[i] })).filter((r) => r.wholePct > 0);
+}
+
+/** Forecast more than this many times the realized-rate estimate is treated as untrustworthy. */
+export const HEADLINE_FORECAST_CAP_MULTIPLE = 3;
+
+/**
+ * Headline sanity check. The forecast ($ after dilution) can be wildly
+ * optimistic early in the epoch, when few votes are in; the realized-rate
+ * estimate (each pool's last-epoch $/1k x the votes allocated there) can't.
+ * If the forecast exceeds the realized figure by more than a few times, lead
+ * with the realized number and show the forecast only as an upper bound.
+ */
+export function headlineEstimate(
+  rows: Array<{ votesAllocated?: number; rewardPer1kVotesUsd?: number }>,
+  forecastUsd: number,
+): { headlineUsd: number; realizedUsd: number | null; forecastUsd: number; forecastIsUpperBound: boolean } {
+  const priced = rows.filter((r) => r.votesAllocated !== undefined && r.rewardPer1kVotesUsd !== undefined);
+  const realizedUsd =
+    priced.length === rows.length && rows.length > 0
+      ? priced.reduce((s, r) => s + (r.rewardPer1kVotesUsd as number) * ((r.votesAllocated as number) / 1000), 0)
+      : null;
+  const forecastIsUpperBound =
+    realizedUsd !== null && realizedUsd > 0 && forecastUsd > realizedUsd * HEADLINE_FORECAST_CAP_MULTIPLE;
+  return {
+    headlineUsd: forecastIsUpperBound ? (realizedUsd as number) : forecastUsd,
+    realizedUsd,
+    forecastUsd,
+    forecastIsUpperBound,
+  };
 }
 
 export function weightsClipboardText(
@@ -1296,6 +1327,10 @@ export default function Dashboard() {
   // a connected wallet — only changes the badge wording ("from 0x12…ab" vs
   // "from wallet"); everything downstream treats the two the same.
   const [lookedUpAddress, setLookedUpAddress] = useState<string | null>(null);
+  // The voting power the wallet / lookup last reported. The amount box stays
+  // editable, so once it differs the "from wallet" badge and the "re-sized
+  // for veNFT" note would be claiming a balance the sizing no longer uses.
+  const [walletVotingPower, setWalletVotingPower] = useState<number | null>(null);
   // Disconnecting (or the wallet extension's own session lapsing) doesn't
   // unmount anything here, so without this, currentVotes — and the "from
   // wallet" badge / current-vs-recommended panel it drives — would keep
@@ -1318,6 +1353,7 @@ export default function Dashboard() {
     if (isConnected || !wasConnected) return;
     setCurrentVotes(null);
     setLookedUpAddress(null);
+    setWalletVotingPower(null);
     // The veAERO amount itself is also wallet-derived once connected — left
     // at "92" after a real disconnect, it would keep showing a stale
     // balance next to a recommendation split that's no longer anyone's
@@ -1611,6 +1647,7 @@ export default function Dashboard() {
   // row's post-dilution expected reward — recomputed here rather than
   // parsed back out of that sentence.
   const voterTotalExpectedUsd = (voterAlloc?.allocations ?? []).reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
+  const headline = headlineEstimate(voterAlloc?.allocations ?? [], voterTotalExpectedUsd);
 
   // Keyed by lowercased address so on-chain reads (wagmi/viem checksummed)
   // and the server's pool list match regardless of casing. Built from the
@@ -1772,7 +1809,15 @@ export default function Dashboard() {
                     className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-neutral-200 focus:border-sky-600 focus:outline-none"
                   />
                   <span className="text-xs text-neutral-500">{DISPLAY_PRESET.veTokenSymbol}</span>
-                  {currentVotes && (
+                  {currentVotes && walletVotingPower !== null && walletVotingPower !== votingPower && (
+                    <span
+                      className="whitespace-nowrap font-mono text-[10px] text-amber-400"
+                      title="You changed the amount. The split below is sized for the typed amount, not the veNFT's own balance."
+                    >
+                      edited · wallet has {walletVotingPower.toLocaleString()}
+                    </span>
+                  )}
+                  {currentVotes && (walletVotingPower === null || walletVotingPower === votingPower) && (
                     <span
                       className="whitespace-nowrap font-mono text-[10px] text-emerald-400"
                       title={
@@ -1802,6 +1847,7 @@ export default function Dashboard() {
                   // share a view.
                   setVotingPowerIsShareable(false);
                   setCurrentVotes(votes);
+                  setWalletVotingPower(vp);
                   setLookedUpAddress(address);
                   recomputeVoterWithPower(vp);
                 }}
@@ -1824,12 +1870,19 @@ export default function Dashboard() {
                       own post-dilution expected rewards. */}
                   <div className="mb-4 mt-5">
                     <div className="font-mono text-4xl tabular-nums text-emerald-400 sm:text-[40px]">
-                      {usd(voterTotalExpectedUsd)}
+                      {usd(headline.headlineUsd)}
                     </div>
                     <div className="mt-1 text-xs text-neutral-500">
-                      expected next epoch for {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol} — your
-                      voter $, not pool fees
+                      {headline.forecastIsUpperBound ? "at last epoch's payout rate" : "expected next epoch"} for{" "}
+                      {votingPower.toLocaleString()} {DISPLAY_PRESET.veTokenSymbol} — your voter $, not pool fees
                     </div>
+                    {headline.forecastIsUpperBound && (
+                      <div className="mt-1 text-xs text-amber-400">
+                        The forecast says up to {usd(headline.forecastUsd)}, but that is more than{" "}
+                        {HEADLINE_FORECAST_CAP_MULTIPLE}x what these pools actually paid per vote last epoch. Early in
+                        the epoch few votes are in, so the forecast overstates your share. Treat it as a ceiling.
+                      </div>
+                    )}
                     {/* No miss-rate chip ("this split vs 100% into the then-top
                         pool"), on purpose. It was built and run on live data
                         (2026-09-25): the split lost to the single top pool for
@@ -1843,7 +1896,7 @@ export default function Dashboard() {
                     <CopyButton
                       primary
                       label="copy weights"
-                      getText={() => weightsClipboardText(voterAlloc.allocations, votingPower, voterTotalExpectedUsd)}
+                      getText={() => weightsClipboardText(voterAlloc.allocations, votingPower, headline.headlineUsd)}
                     />
                     <a
                       href={`${DISPLAY_PRESET.appUrl}/vote`}
@@ -1858,7 +1911,7 @@ export default function Dashboard() {
                       getText={() =>
                         shareText(
                           votingPower,
-                          voterTotalExpectedUsd,
+                          headline.headlineUsd,
                           voterAlloc.allocations.length,
                           msUntilVoteLock(snapshot.epochStart),
                         )
@@ -1909,6 +1962,7 @@ export default function Dashboard() {
                   )}
                   <VotePanel
                     allocations={voterAlloc.allocations}
+                    sizedForSelection={walletVotingPower === null || walletVotingPower === votingPower}
                     onNftSelected={(vp, votes) => {
                       setVotingPower(vp);
                       saveVotingPower(vp);
@@ -1920,6 +1974,7 @@ export default function Dashboard() {
                       // hands out your position size.
                       setVotingPowerIsShareable(false);
                       setCurrentVotes(votes);
+                      setWalletVotingPower(vp);
                       setLookedUpAddress(null);
                       recomputeVoterWithPower(vp);
                     }}
