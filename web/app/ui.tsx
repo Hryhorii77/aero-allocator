@@ -5,6 +5,9 @@
 // kept distinct from the blue connect button on purpose), amber = caution,
 // neutral = everything else. Emerald/rose otherwise mean positive/negative
 // money only.
+//
+// Corners: rounded-xl for cards and panels, rounded-lg for controls and the
+// callouts nested inside a card.
 
 type Variant = "primary" | "commit" | "secondary" | "warn" | "warnSolid";
 type Size = "sm" | "md";

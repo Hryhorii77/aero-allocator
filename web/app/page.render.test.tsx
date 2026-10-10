@@ -819,8 +819,10 @@ describe("Dashboard", () => {
   it("shows the wallet-connect prompt (not connected by default in tests)", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
-    // Once in the header, once beside Cast — never in the amount row.
-    expect(screen.getAllByRole("button", { name: /connect wallet/i })).toHaveLength(2);
+    // One button, in the header; the copy beside Cast points at it instead
+    // of repeating it, and it is never in the amount row.
+    expect(screen.getAllByRole("button", { name: /connect wallet/i })).toHaveLength(1);
+    expect(screen.getByText(/Connect a wallet \(top right\) to cast/i)).toBeInTheDocument();
   });
 
   it("lets the header's status chips (epoch countdown, snapshot freshness, epoch progress) wrap onto their own lines on narrow viewports", async () => {

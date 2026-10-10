@@ -94,10 +94,10 @@ describe("VotePanel (disconnected)", () => {
 
   it("prompts to connect a wallet rather than showing the vote controls", () => {
     renderWithProviders(<VotePanel allocations={allocations} />);
-    // Connect lives next to the one step that needs it, and says the
-    // numbers don't.
-    expect(screen.getByText(/connect to cast in one tx/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
+    // The panel points at the header's connect button rather than repeating
+    // it, and says the numbers don't need a wallet.
+    expect(screen.getByText(/connect a wallet \(top right\) to cast in one tx/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /connect wallet/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /cast vote/i })).not.toBeInTheDocument();
   });
 
