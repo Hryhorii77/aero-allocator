@@ -486,9 +486,8 @@ export function VotePanel({
             answer "what's my $" without it. Casting is the only step that
             actually needs a wallet. */}
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <ConnectButton />
           <p className="text-xs text-neutral-500">
-            Connect to cast in one tx — not needed to see the numbers above.
+            Connect a wallet (top right) to cast in one tx — not needed to see the numbers above.
           </p>
         </div>
         {noWalletOption}

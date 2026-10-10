@@ -987,9 +987,9 @@ function SnapshotFreshness({ generatedAt, urgent }: { generatedAt: number; urgen
  * bribe sim, forecast accuracy), so it's one tap away instead of a scroll
  * past it. The heading stays a real <h2> inside the summary.
  */
-function CollapsibleSection({ title, children }: { title: ReactNode; children: ReactNode }) {
+function CollapsibleSection({ title, children, id }: { title: ReactNode; children: ReactNode; id?: string }) {
   return (
-    <details className="group rounded-xl border border-neutral-800 px-4 py-3">
+    <details id={id} className="group rounded-xl border border-neutral-800 px-4 py-3">
       <summary className="flex cursor-pointer select-none list-none items-center gap-2 text-neutral-400 hover:text-neutral-200">
         <span className="w-3 text-center text-xs text-neutral-600 transition-transform group-open:rotate-90">▸</span>
         <h2 className="text-sm font-medium uppercase tracking-wider">{title}</h2>
@@ -1680,6 +1680,36 @@ export default function Dashboard() {
         Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
       </p>
       <AeroLaunchNotice />
+      {trackRecord && (
+        <p className="mt-2 text-xs text-neutral-500">
+          Forecast{" "}
+          <span
+            className={
+              trackRecord.overall.skillVsBaselineWapePct >= 0 ? "font-medium text-emerald-400" : "font-medium text-rose-400"
+            }
+          >
+            {Math.abs(trackRecord.overall.skillVsBaselineWapePct).toFixed(1)}%{" "}
+            {trackRecord.overall.skillVsBaselineWapePct >= 0 ? "ahead of" : "behind"}
+          </span>{" "}
+          a repeat of last epoch, across {trackRecord.samplePoints.toLocaleString()} backtested epochs.{" "}
+          <button
+            type="button"
+            className={`underline ${LINK}`}
+            onClick={() => {
+              setMobileTab("more");
+              // Wait a tick so the "more" tab's section is un-hidden first.
+              setTimeout(() => {
+                const el = document.getElementById("forecast-accuracy") as HTMLDetailsElement | null;
+                if (!el) return;
+                el.open = true;
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 0);
+            }}
+          >
+            see how
+          </button>
+        </p>
+      )}
       <div className="mb-8 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-neutral-500">
         {paStatus?.applicable && (
           <>
@@ -1757,7 +1787,13 @@ export default function Dashboard() {
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-medium text-white">
-                  Voter ROI <span className="text-xs font-normal text-neutral-500">dilution-aware split</span>
+                  Voter ROI{" "}
+                  <span
+                    className="text-xs font-normal text-neutral-500"
+                    title="Your own votes lower the reward per vote in a pool, so the split spreads them to where the next vote still earns the most."
+                  >
+                    dilution-aware split
+                  </span>
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -2118,7 +2154,13 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/60 text-left font-mono text-xs text-neutral-500">
                     <th className="px-4 py-2.5">pool</th>
-                    <SortHeader label="predicted fees" sortKey="predictedFeesUsd" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader
+                      label="predicted fees"
+                      sortKey="predictedFeesUsd"
+                      sort={poolSort}
+                      onSort={togglePoolSort}
+                      title="Trading fees we expect this pool to generate next epoch. These are what voters on the pool are paid from."
+                    />
                     {!voteMode && (
                       <SortHeader label="last epoch" sortKey="lastEpochFeesUsd" sort={poolSort} onSort={togglePoolSort} />
                     )}
@@ -2130,9 +2172,27 @@ export default function Dashboard() {
                       title="Slope of a linear regression over trailing epochs, USD per epoch — not simply predicted minus last epoch, so it can point a different direction than that single-epoch comparison."
                     />
                     {!voteMode && <th className="px-4 py-2.5 text-right">votes vs demand</th>}
-                    <SortHeader label="edge" sortKey="edgePct" sort={poolSort} onSort={togglePoolSort} />
-                    <SortHeader label="$/1k votes" sortKey="rewardPer1kVotesUsd" sort={poolSort} onSort={togglePoolSort} />
-                    <SortHeader label="conf" sortKey="confidence" sort={poolSort} onSort={togglePoolSort} />
+                    <SortHeader
+                      label="edge"
+                      sortKey="edgePct"
+                      sort={poolSort}
+                      onSort={togglePoolSort}
+                      title="Predicted share of fee demand minus the pool's current share of votes. Positive means the pool is under-voted for the fees it is likely to earn."
+                    />
+                    <SortHeader
+                      label="$/1k votes"
+                      sortKey="rewardPer1kVotesUsd"
+                      sort={poolSort}
+                      onSort={togglePoolSort}
+                      title="Predicted reward for every 1,000 votes you add to this pool, at today's vote count. It shrinks as more people vote there."
+                    />
+                    <SortHeader
+                      label="conf"
+                      sortKey="confidence"
+                      sort={poolSort}
+                      onSort={togglePoolSort}
+                      title="How reliable the fee forecast is for this pool, from its past forecast error. It says nothing about vote share."
+                    />
                   </tr>
                 </thead>
                 <tbody>
@@ -2628,6 +2688,7 @@ export default function Dashboard() {
           {trackRecord && (
             <section className={`mb-4 sm:block ${onTab("more")}`}>
               <CollapsibleSection
+                id="forecast-accuracy"
                 title={
                   <>
                     Forecast accuracy{" "}
