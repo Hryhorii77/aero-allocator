@@ -7,7 +7,7 @@ const { connectMock, resetMock, state } = vi.hoisted(() => ({
   resetMock: vi.fn(),
   state: {
     isPending: false,
-    connectors: [] as Array<{ uid: string; id: string; name: string; type: string }>,
+    connectors: [] as Array<{ uid: string; id: string; name: string; type: string; icon?: string }>,
   },
 }));
 
@@ -29,7 +29,7 @@ vi.mock("wagmi", () => ({
 import { ConnectButton } from "./wallet";
 
 const generic = { uid: "1", id: "injected", name: "Injected", type: "injected" };
-const rabby = { uid: "2", id: "io.rabby", name: "Rabby Wallet", type: "injected" };
+const rabby = { uid: "2", id: "io.rabby", name: "Rabby Wallet", type: "injected", icon: "data:image/svg+xml;base64,AAAA" };
 const coinbase = { uid: "3", id: "coinbaseWalletSDK", name: "Coinbase Wallet", type: "coinbaseWallet" };
 
 beforeEach(() => {
@@ -37,6 +37,7 @@ beforeEach(() => {
   resetMock.mockClear();
   state.isPending = false;
   state.connectors = [generic, coinbase];
+  localStorage.clear();
 });
 
 describe("ConnectButton (disconnected)", () => {
@@ -66,5 +67,35 @@ describe("ConnectButton (disconnected)", () => {
     await user.click(button);
     expect(resetMock).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Browser Wallet")).toBeInTheDocument();
+  });
+
+  it("groups wallets as Installed (announced by name) and Popular, in a Connect a Wallet dialog", async () => {
+    state.connectors = [generic, rabby, coinbase];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    const dialog = screen.getByRole("dialog", { name: /connect a wallet/i });
+    expect(dialog).toHaveTextContent(/Installed\s*Rabby Wallet/);
+    expect(dialog).toHaveTextContent(/Popular\s*Coinbase Wallet/);
+    expect(dialog.querySelector("img")).not.toBeNull();
+  });
+
+  it("tags the last-used wallet as Recent", async () => {
+    state.connectors = [generic, rabby, coinbase];
+    localStorage.setItem("wagmi.recentConnectorId", JSON.stringify("io.rabby"));
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+  });
+
+  it("connects with the picked wallet and closes the dialog", async () => {
+    state.connectors = [generic, rabby, coinbase];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    await user.click(screen.getByRole("button", { name: /rabby wallet/i }));
+    expect(connectMock).toHaveBeenCalledWith({ connector: rabby });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

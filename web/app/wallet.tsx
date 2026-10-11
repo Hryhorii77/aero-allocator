@@ -25,6 +25,7 @@ import {
 } from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
 import { btn } from "./ui";
+import { WalletModal, readRecentConnectorId } from "./wallet-modal";
 
 interface ProtocolAddresses {
   protocol: Protocol;
@@ -78,7 +79,9 @@ export function ConnectButton() {
         if (e.key === "Escape") setOpen(false);
         return;
       }
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+      // Outside-click closing is for the connected account panel only; the
+      // connect dialog is a portal with its own backdrop.
+      if (isConnected && menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
@@ -86,7 +89,7 @@ export function ConnectButton() {
       document.removeEventListener("mousedown", close);
       document.removeEventListener("keydown", close);
     };
-  }, [open]);
+  }, [open, isConnected]);
 
   if (isConnected && address) {
     // Clicking the address opens an account panel instead of disconnecting
@@ -206,9 +209,17 @@ export function ConnectButton() {
   // announced itself by name (EIP-6963); next to Rabby/MetaMask/Phantom it is
   // a duplicate that opens whichever of them happens to be the default.
   const hasNamedInjected = connectors.some((c) => c.type === "injected" && c.id !== "injected");
-  const walletConnectors = connectors.filter(
-    (c) => !NON_EVM_WALLET_NAME.test(c.name) && !(hasNamedInjected && c.id === "injected"),
-  );
+  const evmConnectors = connectors.filter((c) => !NON_EVM_WALLET_NAME.test(c.name));
+  const toOption = (c: (typeof connectors)[number]) => ({
+    uid: c.uid,
+    id: c.id,
+    name: connectorDisplayName(c.name),
+    icon: c.icon,
+  });
+  const installed = evmConnectors.filter((c) => c.type === "injected" && c.id !== "injected").map(toOption);
+  const popular = evmConnectors
+    .filter((c) => !(c.type === "injected" && c.id !== "injected") && !(hasNamedInjected && c.id === "injected"))
+    .map(toOption);
 
   return (
     <div className="relative" ref={menuRef}>
@@ -231,32 +242,17 @@ export function ConnectButton() {
         {isPending ? "approve in wallet… (cancel)" : "connect wallet"}
       </button>
       {open && (
-        <>
-          <div className="absolute right-0 z-20 mt-2 w-48 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-xl">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs text-neutral-500">connect with</span>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="close"
-                className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
-              >
-                ✕
-              </button>
-            </div>
-            {walletConnectors.map((c) => (
-              <button
-                key={c.uid}
-                onClick={() => {
-                  connect({ connector: c });
-                  setOpen(false);
-                }}
-                className="block w-full rounded px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
-              >
-                {connectorDisplayName(c.name)}
-              </button>
-            ))}
-          </div>
-        </>
+        <WalletModal
+          installed={installed}
+          popular={popular}
+          recentId={readRecentConnectorId()}
+          onClose={() => setOpen(false)}
+          onPick={(uid) => {
+            const c = connectors.find((x) => x.uid === uid);
+            if (c) connect({ connector: c });
+            setOpen(false);
+          }}
+        />
       )}
     </div>
   );
