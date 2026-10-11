@@ -7,6 +7,7 @@ import { DISPLAY_PRESET } from "@/lib/protocol";
 import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/format";
 import { highlightForPool } from "@/lib/highlight";
 import { btn, chip, LINK } from "./ui";
+import { ThemeToggle } from "./theme-toggle";
 
 // Re-exported so existing importers (and the tests) keep working from here.
 export { usd, formatCountdown };
@@ -624,7 +625,7 @@ function Sparkline({ values }: { values: number[] }) {
       <polyline
         points={sparklinePoints(values, SPARKLINE_WIDTH, SPARKLINE_HEIGHT)}
         fill="none"
-        stroke={rising ? "#34d399" : "#fb7185"}
+        className={rising ? "stroke-emerald-400" : "stroke-rose-400"}
         strokeWidth="1.5"
       />
     </svg>
@@ -1664,6 +1665,7 @@ export default function Dashboard() {
             {snapshot && (
               <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
             )}
+            <ThemeToggle />
             <ConnectButton />
           </div>
         </div>
