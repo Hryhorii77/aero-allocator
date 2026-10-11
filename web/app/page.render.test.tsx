@@ -1226,7 +1226,7 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
     const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
     const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
-    expect(new Set(dates)).toEqual(new Set(["2026-10-10", "2026-09-26"]));
+    expect(new Set(dates)).toEqual(new Set(["2026-10-11", "2026-10-10"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {

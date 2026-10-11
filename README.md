@@ -90,15 +90,19 @@ headline, then the pool split that earns it, sized for that amount.
   links there.
 - **Copy share text** puts one tweet-sized line on the clipboard (`10,000 veAERO → ~$85.52 expected next
   epoch · 3 pools · votes close in 5d 13h · aeroallocator.app`), and **share card** opens
-  `/api/share?vp=<amount>`, a 1200×630 PNG of the same figure. The site's own link preview uses that card
+  `/api/share?vp=<amount>` (add `&theme=light` for the light version), a 1200×630 PNG of the same
+  headline figure the page leads with. The site's own link preview uses that card
   at the default amount (`NEXT_PUBLIC_SITE_URL` sets the address for other deployments; without it a
   non-Aerodrome deployment gets no preview image).
 - **Address lookup** reads `VeSugar.byAccount` straight from the browser over the public RPC — the address
   never reaches our server — sums that address's veNFTs, fills the amount, and shows how its current
   votes compare with the recommendation. No wallet connection needed; a failed or empty lookup keeps the
   amount you typed. (The same comparison, callable by agents, is the paid `/api/v1/position`.)
-- **Connect wallet** is only needed to *cast*, and sits next to the cast controls. The header keeps a
-  second connect button.
+- **Connect wallet** is only needed to *cast*. There is one connect button, in the header; the line
+  beside the cast controls points at it. It opens a "Connect a Wallet" dialog (installed wallets first,
+  with icons, then popular ones, last-used tagged Recent), and once connected the address opens an
+  account panel (copy address, explorer link, network, disconnect) instead of disconnecting on click.
+  A wallet on another network turns the button amber with a switch action.
 - Each row shows pool, vote %, veAERO, expected $ and your share of that gauge; TVL, current votes and
   the bribe-floor vs fee-forecast split are behind the row's expand (▸).
 
@@ -113,7 +117,8 @@ a bribe-placement simulator; the forecast-accuracy panel (the same walk-forward 
 `backtest_summary` — see [Forecast accuracy](#forecast-accuracy)); and a changelog. First load builds the
 onchain snapshot (~1 min), then it's cached.
 
-The sticky header carries the vote clock, snapshot age and connect. The mechanism ("weekly gauge voting"),
+The sticky header carries the vote clock, snapshot age, a light/dark toggle (follows the device setting
+until you choose) and connect. The mechanism ("weekly gauge voting"),
 epoch progress and refresh sit under the headline as quiet text. **On phones the page splits into Vote /
 Pools / More tabs**: Vote is the card and its actions, Pools is the hot-pools table, and More holds
 everything collapsed above; desktop keeps the single page.
@@ -439,6 +444,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] First screen answers without a wallet: type an amount or paste an address, copy whole-percent weights that sum to 100, open Aerodrome; connect only to cast. Phone tabs are Vote / Pools / More, and "Other objectives", LP, swings, bribe sim and accuracy are collapsed
 - [x] Read-only address lookup: veNFTs summed via `VeSugar.byAccount` from the browser over the public RPC, filling the amount and the current-vs-recommended comparison (the address never reaches our server)
 - [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
+- [x] Light and dark themes (header toggle, OS default), a wallet dialog and account panel, one shared button/link style, and a footer in the [afterbook.app](https://afterbook.app) layout
 - [x] Vote alerts: hourly check of your split for a pool that took 2x its votes or whose edge flipped, to Discord (opt-in workflow) — see [Vote alerts](#vote-alerts)
 - [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)

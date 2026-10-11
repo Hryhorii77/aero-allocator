@@ -344,6 +344,26 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-11",
+    title:
+      "Light and dark mode: a toggle in the header, following your device setting until you pick one.",
+  },
+  {
+    date: "2026-10-11",
+    title:
+      "Wallet: connecting opens a \"Connect a Wallet\" dialog (installed wallets first, with icons), and your connected address opens an account panel (copy address, explorer link, network, disconnect) instead of disconnecting on click. A wallet on the wrong network is flagged.",
+  },
+  {
+    date: "2026-10-11",
+    title:
+      "The share card now quotes the same number as the page (the real payout rate when the forecast is only a ceiling) and follows light or dark mode.",
+  },
+  {
+    date: "2026-10-11",
+    title:
+      "A forecast-accuracy line under the headline, hover explanations on the table headers, one button and link style throughout, and a new footer.",
+  },
+  {
     date: "2026-10-10",
     title:
       "The expected $ no longer overstates early in the week. It was measured against the few votes cast so far, so 100,000 veAERO could show $12k when last epoch paid about $150. It now uses each pool's last-epoch votes, skips brand-new gauges, and leads with the real payout when the forecast is over 3x it.",
@@ -352,11 +372,6 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
     date: "2026-10-10",
     title:
       "Aero launch notice now follows Aero's Upgrade Hub: weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated, and veAERO must be upgraded to sAERO. This app covers the classic weekly gauge vote until then.",
-  },
-  {
-    date: "2026-09-26",
-    title:
-      "Aero launch notice: a line under the clock says Aero launches 22 Oct 2026, 00:00 UTC and replaces the weekly vote with continuous allocation by sAERO holders, citing Aero's own FAQ.",
   },
 ];
 

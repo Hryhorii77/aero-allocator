@@ -18,11 +18,15 @@ The first load builds the onchain snapshot (up to ~1 minute), then it's cached.
 ## Layout
 
 - `app/page.tsx` — the dashboard (Voter ROI card, hot pools, collapsed panels, phone tabs)
-- `app/wallet.tsx` — connect button, address lookup, and the cast / copy-calldata panel
+- `app/wallet.tsx` — connect button + account panel, address lookup, and the cast / copy-calldata panel
+- `app/wallet-modal.tsx` — the "Connect a Wallet" dialog (portal); `app/site-footer.tsx` — the footer
+- `app/ui.tsx` — shared button, chip and link styles (`btn()`, `chip()`, `LINK`); `app/theme.ts` +
+  `app/theme-toggle.tsx` — light/dark theme (the inline init script is in `layout.tsx`)
 - `app/api/dashboard` — everything the page needs, from one snapshot build
-- `app/api/share` — the 1200×630 share card (`?vp=<amount>`)
+- `app/api/share` — the 1200×630 share card (`?vp=<amount>`, `&theme=light`)
 - `app/api/v1/*` — the paid x402 endpoints (`position`, `forecast`)
-- `lib/` — snapshot caching, formatting (`format.ts`), link-preview metadata (`site.ts`), rate limits
+- `lib/` — snapshot caching, formatting (`format.ts`), the headline estimate shared by the page and the share
+  card (`headline.ts`), link-preview metadata (`site.ts`), rate limits
 
 ## Environment
 
