@@ -65,7 +65,8 @@ describe("ConnectButton", () => {
 
     await open();
     expect(await screen.findByText(/browser wallet/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /outside/i }));
+    // The dialog's backdrop covers the page, so "outside" is the backdrop.
+    await user.pointer({ keys: "[MouseLeft]", target: screen.getByRole("dialog").parentElement as HTMLElement });
     expect(screen.queryByText(/browser wallet/i)).not.toBeInTheDocument();
 
     await open();
