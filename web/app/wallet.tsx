@@ -34,7 +34,7 @@ interface ProtocolAddresses {
 }
 
 /** Fetches the vote/veNFT contract addresses from the server's PRESET (single source of truth). */
-function useProtocolAddresses() {
+export function useProtocolAddresses() {
   return useQuery({
     queryKey: ["protocol-addresses"],
     queryFn: async (): Promise<ProtocolAddresses> => {
