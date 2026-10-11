@@ -63,10 +63,12 @@ function connectorDisplayName(name: string) {
 }
 
 export function ConnectButton() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId, connector } = useAccount();
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -87,14 +89,116 @@ export function ConnectButton() {
   }, [open]);
 
   if (isConnected && address) {
+    // Clicking the address opens an account panel instead of disconnecting
+    // on the spot (an easy mis-tap). Only a known other chain counts as
+    // wrong: chainId is undefined while a connection is settling.
+    const wrongNetwork = chainId !== undefined && chainId !== DISPLAY_PRESET.chain.id;
+    const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+    const explorer = DISPLAY_PRESET.chain.blockExplorers?.default;
+    const copyAddress = async () => {
+      try {
+        await navigator.clipboard.writeText(address);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch {
+        // Clipboard can be blocked; the full address is shown in the panel to select.
+      }
+    };
     return (
-      <button
-        onClick={() => disconnect()}
-        title="disconnect"
-        className="rounded-lg border border-neutral-700 px-3 py-1.5 font-mono text-sm text-neutral-300 hover:border-rose-800 hover:text-rose-300"
-      >
-        {address.slice(0, 6)}…{address.slice(-4)}
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={wrongNetwork ? "wallet, wrong network" : `wallet ${short}`}
+          title="wallet"
+          className={`rounded-lg border px-3 py-1.5 font-mono text-sm ${
+            wrongNetwork
+              ? "border-amber-800 bg-amber-950/40 text-amber-300 hover:border-amber-600"
+              : "border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white"
+          }`}
+        >
+          {wrongNetwork ? "wrong network" : short}
+        </button>
+        {open && (
+          <div
+            role="dialog"
+            aria-label="wallet"
+            className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-neutral-700 bg-neutral-900 p-4 shadow-xl"
+          >
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-xs text-neutral-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                connected wallet
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="close"
+                className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-2 font-mono text-lg text-neutral-100">{short}</div>
+            {connector?.name && <div className="text-xs text-neutral-500">{connectorDisplayName(connector.name)}</div>}
+            <div className="mt-2 break-all font-mono text-[11px] text-neutral-500">{address}</div>
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={copyAddress} className={`flex-1 ${btn("secondary", "sm")}`}>
+                {copied ? "copied" : "copy address"}
+              </button>
+              {explorer && (
+                <a
+                  href={`${explorer.url}/address/${address}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`flex-1 text-center ${btn("secondary", "sm")}`}
+                >
+                  {explorer.name} ↗
+                </a>
+              )}
+            </div>
+            <div className="mt-3 border-t border-neutral-800 pt-3">
+              <div className="text-xs text-neutral-500">network</div>
+              {wrongNetwork ? (
+                <>
+                  <p className="mt-1 text-xs text-amber-300">
+                    Your wallet is on another network. This app votes on {DISPLAY_PRESET.networkName} only.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={switching}
+                    onClick={() => switchChain({ chainId: DISPLAY_PRESET.chain.id })}
+                    className={`mt-2 ${btn("warn", "sm")}`}
+                  >
+                    {switching ? "check your wallet…" : `switch to ${DISPLAY_PRESET.networkName}`}
+                  </button>
+                  {switchError && (
+                    <p className="mt-1 text-xs text-amber-500">Couldn&rsquo;t switch. Change the network in your wallet.</p>
+                  )}
+                </>
+              ) : (
+                <div className="mt-1 flex items-center justify-between rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-200">
+                  <span>{DISPLAY_PRESET.networkName}</span>
+                  <span aria-hidden="true">✓</span>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                disconnect();
+                setOpen(false);
+              }}
+              className="mt-3 flex w-full items-center justify-between border-t border-neutral-800 pt-3 text-sm text-neutral-300 hover:text-rose-300"
+            >
+              <span>disconnect</span>
+              <span className="text-xs text-neutral-500">this site only</span>
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
 
