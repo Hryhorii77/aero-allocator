@@ -8,6 +8,7 @@ import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/forma
 import { highlightForPool } from "@/lib/highlight";
 import { btn, chip, LINK } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
+import { SiteFooter } from "./site-footer";
 import { useTheme } from "./theme";
 import { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate } from "@/lib/headline";
 
@@ -2753,40 +2754,7 @@ export default function Dashboard() {
             <ChangelogPanel />
           </div>
 
-          <footer className="mt-10 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
-            <p className="mb-2">
-              Or skip the UI — ask an agent:{" "}
-              <span className="font-mono text-neutral-400">
-                &quot;recommend a voter_roi allocation for my veAERO&quot;
-              </span>
-              . MCP server (free, self-hosted) or the x402 API (from 5¢/call, no setup) — same tools, same numbers,
-              see{" "}
-              <a
-                href="https://github.com/Hryhorii77/aero-allocator"
-                target="_blank"
-                rel="noreferrer"
-                className={LINK}
-              >
-                the repo
-              </a>
-              .
-            </p>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Live data: {DISPLAY_PRESET.displayName} Sugar contracts on {DISPLAY_PRESET.networkName} + DefiLlama
-                prices · snapshot{" "}
-                {new Date(snapshot.generatedAt).toLocaleTimeString()}
-              </span>
-              <a
-                href="https://github.com/Hryhorii77/aero-allocator"
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-neutral-300"
-              >
-                github.com/Hryhorii77/aero-allocator
-              </a>
-            </div>
-          </footer>
+          <SiteFooter snapshotAt={snapshot.generatedAt} />
         </>
       )}
     </main>
