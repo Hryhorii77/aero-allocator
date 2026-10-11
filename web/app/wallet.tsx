@@ -64,7 +64,7 @@ function connectorDisplayName(name: string) {
 
 export function ConnectButton() {
   const { address, isConnected, chainId, connector } = useAccount();
-  const { connectors, connect, isPending } = useConnect();
+  const { connectors, connect, isPending, reset } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
   const [open, setOpen] = useState(false);
@@ -202,20 +202,36 @@ export function ConnectButton() {
     );
   }
 
-  const walletConnectors = connectors.filter((c) => !NON_EVM_WALLET_NAME.test(c.name));
+  // The generic "Browser Wallet" (injected) entry only matters when no wallet
+  // announced itself by name (EIP-6963); next to Rabby/MetaMask/Phantom it is
+  // a duplicate that opens whichever of them happens to be the default.
+  const hasNamedInjected = connectors.some((c) => c.type === "injected" && c.id !== "injected");
+  const walletConnectors = connectors.filter(
+    (c) => !NON_EVM_WALLET_NAME.test(c.name) && !(hasNamedInjected && c.id === "injected"),
+  );
 
   return (
     <div className="relative" ref={menuRef}>
+      {/* A wallet extension's popup closes when you click elsewhere, but the
+          request stays pending in the wallet — so the button must not lock
+          until it resolves. While waiting, clicking it cancels and returns
+          to the list. */}
       <button
-        onClick={() => setOpen((v) => !v)}
-        disabled={isPending}
+        onClick={() => {
+          if (isPending) {
+            reset();
+            setOpen(true);
+          } else {
+            setOpen((v) => !v);
+          }
+        }}
+        title={isPending ? "Approve in your wallet, or click to cancel and pick again" : undefined}
         className={btn("primary")}
       >
-        {isPending ? "connecting…" : "connect wallet"}
+        {isPending ? "approve in wallet… (cancel)" : "connect wallet"}
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10 bg-black/40" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="absolute right-0 z-20 mt-2 w-48 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-xl">
             <div className="flex items-center justify-between px-2 py-1">
               <span className="text-xs text-neutral-500">connect with</span>
