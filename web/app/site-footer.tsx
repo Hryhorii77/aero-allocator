@@ -7,8 +7,6 @@ import { useProtocolAddresses } from "./wallet";
 const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
 const X_URL = "https://x.com/hryhorii77";
 
-const footerLink = "text-neutral-400 hover:text-neutral-100 hover:underline";
-
 /** Brand, links and the fine print. Same layout as afterbook.app's footer: brand + tagline +
  * links on the left, onchain links on the right, a ruled legal block, then a one-line meta row. */
 export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
@@ -26,13 +24,13 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
             {displayName}.
           </p>
           <div className="flex flex-wrap gap-x-4">
-            <a href={X_URL} target="_blank" rel="noreferrer" className={footerLink}>
+            <a href={X_URL} target="_blank" rel="noreferrer" className={LINK}>
               X
             </a>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className={footerLink}>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className={LINK}>
               GitHub
             </a>
-            <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" className={footerLink}>
+            <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" className={LINK}>
               README
             </a>
           </div>
@@ -44,12 +42,12 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
               href={`${explorer.url}/address/${addresses.voterAddress}`}
               target="_blank"
               rel="noreferrer"
-              className={footerLink}
+              className={LINK}
             >
               Voter contract ↗
             </a>
           )}
-          <a href={`${DISPLAY_PRESET.appUrl}/vote`} target="_blank" rel="noreferrer" className={footerLink}>
+          <a href={`${DISPLAY_PRESET.appUrl}/vote`} target="_blank" rel="noreferrer" className={LINK}>
             {displayName} ↗
           </a>
         </div>
@@ -64,7 +62,7 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
           Or skip the UI and ask an agent:{" "}
           <span className="font-mono text-neutral-400">&quot;recommend a voter_roi allocation for my {veTokenSymbol}&quot;</span>
           . MCP server (free, self-hosted) or the x402 API (from 5¢/call, no setup), same tools and same numbers; see{" "}
-          <a href={REPO_URL} target="_blank" rel="noreferrer" className={`${LINK} font-semibold underline underline-offset-2`}>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" className={LINK}>
             the repo
           </a>
           .

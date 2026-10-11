@@ -38,4 +38,5 @@ export function chip(active: boolean): string {
   }`;
 }
 
-export const LINK = "text-sky-400 hover:text-sky-300";
+/** Every text link: sky, underlined on hover. (Pool names in the tables are row labels, not links in this sense.) */
+export const LINK = "text-sky-400 underline-offset-2 hover:text-sky-300 hover:underline";

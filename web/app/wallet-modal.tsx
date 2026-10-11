@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LINK } from "./ui";
 
 export interface WalletOption {
   uid: string;
@@ -150,7 +151,7 @@ export function WalletModal({ installed, popular, recentId, onPick, onClose }: P
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-neutral-800 pt-3 text-xs text-neutral-500">
           <span>New to Ethereum wallets?</span>
-          <a href={LEARN_MORE_URL} target="_blank" rel="noreferrer" className="font-semibold text-sky-400 hover:text-sky-300">
+          <a href={LEARN_MORE_URL} target="_blank" rel="noreferrer" className={LINK}>
             Learn More
           </a>
         </div>
