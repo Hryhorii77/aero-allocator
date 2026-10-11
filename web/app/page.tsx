@@ -8,6 +8,11 @@ import { usd, formatCountdown, msUntilVoteLock, VOTE_LOCK_MS } from "@/lib/forma
 import { highlightForPool } from "@/lib/highlight";
 import { btn, chip, LINK } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
+import { useTheme } from "./theme";
+import { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate } from "@/lib/headline";
+
+// Re-exported so existing imports of these from the page keep working.
+export { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate };
 
 // Re-exported so existing importers (and the tests) keep working from here.
 export { usd, formatCountdown };
@@ -451,33 +456,7 @@ export function wholePercentWeights<T extends { weightPct: number }>(rows: T[]):
 }
 
 /** Forecast more than this many times the realized-rate estimate is treated as untrustworthy. */
-export const HEADLINE_FORECAST_CAP_MULTIPLE = 3;
 
-/**
- * Headline sanity check. The forecast ($ after dilution) can be wildly
- * optimistic early in the epoch, when few votes are in; the realized-rate
- * estimate (each pool's last-epoch $/1k x the votes allocated there) can't.
- * If the forecast exceeds the realized figure by more than a few times, lead
- * with the realized number and show the forecast only as an upper bound.
- */
-export function headlineEstimate(
-  rows: Array<{ votesAllocated?: number; rewardPer1kVotesUsd?: number }>,
-  forecastUsd: number,
-): { headlineUsd: number; realizedUsd: number | null; forecastUsd: number; forecastIsUpperBound: boolean } {
-  const priced = rows.filter((r) => r.votesAllocated !== undefined && r.rewardPer1kVotesUsd !== undefined);
-  const realizedUsd =
-    priced.length === rows.length && rows.length > 0
-      ? priced.reduce((s, r) => s + (r.rewardPer1kVotesUsd as number) * ((r.votesAllocated as number) / 1000), 0)
-      : null;
-  const forecastIsUpperBound =
-    realizedUsd !== null && realizedUsd > 0 && forecastUsd > realizedUsd * HEADLINE_FORECAST_CAP_MULTIPLE;
-  return {
-    headlineUsd: forecastIsUpperBound ? (realizedUsd as number) : forecastUsd,
-    realizedUsd,
-    forecastUsd,
-    forecastIsUpperBound,
-  };
-}
 
 export function weightsClipboardText(
   rows: Array<{ symbol: string; weightPct: number }>,
@@ -1622,6 +1601,7 @@ export default function Dashboard() {
   // parsed back out of that sentence.
   const voterTotalExpectedUsd = (voterAlloc?.allocations ?? []).reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
   const headline = headlineEstimate(voterAlloc?.allocations ?? [], voterTotalExpectedUsd);
+  const theme = useTheme();
 
   // Keyed by lowercased address so on-chain reads (wagmi/viem checksummed)
   // and the server's pool list match regardless of casing. Built from the
@@ -1929,7 +1909,7 @@ export default function Dashboard() {
                       }
                     />
                     <a
-                      href={`/api/share?vp=${votingPower}`}
+                      href={`/api/share?vp=${votingPower}${theme === "light" ? "&theme=light" : ""}`}
                       target="_blank"
                       rel="noreferrer"
                       className={btn()}
