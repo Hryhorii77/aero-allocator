@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { siteMetadata } from "@/lib/site";
+import { THEME_INIT_SCRIPT } from "./theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,12 +17,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = siteMetadata();
 
-// This UI is always dark — declaring that explicitly (also set as a CSS
-// property in globals.css) stops some mobile browsers from applying their
-// own forced-dark heuristics on top of it, which otherwise washes out the
-// colors instead of leaving them alone.
+// Dark is the default and light is opt-in (saved choice, else the OS setting;
+// the init script in <head> applies it before first paint). colorScheme lets
+// the browser's native UI follow whichever theme is active, and themeColor
+// matches the mobile browser chrome to the page background.
 export const viewport: Viewport = {
-  colorScheme: "dark",
+  colorScheme: "dark light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
@@ -33,7 +38,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // The init script sets data-theme on <html> before React hydrates.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-200">
         <Providers>{children}</Providers>
       </body>
