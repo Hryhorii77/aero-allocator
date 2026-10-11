@@ -410,7 +410,7 @@ export function ChangelogPanel() {
           href="https://github.com/Hryhorii77/aero-allocator/commits/main"
           target="_blank"
           rel="noreferrer"
-          className="text-sky-400 hover:underline"
+          className={LINK}
         >
           commit history
         </a>

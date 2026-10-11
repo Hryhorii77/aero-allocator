@@ -24,7 +24,7 @@ import {
   buildMulticallVoteArgs,
 } from "@/lib/voter";
 import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
-import { btn } from "./ui";
+import { btn, LINK } from "./ui";
 import { WalletModal, readRecentConnectorId } from "./wallet-modal";
 
 interface ProtocolAddresses {
@@ -694,7 +694,7 @@ export function VotePanel({
               href={`${DISPLAY_PRESET.chain.blockExplorers?.default.url}/tx/${txHash}`}
               target="_blank"
               rel="noreferrer"
-              className={`font-mono text-xs ${confirmed ? "text-emerald-400" : "text-neutral-400"} hover:underline`}
+              className={`font-mono text-xs ${confirmed ? "text-emerald-400 hover:underline" : LINK}`}
             >
               {confirmed ? "✓ voted" : "tx"} {txHash.slice(0, 10)}…
             </a>
