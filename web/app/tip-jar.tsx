@@ -11,6 +11,15 @@ export const TIP_ADDRESS = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae" as const
 /** Native USDC on Base (6 decimals). */
 export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 export const TIP_AMOUNTS_USD = [1, 5, 20] as const;
+const MAX_TIP_USD = 100_000;
+
+/** A typed amount in USD as a plain decimal with at most 6 places (USDC's precision), or null. */
+export function parseTipAmount(text: string): string | null {
+  const t = text.trim().replace(/^\$/, "");
+  if (!/^\d+(\.\d{1,6})?$/.test(t)) return null;
+  const n = Number(t);
+  return n > 0 && n <= MAX_TIP_USD ? t : null;
+}
 
 /**
  * A quiet "tip" button. It opens a small panel with the address to copy and,
@@ -21,6 +30,7 @@ export const TIP_AMOUNTS_USD = [1, 5, 20] as const;
 export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [custom, setCustom] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
   const { isConnected, chainId } = useAccount();
   const { switchChain, isPending: switching } = useSwitchChain();
@@ -53,7 +63,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
     }
   };
 
-  const send = (usd: number) =>
+  const send = (usd: number | string) =>
     writeContract({
       address: BASE_USDC,
       abi: erc20Abi,
@@ -62,6 +72,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
       chainId: base.id,
     });
 
+  const customAmount = parseTipAmount(custom);
   const onBase = chainId === base.id;
   const rejected = error && /reject|denied/i.test(error.message);
 
@@ -133,6 +144,32 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
                       </button>
                     ))}
                   </div>
+                  <form
+                    className="mt-2 flex gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!customAmount) return;
+                      reset();
+                      send(customAmount);
+                    }}
+                  >
+                    <input
+                      value={custom}
+                      onChange={(e) => setCustom(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="other amount, $"
+                      aria-label="custom tip amount in USD"
+                      className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-transparent px-2.5 py-1 text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+                    />
+                    <button type="submit" disabled={signing || !customAmount} className={btn("secondary", "sm")}>
+                      send
+                    </button>
+                  </form>
+                  {custom.trim() !== "" && !customAmount && (
+                    <p className="mt-1 text-xs text-amber-500">
+                      Enter an amount up to ${MAX_TIP_USD.toLocaleString("en-US")}, like 2.50.
+                    </p>
+                  )}
                   {signing && <p className="mt-2 text-xs text-neutral-400">approve in your wallet…</p>}
                   {hash && !confirmed && <p className="mt-2 text-xs text-neutral-400">sent, confirming…</p>}
                   {confirmed && hash && (
