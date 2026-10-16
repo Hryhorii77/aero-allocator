@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { base } from "wagmi/chains";
 import { erc20Abi, parseUnits } from "viem";
+import { DISPLAY_PRESET } from "@/lib/protocol";
 import { btn, LINK } from "./ui";
 
 /** Where tips go: a plain wallet on Base, public by design. */
@@ -123,7 +124,8 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
               basescan ↗
             </a>
           </div>
-          {isConnected && (
+          {/* Sending needs Base configured in wagmi; the Velodrome build only has Optimism. */}
+          {isConnected && DISPLAY_PRESET.chain.id === base.id && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
               {onBase ? (
                 <>

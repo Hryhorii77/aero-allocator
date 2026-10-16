@@ -29,6 +29,9 @@ interface ProtocolDisplay {
   networkName: string;
   chain: Chain;
   defaultRpcUrl: string;
+  /** Second public RPC. publicnode refuses eth_getTransactionReceipt without a token, so receipt
+   * lookups (tx confirmation) need somewhere else to go. */
+  fallbackRpcUrl: string;
   /** Base URL of the protocol's own app — its /vote and /liquidity pages both
    * accept `?query=<pool address>` and pre-filter to that exact pool
    * (confirmed live against aerodrome.finance; velodrome.finance is the
@@ -45,6 +48,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
     networkName: "Base",
     chain: base,
     defaultRpcUrl: "https://base-rpc.publicnode.com",
+    fallbackRpcUrl: "https://mainnet.base.org",
     appUrl: "https://aerodrome.finance",
   },
   velodrome: {
@@ -55,6 +59,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
     networkName: "Optimism",
     chain: optimism,
     defaultRpcUrl: "https://mainnet.optimism.io",
+    fallbackRpcUrl: "https://optimism.publicnode.com",
     appUrl: "https://velodrome.finance",
   },
 };
