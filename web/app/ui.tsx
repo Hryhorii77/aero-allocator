@@ -8,7 +8,7 @@
 // Corners: rounded-xl for cards and panels, rounded-lg for controls and the
 // callouts nested inside a card.
 
-type Variant = "primary" | "secondary" | "warn" | "warnSolid";
+type Variant = "primary" | "secondary" | "accent" | "warn" | "warnSolid";
 type Size = "sm" | "md";
 
 const BASE = "rounded-lg disabled:opacity-40";
@@ -16,6 +16,8 @@ const BASE = "rounded-lg disabled:opacity-40";
 const VARIANT: Record<Variant, string> = {
   primary: "border border-transparent bg-[var(--primary-bg)] text-[var(--primary-text)] hover:bg-[var(--primary-bg-hover)]",
   secondary: "border border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white",
+  // Soft sky: stands out from the neutral row without competing with the filled primary.
+  accent: "border border-sky-800 bg-sky-950/30 text-sky-300 hover:border-sky-600 hover:text-sky-200",
   warn: "border border-amber-800 bg-amber-950/40 text-amber-300 hover:border-amber-600",
   warnSolid: "border border-transparent bg-amber-700 text-white hover:bg-amber-600",
 };

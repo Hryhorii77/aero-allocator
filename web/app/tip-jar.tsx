@@ -84,9 +84,9 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className={btn("secondary")}
+        className={btn("accent")}
       >
-        ♥ tip
+        ♥ leave a tip
       </button>
       {open && (
         <div
@@ -98,7 +98,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
         >
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm text-neutral-200">
-              The app is free and stays free. If it helped your vote, a tip keeps it running.
+              Thanks for using the app. It&rsquo;s free and stays free; a tip of any size keeps it running.
             </p>
             <button
               type="button"
@@ -124,6 +124,11 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
               basescan ↗
             </a>
           </div>
+          {!isConnected && DISPLAY_PRESET.chain.id === base.id && (
+            <p className="mt-3 border-t border-neutral-800 pt-3 text-xs text-neutral-500">
+              Connect a wallet (top right) to send in one tap.
+            </p>
+          )}
           {/* Sending needs Base configured in wagmi; the Velodrome build only has Optimism. */}
           {isConnected && DISPLAY_PRESET.chain.id === base.id && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
