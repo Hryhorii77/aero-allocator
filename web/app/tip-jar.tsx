@@ -35,7 +35,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
   const { isConnected, chainId } = useAccount();
   const { switchChain, isPending: switching } = useSwitchChain();
   const { writeContract, data: hash, isPending: signing, error, reset } = useWriteContract();
-  const { isSuccess: confirmed } = useWaitForTransactionReceipt({ hash });
+  const { isSuccess: confirmed, isError: receiptFailed } = useWaitForTransactionReceipt({ hash, chainId: base.id });
 
   useEffect(() => {
     if (!open) return;
@@ -171,10 +171,9 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
                     </p>
                   )}
                   {signing && <p className="mt-2 text-xs text-neutral-400">approve in your wallet…</p>}
-                  {hash && !confirmed && <p className="mt-2 text-xs text-neutral-400">sent, confirming…</p>}
-                  {confirmed && hash && (
-                    <p className="mt-2 text-xs text-emerald-400">
-                      thank you!{" "}
+                  {hash && (
+                    <p className={`mt-2 text-xs ${confirmed ? "text-emerald-400" : "text-neutral-400"}`}>
+                      {confirmed ? "thank you!" : receiptFailed ? "sent. Check the link for status." : "sent, confirming…"}{" "}
                       <a href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noreferrer" className={LINK}>
                         view tx ↗
                       </a>
