@@ -19,7 +19,7 @@ The first load builds the onchain snapshot (up to ~1 minute), then it's cached.
 
 - `app/page.tsx` — the dashboard (Voter ROI card, hot pools, collapsed panels, phone tabs)
 - `app/wallet.tsx` — connect button + account panel, address lookup, and the cast / copy-calldata panel
-- `app/wallet-modal.tsx` — the "Connect a Wallet" dialog (portal); `app/site-footer.tsx` — the footer
+- `app/wallet-modal.tsx` — the "Connect a Wallet" dialog (portal); `app/site-footer.tsx` — the footer; `app/tip-jar.tsx` — the optional USDC-on-Base tip button
 - `app/ui.tsx` — shared button, chip and link styles (`btn()`, `chip()`, `LINK`); `app/theme.ts` +
   `app/theme-toggle.tsx` — light/dark theme (the inline init script is in `layout.tsx`)
 - `app/api/dashboard` — everything the page needs, from one snapshot build

@@ -2,6 +2,7 @@
 
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { LINK } from "./ui";
+import { TipJar } from "./tip-jar";
 import { useProtocolAddresses } from "./wallet";
 
 const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
@@ -33,6 +34,9 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
             <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" className={LINK}>
               README
             </a>
+          </div>
+          <div className="mt-3">
+            <TipJar placement="up" />
           </div>
         </div>
         <div className="flex flex-col gap-1.5 sm:text-right">

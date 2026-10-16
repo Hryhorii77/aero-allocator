@@ -445,6 +445,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Read-only address lookup: veNFTs summed via `VeSugar.byAccount` from the browser over the public RPC, filling the amount and the current-vs-recommended comparison (the address never reaches our server)
 - [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
 - [x] Light and dark themes (header toggle, OS default), a wallet dialog and account panel, one shared button/link style, and a footer in the [afterbook.app](https://afterbook.app) layout
+- [x] Optional tip button (USDC on Base, copy address or send from a connected wallet) and cookie-free Vercel Web Analytics, to judge usage before building any paid dashboard features
 - [x] Vote alerts: hourly check of your split for a pool that took 2x its votes or whose edge flipped, to Discord (opt-in workflow) — see [Vote alerts](#vote-alerts)
 - [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)

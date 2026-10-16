@@ -9,6 +9,7 @@ import { highlightForPool } from "@/lib/highlight";
 import { btn, chip, LINK } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { SiteFooter } from "./site-footer";
+import { TipJar } from "./tip-jar";
 import { useTheme } from "./theme";
 import { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate } from "@/lib/headline";
 
@@ -344,6 +345,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-16",
+    title:
+      "A \"tip\" button (USDC on Base) next to the share actions and in the footer. The app stays free; the button is optional.",
+  },
+  {
     date: "2026-10-11",
     title:
       "Light and dark mode: a toggle in the header, following your device setting until you pick one.",
@@ -362,16 +368,6 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
     date: "2026-10-11",
     title:
       "A forecast-accuracy line under the headline, hover explanations on the table headers, one button and link style throughout, and a new footer.",
-  },
-  {
-    date: "2026-10-10",
-    title:
-      "The expected $ no longer overstates early in the week. It was measured against the few votes cast so far, so 100,000 veAERO could show $12k when last epoch paid about $150. It now uses each pool's last-epoch votes, skips brand-new gauges, and leads with the real payout when the forecast is over 3x it.",
-  },
-  {
-    date: "2026-10-10",
-    title:
-      "Aero launch notice now follows Aero's Upgrade Hub: weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated, and veAERO must be upgraded to sAERO. This app covers the classic weekly gauge vote until then.",
   },
 ];
 
@@ -1932,6 +1928,7 @@ export default function Dashboard() {
                     >
                       share card ↗
                     </a>
+                    <TipJar />
                     <span className="text-xs text-neutral-600">
                       whole percentages, summing to 100 — cast or copy calldata below
                     </span>

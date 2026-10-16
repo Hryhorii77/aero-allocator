@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "./providers";
 import { siteMetadata } from "@/lib/site";
 import { THEME_INIT_SCRIPT } from "./theme";
@@ -46,6 +47,8 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-200">
         <Providers>{children}</Providers>
+        {/* Cookie-free page-view counts, so usage can be judged after the Aero upgrade. */}
+        <Analytics />
       </body>
     </html>
   );
