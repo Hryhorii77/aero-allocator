@@ -14,10 +14,10 @@ type Size = "sm" | "md";
 const BASE = "rounded-lg disabled:opacity-40";
 
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-[var(--primary-bg)] text-[var(--primary-text)] hover:bg-[var(--primary-bg-hover)]",
+  primary: "border border-transparent bg-[var(--primary-bg)] text-[var(--primary-text)] hover:bg-[var(--primary-bg-hover)]",
   secondary: "border border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white",
   warn: "border border-amber-800 bg-amber-950/40 text-amber-300 hover:border-amber-600",
-  warnSolid: "bg-amber-700 text-white hover:bg-amber-600",
+  warnSolid: "border border-transparent bg-amber-700 text-white hover:bg-amber-600",
 };
 
 const SIZE: Record<Size, string> = {
