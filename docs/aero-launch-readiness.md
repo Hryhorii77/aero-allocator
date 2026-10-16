@@ -64,6 +64,32 @@ Consequences: the decision test below ("does the old Voter still accept `vote()`
 resolves to **hard cutover**, so plan the rebuild; the launch notice now states the
 Oct 21 22:59 UTC close.
 
+## Update 2026-10-16: second read of the Upgrade Hub
+
+Source: [Aero Upgrade Hub](https://aero.xyz/aero-upgrade/) (page summary again;
+the page shows no "last updated" date).
+
+- **Cooldown is 47 hours** per sAERO position at launch ("subject to change, with
+  notice"), not the FAQ's "minimum of 48". Autopilot is under the same cooldown;
+  positions deposited before its first allocation (Oct 22, 16:00 UTC) earn nothing
+  until then.
+- **Addresses:** deployed before Oct 21 and sent to partners; public on the Aero
+  GitHub repos and a docs security page "before the migration opens at 00:01 UTC on
+  October 22nd" (the portal timeline says 00:00 UTC, so the order is unconfirmed).
+  Still nothing to build against.
+- **Upgrade rules for voters:** a veNFT with active votes cannot be upgraded (the flow
+  has a vote-reset step); rewards and rebases must be claimed first and are
+  unrecoverable afterwards; the veNFT id is retired and a new sAERO position is made;
+  veNFTs must be out of Relays/vaults by Oct 20; merging sAERO is allowed at launch,
+  splitting is not. The launch notice now tells voters to claim and reset.
+- **Gauges:** all old gauges deactivate at launch; new ones activate within the first
+  hour. Aero incentives stream continuously, deposits open from launch. The incentive
+  deposit deadline is stated two ways on the page (before the second-to-last voting
+  epoch vs before the Oct 15 epoch flip): unconfirmed.
+- **One allocation, many chains:** a single sAERO NFT can allocate to pools on any Aero
+  chain in one transaction, gas paid on Base only.
+- Still unpublished: contract addresses/ABIs/read path for Predictive Allocation.
+
 ## What this means for this repo
 
 | Area | Today | Likely to break because |
@@ -72,7 +98,7 @@ Oct 21 22:59 UTC close.
 | "Copy weights" (whole % summing to 100) | typed into Aerodrome's vote screen | allocation UI/semantics change; percentages may not be the unit |
 | `src/adapters/predictive-allocation.ts` | one configured function, positional args from pool + weight | published shape is struct arrays + payable value; **not** an env-var-only change |
 | `src/data.ts`, `src/lockers.ts`, `src/abi.ts` | VeSugar / RewardsSugar / LpSugar reads, per-epoch history | no Sugar in the new repos; history is epoch-based, allocation is streaming |
-| `src/scoring.ts` (`R·v/(E+v)`, water-fill, 35% cap) | pays out per weekly epoch from fees+bribes over votes | streaming rewards, 48h windows and gauge caps change the payout model |
+| `src/scoring.ts` (`R·v/(E+v)`, water-fill, 35% cap) | pays out per weekly epoch from fees+bribes over votes | streaming rewards, 47-48h windows and gauge caps change the payout model |
 | `src/config.ts` PRESET / one protocol+chain per deployment | Base (Aerodrome), Optimism (Velodrome) | seven chains; a cross-chain snapshot is a new project |
 | header clock, "votes close in", `epoch-reminder`, `vote-alerts` | weekly lock one hour before the flip | no weekly epoch to count to |
 | `/api/v1/position`, `/api/v1/bribe-target`, MCP tools | veNFT locks and gauge votes | inputs and meaning change |
@@ -87,7 +113,7 @@ dollar-first framing, the read-only lookup, the share card, the x402 shell.
 2. **Migration guidance for veNFT holders**: is there a transition where the old
    `Voter.vote()` still works, or a hard cutover at launch? This decides everything below.
 3. **The allocation ABI as deployed** (compare with the source above), the
-   sAERO position model, the 48h window, and how gas/`value` is quoted.
+   sAERO position model, the 47h cooldown, and how gas/`value` is quoted.
 4. **A read path**: SDK, subgraph or reader contracts. Without one, forecasting
    needs its own indexer of gauge fee streams.
 5. **How incentives stream** and how gauge caps are set (governance, fixed, dynamic).

@@ -396,7 +396,8 @@ export function AeroLaunchNotice() {
         Aero&rsquo;s Upgrade Hub
       </a>
       , weekly voting closes 21 Oct, 22:59 UTC, the old gauges are then deactivated and veAERO must be upgraded to
-      sAERO. This app covers the classic weekly gauge vote until then.
+      sAERO. Before upgrading, claim your rewards and rebases (unclaimed ones can&rsquo;t be recovered) and reset your
+      votes. This app covers the classic weekly gauge vote until then.
     </p>
   );
 }
