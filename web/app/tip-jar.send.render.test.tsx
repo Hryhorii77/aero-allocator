@@ -8,7 +8,7 @@ const { writeContract } = vi.hoisted(() => ({ writeContract: vi.fn() }));
 vi.mock("wagmi", () => ({
   useAccount: () => ({ isConnected: true, chainId: 8453 }),
   useSwitchChain: () => ({ switchChain: vi.fn(), isPending: false }),
-  useWaitForTransactionReceipt: () => ({ isSuccess: false }),
+  useWaitForTransactionReceipt: () => ({ isSuccess: false, isError: false }),
   useWriteContract: () => ({ writeContract, data: undefined, isPending: false, error: null, reset: vi.fn() }),
 }));
 
