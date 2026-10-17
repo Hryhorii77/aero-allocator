@@ -59,11 +59,6 @@ export function useProtocolAddresses() {
 // shows wallets a Base user would actually pick.
 const NON_EVM_WALLET_NAME = /\b(plug|keplr|leap|cosmostation|station|temple|tronlink|martian|petra|sui wallet)\b/i;
 
-/** Opens `url` inside the Coinbase Wallet app's built-in browser (iOS and Android). */
-export function coinbaseWalletDappLink(url: string): string {
-  return `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(url)}`;
-}
-
 function connectorDisplayName(name: string) {
   if (name === "Injected") return "Browser Wallet";
   // WalletConnect's window is a search over hundreds of wallets, not one wallet.
@@ -80,12 +75,10 @@ export function ConnectButton() {
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // A phone's normal browser has no extensions, so "Browser Wallet" can never connect there. The
-  // list is trimmed to what works: Coinbase Wallet (opens this page in the Coinbase Wallet app's browser) and "Other wallets", which
-  // opens WalletConnect's own wallet window (search, tap, approve in the app, come back).
-  // WalletConnect's directory does not find Coinbase Wallet on a phone, hence the separate entry.
-  // Not applied inside a wallet app's own browser, which injects a provider. Read after mount so
-  // server and client HTML agree.
+  // A phone's normal browser has no extensions, so the list (Browser Wallet, Coinbase's SDK popup)
+  // can't connect there. With WalletConnect configured, "connect wallet" opens WalletConnect's own
+  // wallet window directly: search, pick, approve in the app, come back. Not applied inside a wallet
+  // app's own browser, which injects a provider. Read after mount so server and client HTML agree.
   const [noExtensions, setNoExtensions] = useState(false);
   useEffect(() => {
     setNoExtensions(
@@ -231,6 +224,7 @@ export function ConnectButton() {
   // a duplicate that opens whichever of them happens to be the default.
   const hasNamedInjected = connectors.some((c) => c.type === "injected" && c.id !== "injected");
   const evmConnectors = connectors.filter((c) => !NON_EVM_WALLET_NAME.test(c.name));
+  const walletConnectConnector = connectors.find((c) => c.type === "walletConnect");
   const toOption = (c: (typeof connectors)[number]) => ({
     uid: c.uid,
     id: c.id,
@@ -255,8 +249,10 @@ export function ConnectButton() {
           to the list. */}
       <button
         onClick={() => {
-          if (isPending) {
-            reset();
+          if (isPending) reset();
+          if (walletConnectConnector && noExtensions) {
+            connect({ connector: walletConnectConnector });
+          } else if (isPending) {
             setOpen(true);
           } else {
             setOpen((v) => !v);
@@ -275,15 +271,7 @@ export function ConnectButton() {
           onClose={() => setOpen(false)}
           onPick={(uid) => {
             const c = connectors.find((x) => x.uid === uid);
-            if (c && noExtensions && c.type === "coinbaseWallet") {
-              // Coinbase's SDK connector did nothing useful on a phone (the app opened to its
-              // home screen with no approval prompt). Coinbase's documented dapp link reopens
-              // this page inside the Coinbase Wallet app's own browser instead, where the wallet
-              // is injected and the normal connect flow works.
-              window.location.assign(coinbaseWalletDappLink(window.location.href));
-            } else if (c) {
-              connect({ connector: c });
-            }
+            if (c) connect({ connector: c });
             setOpen(false);
           }}
         />
