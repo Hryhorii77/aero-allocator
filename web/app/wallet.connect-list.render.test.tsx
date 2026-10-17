@@ -26,7 +26,7 @@ vi.mock("wagmi", () => ({
   useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
 }));
 
-import { ConnectButton, coinbaseWalletDappLink } from "./wallet";
+import { ConnectButton } from "./wallet";
 
 const generic = { uid: "1", id: "injected", name: "Injected", type: "injected" };
 const rabby = { uid: "2", id: "io.rabby", name: "Rabby Wallet", type: "injected", icon: "data:image/svg+xml;base64,AAAA" };
@@ -111,46 +111,14 @@ describe("ConnectButton on a phone's normal browser (no injected provider)", () 
     vi.restoreAllMocks();
   });
 
-  it("offers Coinbase Wallet and Other wallets (WalletConnect's window), without the dead Browser Wallet", async () => {
+  it("opens WalletConnect's wallet window directly, with no list in between", async () => {
     state.connectors = [generic, coinbase, walletConnect];
     const user = userEvent.setup();
     render(<ConnectButton />);
     await user.click(screen.getByRole("button", { name: /connect wallet/i }));
-    expect(connectMock).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: /connect a wallet/i });
-    expect(dialog).toHaveTextContent("Coinbase Wallet");
-    expect(dialog).toHaveTextContent("Other wallets");
-    expect(screen.queryByText("Browser Wallet")).not.toBeInTheDocument();
-  });
-
-  it("'Other wallets' connects through the WalletConnect connector", async () => {
-    state.connectors = [generic, coinbase, walletConnect];
-    const user = userEvent.setup();
-    render(<ConnectButton />);
-    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
-    await user.click(screen.getByText("Other wallets"));
     expect(connectMock).toHaveBeenCalledTimes(1);
     expect(connectMock.mock.calls[0][0]).toMatchObject({ connector: walletConnect });
-  });
-
-  it("Coinbase Wallet reopens this page inside the Coinbase Wallet app instead of using the SDK popup", async () => {
-    state.connectors = [generic, coinbase, walletConnect];
-    const assign = vi.fn();
-    vi.spyOn(window, "location", "get").mockReturnValue({ href: "https://aeroallocator.app/?vp=500", assign } as unknown as Location);
-    const user = userEvent.setup();
-    render(<ConnectButton />);
-    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
-    await user.click(screen.getByText("Coinbase Wallet"));
-    expect(assign).toHaveBeenCalledWith(
-      "https://go.cb-w.com/dapp?cb_url=https%3A%2F%2Faeroallocator.app%2F%3Fvp%3D500",
-    );
-    expect(connectMock).not.toHaveBeenCalled();
-  });
-
-  it("builds the Coinbase Wallet dapp link with the page address encoded", () => {
-    expect(coinbaseWalletDappLink("https://aeroallocator.app/?a=1&b=2")).toBe(
-      "https://go.cb-w.com/dapp?cb_url=https%3A%2F%2Faeroallocator.app%2F%3Fa%3D1%26b%3D2",
-    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("without WalletConnect configured, at least drops the Browser Wallet entry that can never connect", async () => {
