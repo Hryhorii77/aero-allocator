@@ -111,14 +111,26 @@ describe("ConnectButton on a phone's normal browser (no injected provider)", () 
     vi.restoreAllMocks();
   });
 
-  it("opens WalletConnect's own wallet window straight away instead of a dead-end list", async () => {
+  it("offers Coinbase Wallet and Other wallets (WalletConnect's window), without the dead Browser Wallet", async () => {
     state.connectors = [generic, coinbase, walletConnect];
     const user = userEvent.setup();
     render(<ConnectButton />);
     await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(connectMock).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /connect a wallet/i });
+    expect(dialog).toHaveTextContent("Coinbase Wallet");
+    expect(dialog).toHaveTextContent("Other wallets");
+    expect(screen.queryByText("Browser Wallet")).not.toBeInTheDocument();
+  });
+
+  it("'Other wallets' connects through the WalletConnect connector", async () => {
+    state.connectors = [generic, coinbase, walletConnect];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    await user.click(screen.getByText("Other wallets"));
     expect(connectMock).toHaveBeenCalledTimes(1);
     expect(connectMock.mock.calls[0][0]).toMatchObject({ connector: walletConnect });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("without WalletConnect configured, at least drops the Browser Wallet entry that can never connect", async () => {
@@ -147,12 +159,12 @@ describe("ConnectButton on a phone's normal browser (no injected provider)", () 
 });
 
 describe("ConnectButton on desktop with WalletConnect configured", () => {
-  it("lists WalletConnect next to the other options (scan a QR with a phone wallet)", async () => {
+  it("lists Other wallets (WalletConnect: scan a QR with a phone wallet) next to the other options", async () => {
     state.connectors = [generic, coinbase, { uid: "4", id: "walletConnect", name: "WalletConnect", type: "walletConnect" }];
     const user = userEvent.setup();
     render(<ConnectButton />);
     await user.click(screen.getByRole("button", { name: /connect wallet/i }));
     expect(connectMock).not.toHaveBeenCalled();
-    expect(screen.getByText("WalletConnect")).toBeInTheDocument();
+    expect(screen.getByText("Other wallets")).toBeInTheDocument();
   });
 });

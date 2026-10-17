@@ -347,7 +347,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-17",
     title:
-      "Wallets on phones: in a normal phone browser, \"connect wallet\" now opens WalletConnect's wallet window (search any wallet, approve in its app, come back connected), like afterbook.app. Desktop gets a WalletConnect option (scan a QR) in the connect dialog.",
+      "Wallets on phones: in a normal phone browser, the connect dialog now offers Coinbase Wallet and \"Other wallets\" (WalletConnect: search any wallet, approve in its app, come back connected) instead of a Browser Wallet entry that can never work there. Desktop gets the same Other wallets option (scan a QR).",
   },
   {
     date: "2026-10-16",
