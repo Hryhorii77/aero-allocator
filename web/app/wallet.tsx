@@ -59,6 +59,11 @@ export function useProtocolAddresses() {
 // shows wallets a Base user would actually pick.
 const NON_EVM_WALLET_NAME = /\b(plug|keplr|leap|cosmostation|station|temple|tronlink|martian|petra|sui wallet)\b/i;
 
+/** Opens `url` inside the Coinbase Wallet app's built-in browser (iOS and Android). */
+export function coinbaseWalletDappLink(url: string): string {
+  return `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(url)}`;
+}
+
 function connectorDisplayName(name: string) {
   if (name === "Injected") return "Browser Wallet";
   // WalletConnect's window is a search over hundreds of wallets, not one wallet.
@@ -76,7 +81,7 @@ export function ConnectButton() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // A phone's normal browser has no extensions, so "Browser Wallet" can never connect there. The
-  // list is trimmed to what works: Coinbase Wallet (its own app link) and "Other wallets", which
+  // list is trimmed to what works: Coinbase Wallet (opens this page in the Coinbase Wallet app's browser) and "Other wallets", which
   // opens WalletConnect's own wallet window (search, tap, approve in the app, come back).
   // WalletConnect's directory does not find Coinbase Wallet on a phone, hence the separate entry.
   // Not applied inside a wallet app's own browser, which injects a provider. Read after mount so
@@ -270,7 +275,15 @@ export function ConnectButton() {
           onClose={() => setOpen(false)}
           onPick={(uid) => {
             const c = connectors.find((x) => x.uid === uid);
-            if (c) connect({ connector: c });
+            if (c && noExtensions && c.type === "coinbaseWallet") {
+              // Coinbase's SDK connector did nothing useful on a phone (the app opened to its
+              // home screen with no approval prompt). Coinbase's documented dapp link reopens
+              // this page inside the Coinbase Wallet app's own browser instead, where the wallet
+              // is injected and the normal connect flow works.
+              window.location.assign(coinbaseWalletDappLink(window.location.href));
+            } else if (c) {
+              connect({ connector: c });
+            }
             setOpen(false);
           }}
         />
