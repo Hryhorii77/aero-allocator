@@ -39,7 +39,7 @@ Engine flow (`src/`): `config.ts` (protocol preset, addresses, `SETTINGS`, epoch
 
 ## Gotchas
 
-- Don't add RainbowKit: its latest release (2.2.x) peer-requires wagmi 2 and `web/` is on wagmi 3. The wallet dialog and account panel (`wallet-modal.tsx`, `wallet.tsx`) are built directly on wagmi connectors. The WalletConnect connector exists only when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set (with a placeholder id its relay socket churns and hangs the tab); on a phone with no injected provider the connect button opens it directly, as afterbook.app does.
+- Don't add RainbowKit: its latest release (2.2.x) peer-requires wagmi 2 and `web/` is on wagmi 3. The wallet dialog and account panel (`wallet-modal.tsx`, `wallet.tsx`) are built directly on wagmi connectors. The WalletConnect connector exists only when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set (with a placeholder id its relay socket churns and hangs the tab); on a phone with no injected provider the connect dialog lists only Coinbase Wallet and "Other wallets" (WalletConnect's window), because WalletConnect's directory does not find Coinbase Wallet on a phone.
 - `web/` uses a Next.js version with breaking changes: read `web/AGENTS.md` (imported by `web/CLAUDE.md`) and the docs in `web/node_modules/next/dist/docs/` before writing web code.
 - `.claude/`, `.agents/`, `skills-lock.json` and `.env*` are gitignored, so project skills and `settings.local.json` are local to this machine.
 - Aero (the Aerodrome+Velodrome merger) launches 2026-10-22 00:00 UTC and replaces weekly `Voter.vote()` with continuous allocation. Don't build against the new `allocate()` until addresses and a read path are published; see `docs/aero-launch-readiness.md`.

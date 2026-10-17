@@ -60,7 +60,10 @@ export function useProtocolAddresses() {
 const NON_EVM_WALLET_NAME = /\b(plug|keplr|leap|cosmostation|station|temple|tronlink|martian|petra|sui wallet)\b/i;
 
 function connectorDisplayName(name: string) {
-  return name === "Injected" ? "Browser Wallet" : name;
+  if (name === "Injected") return "Browser Wallet";
+  // WalletConnect's window is a search over hundreds of wallets, not one wallet.
+  if (name === "WalletConnect") return "Other wallets";
+  return name;
 }
 
 export function ConnectButton() {
@@ -72,11 +75,12 @@ export function ConnectButton() {
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // A phone's normal browser has no extensions, so "Browser Wallet" can never connect there and
-  // the dialog would be a dead end. There (and only there: not inside a wallet app's own
-  // browser, which injects a provider) the button opens WalletConnect's own wallet window
-  // directly: search every wallet, tap one, approve in the app, come back connected.
-  // Same behavior as afterbook.app. Read after mount so server and client HTML agree.
+  // A phone's normal browser has no extensions, so "Browser Wallet" can never connect there. The
+  // list is trimmed to what works: Coinbase Wallet (its own app link) and "Other wallets", which
+  // opens WalletConnect's own wallet window (search, tap, approve in the app, come back).
+  // WalletConnect's directory does not find Coinbase Wallet on a phone, hence the separate entry.
+  // Not applied inside a wallet app's own browser, which injects a provider. Read after mount so
+  // server and client HTML agree.
   const [noExtensions, setNoExtensions] = useState(false);
   useEffect(() => {
     setNoExtensions(
@@ -228,7 +232,6 @@ export function ConnectButton() {
     name: connectorDisplayName(c.name),
     icon: c.icon,
   });
-  const walletConnectConnector = connectors.find((c) => c.id === "walletConnect");
   const installed = evmConnectors.filter((c) => c.type === "injected" && c.id !== "injected").map(toOption);
   const popular = evmConnectors
     .filter(
@@ -238,7 +241,6 @@ export function ConnectButton() {
         !(noExtensions && c.id === "injected"),
     )
     .map(toOption);
-  const openWalletConnectDirectly = noExtensions && walletConnectConnector !== undefined;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -250,9 +252,7 @@ export function ConnectButton() {
         onClick={() => {
           if (isPending) {
             reset();
-            if (!openWalletConnectDirectly) setOpen(true);
-          } else if (openWalletConnectDirectly && walletConnectConnector) {
-            connect({ connector: walletConnectConnector, chainId: DISPLAY_PRESET.chain.id }, { onError: () => {} });
+            setOpen(true);
           } else {
             setOpen((v) => !v);
           }
