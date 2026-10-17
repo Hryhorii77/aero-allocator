@@ -345,29 +345,14 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-17",
+    title:
+      "Wallets on phones: in a normal phone browser, \"connect wallet\" now opens WalletConnect's wallet window (search any wallet, approve in its app, come back connected), like afterbook.app. Desktop gets a WalletConnect option (scan a QR) in the connect dialog.",
+  },
+  {
     date: "2026-10-16",
     title:
       "A \"tip\" button (USDC on Base) next to the share actions and in the footer. The app stays free; the button is optional.",
-  },
-  {
-    date: "2026-10-11",
-    title:
-      "Light and dark mode: a toggle in the header, following your device setting until you pick one.",
-  },
-  {
-    date: "2026-10-11",
-    title:
-      "Wallet: connecting opens a \"Connect a Wallet\" dialog (installed wallets first, with icons), and your connected address opens an account panel (copy address, explorer link, network, disconnect) instead of disconnecting on click. A wallet on the wrong network is flagged.",
-  },
-  {
-    date: "2026-10-11",
-    title:
-      "The share card now quotes the same number as the page (the real payout rate when the forecast is only a ceiling) and follows light or dark mode.",
-  },
-  {
-    date: "2026-10-11",
-    title:
-      "A forecast-accuracy line under the headline, hover explanations on the table headers, one button and link style throughout, and a new footer.",
   },
 ];
 

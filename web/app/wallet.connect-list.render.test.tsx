@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -97,5 +97,62 @@ describe("ConnectButton (disconnected)", () => {
     await user.click(screen.getByRole("button", { name: /rabby wallet/i }));
     expect(connectMock).toHaveBeenCalledWith({ connector: rabby });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("ConnectButton on a phone's normal browser (no injected provider)", () => {
+  const walletConnect = { uid: "4", id: "walletConnect", name: "WalletConnect", type: "walletConnect" };
+  const phoneUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
+
+  beforeEach(() => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(phoneUA);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens WalletConnect's own wallet window straight away instead of a dead-end list", async () => {
+    state.connectors = [generic, coinbase, walletConnect];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(connectMock).toHaveBeenCalledTimes(1);
+    expect(connectMock.mock.calls[0][0]).toMatchObject({ connector: walletConnect });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("without WalletConnect configured, at least drops the Browser Wallet entry that can never connect", async () => {
+    state.connectors = [generic, coinbase];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(connectMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Browser Wallet")).not.toBeInTheDocument();
+    expect(screen.getByText("Coinbase Wallet")).toBeInTheDocument();
+  });
+
+  it("keeps the normal list inside a wallet app's own browser (injected provider present)", async () => {
+    (window as unknown as { ethereum?: unknown }).ethereum = {};
+    try {
+      state.connectors = [generic, coinbase, walletConnect];
+      const user = userEvent.setup();
+      render(<ConnectButton />);
+      await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+      expect(connectMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Browser Wallet")).toBeInTheDocument();
+    } finally {
+      delete (window as unknown as { ethereum?: unknown }).ethereum;
+    }
+  });
+});
+
+describe("ConnectButton on desktop with WalletConnect configured", () => {
+  it("lists WalletConnect next to the other options (scan a QR with a phone wallet)", async () => {
+    state.connectors = [generic, coinbase, { uid: "4", id: "walletConnect", name: "WalletConnect", type: "walletConnect" }];
+    const user = userEvent.setup();
+    render(<ConnectButton />);
+    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(connectMock).not.toHaveBeenCalled();
+    expect(screen.getByText("WalletConnect")).toBeInTheDocument();
   });
 });

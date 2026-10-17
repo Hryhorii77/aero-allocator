@@ -72,6 +72,18 @@ export function ConnectButton() {
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // A phone's normal browser has no extensions, so "Browser Wallet" can never connect there and
+  // the dialog would be a dead end. There (and only there: not inside a wallet app's own
+  // browser, which injects a provider) the button opens WalletConnect's own wallet window
+  // directly: search every wallet, tap one, approve in the app, come back connected.
+  // Same behavior as afterbook.app. Read after mount so server and client HTML agree.
+  const [noExtensions, setNoExtensions] = useState(false);
+  useEffect(() => {
+    setNoExtensions(
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && !(window as { ethereum?: unknown }).ethereum,
+    );
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => {
@@ -216,10 +228,17 @@ export function ConnectButton() {
     name: connectorDisplayName(c.name),
     icon: c.icon,
   });
+  const walletConnectConnector = connectors.find((c) => c.id === "walletConnect");
   const installed = evmConnectors.filter((c) => c.type === "injected" && c.id !== "injected").map(toOption);
   const popular = evmConnectors
-    .filter((c) => !(c.type === "injected" && c.id !== "injected") && !(hasNamedInjected && c.id === "injected"))
+    .filter(
+      (c) =>
+        !(c.type === "injected" && c.id !== "injected") &&
+        !(hasNamedInjected && c.id === "injected") &&
+        !(noExtensions && c.id === "injected"),
+    )
     .map(toOption);
+  const openWalletConnectDirectly = noExtensions && walletConnectConnector !== undefined;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -231,7 +250,9 @@ export function ConnectButton() {
         onClick={() => {
           if (isPending) {
             reset();
-            setOpen(true);
+            if (!openWalletConnectDirectly) setOpen(true);
+          } else if (openWalletConnectDirectly && walletConnectConnector) {
+            connect({ connector: walletConnectConnector, chainId: DISPLAY_PRESET.chain.id }, { onError: () => {} });
           } else {
             setOpen((v) => !v);
           }
