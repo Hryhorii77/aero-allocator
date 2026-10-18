@@ -24,6 +24,8 @@ export const PROTOCOL: Protocol = resolveProtocol(process.env.NEXT_PUBLIC_AERO_P
 interface ProtocolDisplay {
   protocol: Protocol;
   displayName: string;
+  /** The product name shown in the header, titles and share card ("Aero Allocator"). */
+  appName: string;
   tokenSymbol: string;
   veTokenSymbol: string;
   networkName: string;
@@ -43,6 +45,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
   aerodrome: {
     protocol: "aerodrome",
     displayName: "Aerodrome",
+    appName: "Aero Allocator",
     tokenSymbol: "AERO",
     veTokenSymbol: "veAERO",
     networkName: "Base",
@@ -54,6 +57,7 @@ const DISPLAY: Record<Protocol, ProtocolDisplay> = {
   velodrome: {
     protocol: "velodrome",
     displayName: "Velodrome",
+    appName: "Velodrome Allocator",
     tokenSymbol: "VELO",
     veTokenSymbol: "veVELO",
     networkName: "Optimism",

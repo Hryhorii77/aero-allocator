@@ -224,7 +224,7 @@ describe("weightsClipboardText", () => {
       85.52,
     );
     expect(text.split("\n")).toEqual([
-      "Aerodrome Allocator voter_roi · 10,000 veAERO · expected $85.52 next epoch",
+      "Aero Allocator voter_roi · 10,000 veAERO · expected $85.52 next epoch",
       "vAMM-WETH/USDC  35%",
       "CL100-cbBTC/WETH  35%",
       "vAMM-AERO/USDC  30%",
