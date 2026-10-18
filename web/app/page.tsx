@@ -698,12 +698,19 @@ function SwingRow({ s, tone, token }: { s: VoteSwingSignal; tone: "riser" | "fal
   const noBaseline = s.expectedVotesSoFar < 1;
   return (
     <details
-      className={`rounded-lg border px-3 py-2 ${
+      className={`group rounded-lg border px-3 py-2 ${
         riser ? "border-emerald-900/60 bg-emerald-950/20" : "border-rose-900/60 bg-rose-950/20"
       }`}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-neutral-100">
+          {/* Same caret as the pool rows: it is what says "tap for the detail". */}
+          <span
+            aria-hidden="true"
+            className="mr-1.5 inline-block w-3 text-center text-xs text-neutral-500 transition-transform group-open:rotate-90"
+          >
+            ▸
+          </span>
           {s.symbol}
           {token && <TokenBadge {...token} />}
         </span>
