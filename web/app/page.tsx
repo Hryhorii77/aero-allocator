@@ -984,11 +984,11 @@ function CollapsibleSection({
 }) {
   return (
     <details id={id} open={defaultOpen} className="group rounded-xl border border-neutral-800 px-4">
-      <summary className="flex min-h-12 cursor-pointer select-none list-none items-center gap-3 py-3 text-neutral-400 hover:text-neutral-200">
-        <h2 className="min-w-0 flex-1 text-sm font-medium uppercase tracking-wider">{title}</h2>
+      <summary className="group/s -mx-4 flex min-h-12 cursor-pointer select-none list-none items-center gap-3 rounded-xl px-4 py-3 text-neutral-400 hover:bg-neutral-900/70 hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-sky-500 group-open:rounded-b-none group-open:border-b group-open:border-neutral-800">
+        <h2 className="min-w-0 flex-1 text-sm font-medium uppercase tracking-wider sm:flex-none">{title}</h2>
         <ExpandHint />
       </summary>
-      <div className="pb-4 pt-1">{children}</div>
+      <div className="pb-4 pt-4">{children}</div>
     </details>
   );
 }
@@ -996,7 +996,7 @@ function CollapsibleSection({
 /** "show ▾" / "hide ▴" at the right of a collapsed card's header, so it reads as tappable. */
 function ExpandHint() {
   return (
-    <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-sky-400" aria-hidden="true">
+    <span className="flex shrink-0 items-center gap-1 rounded-full border border-sky-900 px-2.5 py-1 font-mono text-xs text-sky-400 group-hover/s:border-sky-700 group-hover/s:text-sky-300" aria-hidden="true">
       <span className="group-open:hidden">show</span>
       <span className="hidden group-open:inline">hide</span>
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-180">
@@ -2343,7 +2343,7 @@ export default function Dashboard() {
               "showing all three equal-width tells a voter they failed a
               quiz"), so they collapse behind one line instead. */}
           <details className={`group mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("pools")}`}>
-            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 text-sm font-medium text-neutral-300">
+            <summary className="group/s flex min-h-10 cursor-pointer list-none items-center gap-3 text-sm font-medium text-neutral-300">
               <span className="min-w-0 flex-1">
                 Other objectives{" "}
                 <span className="text-xs font-normal text-neutral-500">
