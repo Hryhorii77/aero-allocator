@@ -560,7 +560,8 @@ describe("Dashboard", () => {
     // with the hero number instead of sitting below the rows as its own line.
     expect(screen.getByText(/your\s+voter \$, not pool fees/i)).toBeInTheDocument();
     // Sum of the fixture's single allocation's expectedRewardUsd (42).
-    expect(screen.getByText("$42")).toBeInTheDocument();
+    // Shown twice: the Voter ROI headline and the phone Overview, from the same number.
+    expect(screen.getAllByText("$42")).toHaveLength(2);
   });
 
   it("doesn't claim the veAERO amount came from a wallet when none is connected", async () => {
@@ -934,9 +935,12 @@ describe("Dashboard", () => {
     renderDashboard();
     await waitForPoolsLoaded();
 
+    const overviewTab = screen.getByRole("tab", { name: "overview" });
     const voteTab = screen.getByRole("tab", { name: "vote" });
     const moreTab = screen.getByRole("tab", { name: "more" });
-    expect(voteTab).toHaveAttribute("aria-selected", "true");
+    // The phone lands on the Overview; the Vote section is hidden behind its tab.
+    expect(overviewTab).toHaveAttribute("aria-selected", "true");
+    expect(voteTab).toHaveAttribute("aria-selected", "false");
 
     // jsdom applies no CSS, so assert the class contract the breakpoint
     // relies on: inactive sections carry `hidden`, all of them carry an
@@ -949,8 +953,17 @@ describe("Dashboard", () => {
     await user.click(moreTab);
 
     expect(moreTab).toHaveAttribute("aria-selected", "true");
-    expect(voteTab).toHaveAttribute("aria-selected", "false");
+    expect(overviewTab).toHaveAttribute("aria-selected", "false");
     expect(lpSection.className).not.toMatch(/\bhidden\b/);
+    expect(screen.getByRole("region", { name: "overview" }).className).toMatch(/\bhidden\b/);
+  });
+
+  it("Overview's 'copy the full split' opens the Vote tab", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /copy the full split/i }));
+    expect(screen.getByRole("tab", { name: "vote" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("collapses a vote-swing signal to one line, with the full rationale behind a tap", async () => {
