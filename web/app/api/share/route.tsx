@@ -59,7 +59,7 @@ export async function GET(req: Request) {
           }}
         >
           <div style={{ display: "flex", fontSize: 36, color: c.muted }}>
-            {DISPLAY_PRESET.displayName}&nbsp;<span style={{ color: c.accent }}>Allocator</span>
+            {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")}&nbsp;<span style={{ color: c.accent }}>Allocator</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", fontSize: 200, lineHeight: 1, color: c.money, fontWeight: 700 }}>

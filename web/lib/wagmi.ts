@@ -13,7 +13,7 @@ export const wagmiConfig = createConfig({
   chains: [DISPLAY_PRESET.chain],
   connectors: [
     injected(),
-    coinbaseWallet({ appName: `${DISPLAY_PRESET.displayName} Allocator` }),
+    coinbaseWallet({ appName: DISPLAY_PRESET.appName }),
     ...(WALLETCONNECT_PROJECT_ID
       ? [
           walletConnect({

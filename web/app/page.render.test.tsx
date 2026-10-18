@@ -1538,7 +1538,7 @@ describe("Dashboard — copy buttons", () => {
 
     await user.click(screen.getByRole("button", { name: "copy weights" }));
     const weights = await navigator.clipboard.readText();
-    expect(weights.split("\n")[0]).toMatch(/^Aerodrome Allocator voter_roi · 10,000 veAERO · expected \$42 next epoch$/);
+    expect(weights.split("\n")[0]).toMatch(/^Aero Allocator voter_roi · 10,000 veAERO · expected \$42 next epoch$/);
     expect(weights).toMatch(/\npcts: 100$/);
 
     await user.click(screen.getByRole("button", { name: "copy share text" }));

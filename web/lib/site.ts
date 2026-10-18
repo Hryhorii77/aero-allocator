@@ -10,7 +10,7 @@ import { DISPLAY_PRESET, PROTOCOL } from "./protocol";
 export const SITE_URL: string | undefined =
   process.env.NEXT_PUBLIC_SITE_URL ?? (PROTOCOL === "aerodrome" ? "https://aeroallocator.app" : undefined);
 
-const TITLE = `${DISPLAY_PRESET.displayName} Allocator — predicted hot pools`;
+const TITLE = `${DISPLAY_PRESET.appName} — predicted hot pools`;
 const DESCRIPTION =
   `Live forecast of next-epoch fee demand across ${DISPLAY_PRESET.displayName} pools on ${DISPLAY_PRESET.networkName}, ` +
   `with dilution-aware ${DISPLAY_PRESET.veTokenSymbol} allocation recommendations.`;
@@ -30,7 +30,7 @@ export function siteMetadata(): Metadata {
       openGraph: {
         title: TITLE,
         description: DESCRIPTION,
-        siteName: `${DISPLAY_PRESET.displayName} Allocator`,
+        siteName: DISPLAY_PRESET.appName,
         type: "website",
         images: [{ url: "/api/share", width: 1200, height: 630, alt: "Expected voter $ next epoch" }],
       },
