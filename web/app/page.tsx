@@ -349,14 +349,14 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
-    date: "2026-10-17",
+    date: "2026-10-18",
     title:
-      "Wallets on phones: in a normal phone browser, the connect dialog now offers Coinbase Wallet and \"Other wallets\" (WalletConnect: search any wallet, approve in its app, come back connected) instead of a Browser Wallet entry that can never work there. Desktop gets the same Other wallets option (scan a QR).",
+      "A phone layout of its own: four tabs along the bottom (overview, vote, pools, profile). Overview gives your expected $, the top pools and one \"next best move\"; copy-weights stays pinned while you scroll the split; filters wrap instead of scrolling sideways; collapsed cards say \"show\". Also renamed to Aero Allocator.",
   },
   {
-    date: "2026-10-16",
+    date: "2026-10-17",
     title:
-      "A \"tip\" button (USDC on Base) next to the share actions and in the footer. The app stays free; the button is optional.",
+      "Wallets on phones: \"connect wallet\" opens WalletConnect's wallet search straight away (pick your wallet, approve in its app, come back connected). Desktop gets the same Other wallets option (scan a QR).",
   },
 ];
 

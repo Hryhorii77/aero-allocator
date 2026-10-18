@@ -18,6 +18,7 @@ The first load builds the onchain snapshot (up to ~1 minute), then it's cached.
 ## Layout
 
 - `app/page.tsx` — the dashboard (Voter ROI card, hot pools, collapsed panels, phone tabs)
+- `app/mobile-tabs.tsx` — the phone bottom navigation (overview / vote / pools / profile); `app/overview.tsx` and `app/profile.tsx` — the phone Overview and Profile tabs; `lib/next-move.ts` — the pure "next best move" logic
 - `app/wallet.tsx` — connect button + account panel, address lookup, and the cast / copy-calldata panel
 - `app/wallet-modal.tsx` — the "Connect a Wallet" dialog (portal); `app/site-footer.tsx` — the footer; `app/tip-jar.tsx` — the optional USDC-on-Base tip button
 - `app/ui.tsx` — shared button, chip and link styles (`btn()`, `chip()`, `LINK`); `app/theme.ts` +
