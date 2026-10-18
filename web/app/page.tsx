@@ -493,10 +493,12 @@ function CopyButton({
   getText,
   label,
   primary,
+  className = "",
 }: {
   getText: () => string;
   label: string;
   primary?: boolean;
+  className?: string;
 }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -507,7 +509,7 @@ function CopyButton({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className={btn(primary ? "primary" : "secondary")}
+      className={`${btn(primary ? "primary" : "secondary")} ${className}`}
     >
       {copied ? "copied!" : label}
     </button>
@@ -1629,7 +1631,9 @@ export default function Dashboard() {
   }, [snapshot]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 pb-28 sm:pb-10 lg:px-8">
+    <main
+      className={`mx-auto w-full max-w-6xl flex-1 px-6 py-10 ${mobileTab === "vote" ? "pb-44" : "pb-28"} sm:pb-10 lg:px-8`}
+    >
       {/* Primary bar: who this is, how long you have, how fresh the data is,
           and the one action that starts the vote. Sticky so the flip clock
           and Connect stay reachable from anywhere in a long page. Everything
@@ -1895,19 +1899,24 @@ export default function Dashboard() {
                         held because 5 epochs isn't a verdict either way. */}
                   </div>
                   <div className="mb-5 flex flex-wrap items-center gap-2">
-                    <CopyButton
-                      primary
-                      label="copy weights"
-                      getText={() => weightsClipboardText(voterAlloc.allocations, votingPower, headline.headlineUsd)}
-                    />
-                    <a
-                      href={`${DISPLAY_PRESET.appUrl}/vote`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={btn()}
-                    >
-                      open {DISPLAY_PRESET.displayName} ↗
-                    </a>
+                    {/* Phones: the two main actions pin above the bottom nav so they stay in thumb
+                        reach while scrolling the split. From sm up the wrapper vanishes (contents). */}
+                    <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 flex gap-2 border-t border-neutral-800 bg-neutral-950/95 px-4 py-2 backdrop-blur sm:contents">
+                      <CopyButton
+                        primary
+                        label="copy weights"
+                        className="flex-1 sm:flex-none"
+                        getText={() => weightsClipboardText(voterAlloc.allocations, votingPower, headline.headlineUsd)}
+                      />
+                      <a
+                        href={`${DISPLAY_PRESET.appUrl}/vote`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`${btn()} flex-1 text-center sm:flex-none`}
+                      >
+                        open {DISPLAY_PRESET.displayName} ↗
+                      </a>
+                    </div>
                     <CopyButton
                       label="copy share text"
                       getText={() =>
