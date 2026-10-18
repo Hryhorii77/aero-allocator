@@ -973,13 +973,26 @@ function SnapshotFreshness({ generatedAt, urgent }: { generatedAt: number; urgen
  */
 function CollapsibleSection({ title, children, id }: { title: ReactNode; children: ReactNode; id?: string }) {
   return (
-    <details id={id} className="group rounded-xl border border-neutral-800 px-4 py-3">
-      <summary className="flex cursor-pointer select-none list-none items-center gap-2 text-neutral-400 hover:text-neutral-200">
-        <span className="w-3 text-center text-xs text-neutral-600 transition-transform group-open:rotate-90">▸</span>
-        <h2 className="text-sm font-medium uppercase tracking-wider">{title}</h2>
+    <details id={id} className="group rounded-xl border border-neutral-800 px-4">
+      <summary className="flex min-h-12 cursor-pointer select-none list-none items-center gap-3 py-3 text-neutral-400 hover:text-neutral-200">
+        <h2 className="min-w-0 flex-1 text-sm font-medium uppercase tracking-wider">{title}</h2>
+        <ExpandHint />
       </summary>
-      <div className="mt-4">{children}</div>
+      <div className="pb-4 pt-1">{children}</div>
     </details>
+  );
+}
+
+/** "show ▾" / "hide ▴" at the right of a collapsed card's header, so it reads as tappable. */
+function ExpandHint() {
+  return (
+    <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-sky-400" aria-hidden="true">
+      <span className="group-open:hidden">show</span>
+      <span className="hidden group-open:inline">hide</span>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-180">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </span>
   );
 }
 
@@ -2319,12 +2332,15 @@ export default function Dashboard() {
               to Voter ROI read as "pick one of three" (external review:
               "showing all three equal-width tells a voter they failed a
               quiz"), so they collapse behind one line instead. */}
-          <details className={`mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("pools")}`}>
-            <summary className="cursor-pointer list-none text-sm font-medium text-neutral-300">
-              Other objectives{" "}
-              <span className="text-xs font-normal text-neutral-500">
-                protocol efficiency · edge hunter — market-wide benchmarks, not a personal vote
+          <details className={`group mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("pools")}`}>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 text-sm font-medium text-neutral-300">
+              <span className="min-w-0 flex-1">
+                Other objectives{" "}
+                <span className="text-xs font-normal text-neutral-500">
+                  protocol efficiency · edge hunter — market-wide benchmarks, not a personal vote
+                </span>
               </span>
+              <ExpandHint />
             </summary>
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
@@ -2397,7 +2413,7 @@ export default function Dashboard() {
                   count={lpThinCount}
                   shown={showThinLp}
                   onToggle={() => setShowThinLp((s) => !s)}
-                  className="mt-1 block underline hover:text-neutral-300"
+                  className={`mt-3 block w-full text-left ${btn("secondary", "sm")} whitespace-normal`}
                 />
               )}
             </div>
