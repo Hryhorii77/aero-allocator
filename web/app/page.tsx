@@ -2,6 +2,7 @@
 
 import { MobileTabBar, type MobileTab } from "./mobile-tabs";
 import { OverviewPanel } from "./overview";
+import { ProfilePanel } from "./profile";
 import { nextBestMove } from "@/lib/next-move";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
@@ -1656,6 +1657,9 @@ export default function Dashboard() {
           progress used to be pills of their own competing with the flip
           clock; they're quiet text now, and the Predictive Allocation note
           lives in the Voter ROI card's "How this works". */}
+      {/* Phones: the intro, launch notice and forecast line belong to the Overview tab; on the other
+          tabs they would push the content down a full screen. */}
+      <div className={`sm:block ${mobileTab === "overview" ? "" : "hidden"}`}>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
         Where to vote your {DISPLAY_PRESET.veTokenSymbol} this week.
       </h1>
@@ -1679,8 +1683,8 @@ export default function Dashboard() {
             type="button"
             className={`underline ${LINK}`}
             onClick={() => {
-              setMobileTab("more");
-              // Wait a tick so the "more" tab's section is un-hidden first.
+              setMobileTab("pools");
+              // Wait a tick so the Pools tab's section is un-hidden first.
               setTimeout(() => {
                 const el = document.getElementById("forecast-accuracy") as HTMLDetailsElement | null;
                 if (!el) return;
@@ -1715,6 +1719,7 @@ export default function Dashboard() {
         >
           {loading ? "loading…" : "refresh"}
         </button>
+      </div>
       </div>
 
       {error && (
@@ -2059,7 +2064,7 @@ export default function Dashboard() {
             )}
             {/* Card layout below sm: an 8-column table clipped to ~2 visible columns on a
                 phone hides exactly the column the user just sorted by (Grok round 3). */}
-            <div className="grid gap-2 sm:hidden">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden">
               {pools.map((p) => {
                 const thin = p.voteSharePct < 0.1;
                 const noHistory = p.lastEpochFeesUsd === 0;
@@ -2306,7 +2311,7 @@ export default function Dashboard() {
               to Voter ROI read as "pick one of three" (external review:
               "showing all three equal-width tells a voter they failed a
               quiz"), so they collapse behind one line instead. */}
-          <details className={`mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("more")}`}>
+          <details className={`mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:block sm:p-5 ${onTab("pools")}`}>
             <summary className="cursor-pointer list-none text-sm font-medium text-neutral-300">
               Other objectives{" "}
               <span className="text-xs font-normal text-neutral-500">
@@ -2374,7 +2379,7 @@ export default function Dashboard() {
               broken feature (external review: "dead UI sections... hurts
               perceived reliability"). The unhide control stays in the line. */}
           {lpOpportunities.length === 0 ? (
-            <div className={`mb-4 rounded-xl border border-neutral-800 px-4 py-3 text-xs text-neutral-500 sm:block ${onTab("more")}`}>
+            <div className={`mb-4 rounded-xl border border-neutral-800 px-4 py-3 text-xs text-neutral-500 sm:block ${onTab("pools")}`}>
               <span className="font-medium uppercase tracking-wider text-neutral-400">LP staking yield</span> —{" "}
               {lpThinCount > 0
                 ? `nothing worth staking this epoch: all ${lpThinCount} ${DISPLAY_PRESET.displayName} pool${lpThinCount === 1 ? " is" : "s are"} too thin to mean anything (staked TVL under $50k, or an APR computed off too little TVL to be real).`
@@ -2389,7 +2394,7 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-          <section className={`mb-4 sm:block ${onTab("more")}`}>
+          <section className={`mb-4 sm:block ${onTab("pools")}`}>
             <CollapsibleSection
               title={
                 <>
@@ -2414,7 +2419,7 @@ export default function Dashboard() {
                 table above — a 6-column table clipped to ~2 visible columns
                 on a phone hides most of what the user sorted by (Grok round
                 8: "mobile is a wide table"). */}
-            <div className="grid gap-2 sm:hidden">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden">
               {lpOpportunities.map((o) => (
                 <div key={o.pool} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2">
@@ -2538,7 +2543,7 @@ export default function Dashboard() {
           </section>
           )}
 
-          <section className={`mb-4 sm:block ${onTab("more")}`}>
+          <section className={`mb-4 sm:block ${onTab("pools")}`}>
             <CollapsibleSection title="Vote swings">
             <div className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
@@ -2584,7 +2589,7 @@ export default function Dashboard() {
             </CollapsibleSection>
           </section>
 
-          <section className={`mb-4 sm:block ${onTab("more")}`}>
+          <section className={`mb-4 sm:block ${onTab("pools")}`}>
             <CollapsibleSection title="Bribe placement">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="flex flex-wrap items-end gap-3">
@@ -2675,7 +2680,7 @@ export default function Dashboard() {
           </section>
 
           {trackRecord && (
-            <section className={`mb-4 sm:block ${onTab("more")}`}>
+            <section className={`mb-4 sm:block ${onTab("pools")}`}>
               <CollapsibleSection
                 id="forecast-accuracy"
                 title={
@@ -2756,11 +2761,14 @@ export default function Dashboard() {
             </section>
           )}
 
-          <div className={`sm:block ${onTab("more")}`}>
+          <ProfilePanel active={mobileTab === "profile"} />
+          <div className={`sm:block ${onTab("profile")}`}>
             <ChangelogPanel />
           </div>
 
-          <SiteFooter snapshotAt={snapshot.generatedAt} />
+          <div className={`sm:block ${onTab("profile")}`}>
+            <SiteFooter snapshotAt={snapshot.generatedAt} />
+          </div>
         </>
       )}
     </main>

@@ -1,6 +1,6 @@
 "use client";
 
-export type MobileTab = "overview" | "vote" | "pools" | "more";
+export type MobileTab = "overview" | "vote" | "pools" | "profile";
 
 const TABS: ReadonlyArray<{ key: MobileTab; label: string; icon: React.ReactNode }> = [
   {
@@ -19,9 +19,9 @@ const TABS: ReadonlyArray<{ key: MobileTab; label: string; icon: React.ReactNode
     icon: <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />,
   },
   {
-    key: "more",
-    label: "more",
-    icon: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} />,
+    key: "profile",
+    label: "profile",
+    icon: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />,
   },
 ];
 

@@ -82,6 +82,7 @@ export function OverviewPanel({
           </button>
         )}
       </div>
+      <p className="mt-4 text-center text-xs text-neutral-500">Forecasts are estimates, not investment advice.</p>
     </section>
   );
 }

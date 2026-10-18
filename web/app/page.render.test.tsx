@@ -937,7 +937,7 @@ describe("Dashboard", () => {
 
     const overviewTab = screen.getByRole("tab", { name: "overview" });
     const voteTab = screen.getByRole("tab", { name: "vote" });
-    const moreTab = screen.getByRole("tab", { name: "more" });
+    const poolsTab = screen.getByRole("tab", { name: "pools" });
     // The phone lands on the Overview; the Vote section is hidden behind its tab.
     expect(overviewTab).toHaveAttribute("aria-selected", "true");
     expect(voteTab).toHaveAttribute("aria-selected", "false");
@@ -950,12 +950,27 @@ describe("Dashboard", () => {
     expect(lpSection.className).toMatch(/\bsm:block\b/);
 
     const user = userEvent.setup();
-    await user.click(moreTab);
+    await user.click(poolsTab);
 
-    expect(moreTab).toHaveAttribute("aria-selected", "true");
+    expect(poolsTab).toHaveAttribute("aria-selected", "true");
     expect(overviewTab).toHaveAttribute("aria-selected", "false");
     expect(lpSection.className).not.toMatch(/\bhidden\b/);
     expect(screen.getByRole("region", { name: "overview" }).className).toMatch(/\bhidden\b/);
+  });
+
+  it("Profile tab reveals the settings, links and fine print that are hidden on the other phone tabs", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    const settings = screen.getByRole("region", { name: "profile" });
+    const fineText = screen.getByText(/Not investment advice\. Forecasts are estimates/i);
+    const fineWrap = fineText.closest("[class*=\"sm:block\"]")!;
+    const hiddenNow = (el: Element) => el.className.split(/\s+/).includes("hidden");
+    expect(hiddenNow(settings)).toBe(true);
+    expect(hiddenNow(fineWrap)).toBe(true);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "profile" }));
+    expect(hiddenNow(settings)).toBe(false);
+    expect(hiddenNow(fineWrap)).toBe(false);
   });
 
   it("Overview's 'copy the full split' opens the Vote tab", async () => {
