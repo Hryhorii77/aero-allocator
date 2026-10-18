@@ -1248,7 +1248,7 @@ describe("Dashboard", () => {
     await user.click(screen.getByText(/what's new/i));
 
     expect(details.open).toBe(true);
-    expect(screen.getByText(/tip. button/i)).toBeInTheDocument();
+    expect(screen.getByText(/four tabs along the bottom/i)).toBeInTheDocument();
   });
 
   it("only carries the last two ship days", async () => {
@@ -1256,7 +1256,7 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
     const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
     const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
-    expect(new Set(dates)).toEqual(new Set(["2026-10-17", "2026-10-16"]));
+    expect(new Set(dates)).toEqual(new Set(["2026-10-18", "2026-10-17"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {
