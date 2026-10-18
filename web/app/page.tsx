@@ -2024,17 +2024,16 @@ export default function Dashboard() {
                 opportunities; sort by predicted fees or edge for that.
               </p>
             )}
-            {/* One scrollable line on a phone, wrapping grid on desktop —
-                seven chips plus a search box plus the mode toggle wrapped
-                into three ragged rows and ate the top of the table
-                (external review: "filters wrap into 3 messy rows"). */}
-            <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
+            {/* Wraps on every width. It used to be one sideways-scrolling line on phones (an earlier
+                review disliked three ragged rows); a sideways scroll inside a tab that is already
+                scrolling down hid the chips, so the search box now takes its own row. */}
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <input
                 type="text"
                 value={poolSearch}
                 onChange={(e) => setPoolSearch(e.target.value)}
                 placeholder="search symbol…"
-                className="w-36 shrink-0 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+                className="w-full shrink-0 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-xs sm:w-36 sm:py-1 text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
               />
               {POOL_FILTER_CHIPS.map(({ key, label }) => (
                 <button
