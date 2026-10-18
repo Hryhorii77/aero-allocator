@@ -884,6 +884,8 @@ describe("Dashboard", () => {
     const user = userEvent.setup();
     await user.click(unhide);
     expect(screen.getAllByRole("link", { name: "THIN-LP" }).length).toBeGreaterThan(0);
+    // The section it turns into is already open: the pools just asked for are not behind a second tap.
+    expect(screen.getByText("LP staking yield").closest("details")).toHaveAttribute("open");
   });
 
   it("remembers a typed veAERO amount for the next visit instead of resetting to the 10,000 default", async () => {
