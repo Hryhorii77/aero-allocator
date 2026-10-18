@@ -1248,7 +1248,7 @@ describe("Dashboard", () => {
     await user.click(screen.getByText(/what's new/i));
 
     expect(details.open).toBe(true);
-    expect(screen.getByText(/tip. button/i)).toBeInTheDocument();
+    expect(screen.getByText(/four tabs along the bottom/i)).toBeInTheDocument();
   });
 
   it("only carries the last two ship days", async () => {
