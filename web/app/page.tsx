@@ -1,6 +1,8 @@
 "use client";
 
 import { MobileTabBar, type MobileTab } from "./mobile-tabs";
+import { OverviewPanel } from "./overview";
+import { nextBestMove } from "@/lib/next-move";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
@@ -1372,7 +1374,7 @@ export default function Dashboard() {
   // Vote is the answer and the buttons that act on it, nothing else; Pools is
   // the table behind it; everything a first-time voter doesn't need lives
   // under More, collapsed.
-  const [mobileTab, setMobileTab] = useState<MobileTab>("vote");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("overview");
   const onTab = (t: MobileTab) => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
@@ -1633,7 +1635,7 @@ export default function Dashboard() {
           else in the header is secondary and demoted to the row below
           (external review: "everything is a pill... the eye has nowhere to
           land"). */}
-      <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
+      <header className="sm:sticky sm:top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             <AllocatorMark />
@@ -1739,6 +1741,28 @@ export default function Dashboard() {
 
       {snapshot && (
         <>
+          <OverviewPanel
+            votingPower={votingPower}
+            veSymbol={DISPLAY_PRESET.veTokenSymbol}
+            headlineText={usd(headline.headlineUsd)}
+            headlineCaption={headline.forecastIsUpperBound ? "at last epoch's payout rate" : "expected next epoch"}
+            rows={voterAlloc?.allocations ?? []}
+            move={nextBestMove({
+              nowMs: Date.now(),
+              launchAtMs: DISPLAY_PRESET.protocol === "aerodrome" ? AERO_LAUNCH_AT_MS : null,
+              hasVotedThisEpoch: currentVotes ? currentVotes.length > 0 : null,
+            })}
+            closeText={
+              msUntilVoteLock(snapshot.epochStart) > 0
+                ? `epoch vote closes in ${formatCountdown(msUntilVoteLock(snapshot.epochStart))}`
+                : null
+            }
+            active={mobileTab === "overview"}
+            onGo={(t) => {
+              setMobileTab(t);
+              window.scrollTo({ top: 0 });
+            }}
+          />
           <MobileTabBar
             tab={mobileTab}
             onChange={(t) => {

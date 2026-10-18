@@ -1,8 +1,13 @@
 "use client";
 
-export type MobileTab = "vote" | "pools" | "more";
+export type MobileTab = "overview" | "vote" | "pools" | "more";
 
 const TABS: ReadonlyArray<{ key: MobileTab; label: string; icon: React.ReactNode }> = [
+  {
+    key: "overview",
+    label: "overview",
+    icon: <path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6" />,
+  },
   {
     key: "vote",
     label: "vote",
@@ -28,7 +33,7 @@ export function MobileTabBar({ tab, onChange }: { tab: MobileTab; onChange: (t: 
       aria-label="dashboard sections"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
     >
-      <div role="tablist" className="mx-auto flex max-w-md">
+      <div role="tablist" className="mx-auto flex max-w-lg">
         {TABS.map(({ key, label, icon }) => {
           const active = tab === key;
           return (
@@ -38,7 +43,7 @@ export function MobileTabBar({ tab, onChange }: { tab: MobileTab; onChange: (t: 
               role="tab"
               aria-selected={active}
               onClick={() => onChange(key)}
-              className={`relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-500 ${
+              className={`relative flex min-h-14 flex-1 min-w-0 flex-col items-center justify-center gap-1 font-mono text-[11px] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-500 ${
                 active ? "text-sky-300" : "text-neutral-400 hover:text-neutral-200"
               }`}
             >
