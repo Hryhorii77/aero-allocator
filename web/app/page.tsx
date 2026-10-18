@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileTabBar, type MobileTab } from "./mobile-tabs";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { AddressLookup, ConnectButton, VotePanel, type CurrentVote } from "./wallet";
@@ -1371,8 +1372,8 @@ export default function Dashboard() {
   // Vote is the answer and the buttons that act on it, nothing else; Pools is
   // the table behind it; everything a first-time voter doesn't need lives
   // under More, collapsed.
-  const [mobileTab, setMobileTab] = useState<"vote" | "pools" | "more">("vote");
-  const onTab = (t: "vote" | "pools" | "more") => (mobileTab === t ? "" : "hidden");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("vote");
+  const onTab = (t: MobileTab) => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
   // once. last epoch and votes-vs-demand move into the row expand
@@ -1625,7 +1626,7 @@ export default function Dashboard() {
   }, [snapshot]);
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 lg:px-8">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10 pb-28 sm:pb-10 lg:px-8">
       {/* Primary bar: who this is, how long you have, how fresh the data is,
           and the one action that starts the vote. Sticky so the flip clock
           and Connect stay reachable from anywhere in a long page. Everything
@@ -1738,30 +1739,13 @@ export default function Dashboard() {
 
       {snapshot && (
         <>
-          <div className="mb-5 flex gap-1 sm:hidden" role="tablist" aria-label="dashboard sections">
-            {(
-              [
-                ["vote", "vote"],
-                ["pools", "pools"],
-                ["more", "more"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={mobileTab === key}
-                onClick={() => setMobileTab(key)}
-                className={`flex-1 rounded-lg border px-3 py-2 font-mono text-xs ${
-                  mobileTab === key
-                    ? "border-sky-600 bg-sky-950/40 text-sky-300"
-                    : "border-neutral-800 text-neutral-400"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <MobileTabBar
+            tab={mobileTab}
+            onChange={(t) => {
+              setMobileTab(t);
+              window.scrollTo({ top: 0 });
+            }}
+          />
 
           <section className={`mb-10 sm:block ${onTab("vote")}`}>
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
