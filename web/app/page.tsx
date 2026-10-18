@@ -1632,7 +1632,7 @@ export default function Dashboard() {
 
   return (
     <main
-      className={`mx-auto w-full max-w-6xl flex-1 px-6 py-10 ${mobileTab === "vote" ? "pb-44" : "pb-28"} sm:pb-10 lg:px-8`}
+      className={`mx-auto w-full max-w-6xl flex-1 overflow-x-clip px-6 py-10 ${mobileTab === "vote" ? "pb-44" : "pb-28"} sm:pb-10 lg:px-8`}
     >
       {/* Primary bar: who this is, how long you have, how fresh the data is,
           and the one action that starts the vote. Sticky so the flip clock
@@ -2327,7 +2327,7 @@ export default function Dashboard() {
                 protocol efficiency · edge hunter — market-wide benchmarks, not a personal vote
               </span>
             </summary>
-            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-medium text-white">
@@ -2554,7 +2554,7 @@ export default function Dashboard() {
 
           <section className={`mb-4 sm:block ${onTab("pools")}`}>
             <CollapsibleSection title="Vote swings">
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
               <h3 className="font-medium text-white">
                 Vote swings <span className="text-xs font-normal text-neutral-500">risers</span>
