@@ -698,7 +698,7 @@ function SwingRow({ s, tone, token }: { s: VoteSwingSignal; tone: "riser" | "fal
   const noBaseline = s.expectedVotesSoFar < 1;
   return (
     <details
-      className={`group rounded-lg border px-3 py-2 ${
+      className={`group/row rounded-lg border px-3 py-2 ${
         riser ? "border-emerald-900/60 bg-emerald-950/20" : "border-rose-900/60 bg-rose-950/20"
       }`}
     >
@@ -707,7 +707,7 @@ function SwingRow({ s, tone, token }: { s: VoteSwingSignal; tone: "riser" | "fal
           {/* Same caret as the pool rows: it is what says "tap for the detail". */}
           <span
             aria-hidden="true"
-            className="mr-1.5 inline-block w-3 text-center text-xs text-neutral-500 transition-transform group-open:rotate-90"
+            className="mr-1.5 inline-block w-3 text-center text-xs text-neutral-500 transition-transform group-open/row:rotate-90"
           >
             ▸
           </span>
