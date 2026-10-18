@@ -971,9 +971,19 @@ function SnapshotFreshness({ generatedAt, urgent }: { generatedAt: number; urgen
  * bribe sim, forecast accuracy), so it's one tap away instead of a scroll
  * past it. The heading stays a real <h2> inside the summary.
  */
-function CollapsibleSection({ title, children, id }: { title: ReactNode; children: ReactNode; id?: string }) {
+function CollapsibleSection({
+  title,
+  children,
+  id,
+  defaultOpen,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+  id?: string;
+  defaultOpen?: boolean;
+}) {
   return (
-    <details id={id} className="group rounded-xl border border-neutral-800 px-4">
+    <details id={id} open={defaultOpen} className="group rounded-xl border border-neutral-800 px-4">
       <summary className="flex min-h-12 cursor-pointer select-none list-none items-center gap-3 py-3 text-neutral-400 hover:text-neutral-200">
         <h2 className="min-w-0 flex-1 text-sm font-medium uppercase tracking-wider">{title}</h2>
         <ExpandHint />
@@ -2419,7 +2429,10 @@ export default function Dashboard() {
             </div>
           ) : (
           <section className={`mb-4 sm:block ${onTab("pools")}`}>
+            {/* defaultOpen: arriving here from "show anyway" on the empty-state line, the pools the
+                user just asked for must be on screen, not behind a second tap. */}
             <CollapsibleSection
+              defaultOpen={showThinLp}
               title={
                 <>
                   LP staking yield{" "}
