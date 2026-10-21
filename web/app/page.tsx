@@ -374,7 +374,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-21",
     title:
-      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel.",
+      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k.",
   },
   {
     date: "2026-10-18",
@@ -1195,11 +1195,11 @@ function AllocationRows({
             {usd(a.tvlUsd)} TVL · {Math.round(a.currentVotes).toLocaleString("en-US")} votes now
             {a.bribeFloorUsd !== undefined && a.feeForecastUsd !== undefined && (
               <span
-                title="Bribe floor: posted incentives already committed this epoch — collected regardless of whether the fee forecast is right. Fee forecast: the confidence-blended predicted-vs-last-epoch estimate — the risky half of the payout."
+                title="Bribe floor: posted incentives already committed this epoch — collected regardless of whether the fee forecast is right. Fees: last epoch's fees, assumed to repeat — the risky half of the payout (replayed over past epochs this beat the forecast model as a guide to where to vote)."
               >
                 {" "}
                 · <span className="text-neutral-500">{usd(a.bribeFloorUsd)} floor</span> +{" "}
-                <span className="text-amber-600">{usd(a.feeForecastUsd)} forecast</span>
+                <span className="text-amber-600">{usd(a.feeForecastUsd)} fees</span>
               </span>
             )}
           </>

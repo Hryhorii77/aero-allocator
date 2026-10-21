@@ -162,29 +162,28 @@ describe("recommendAllocation — protocol_efficiency", () => {
 });
 
 describe("recommendAllocation — voter_roi", () => {
-  it("labels the rationale's payout as predicted, alongside the trailing last-epoch figure", () => {
-    // A pool whose forecast diverges a lot from last epoch (e.g. one outlier
-    // historical epoch skewing the trend) should never read as if the
-    // predicted payout IS last epoch's number — that's the exact confusion
-    // a user hit comparing our output to Aerodrome's trailing fees display.
+  it("sizes the split on last epoch's fees, not the model forecast, and says so in the rationale", () => {
+    // A replay over settled epochs showed the model-blended figure paid about
+    // half of what it promised at 10k ve, so the split uses last epoch's fees
+    // (the pools table keeps the forecast). The rationale must not call it a forecast.
     const snapshot = snapshotOf([
-      makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4 }),
+      makeForecast({ predictedFeesUsd: 4_000, lastEpochFeesUsd: 900, confidence: 0.4 }),
     ]);
     const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
-    expect(rec.allocations[0].rationale).toMatch(/fee forecast/);
-    expect(rec.allocations[0].rationale).toContain("$487");
+    expect(rec.allocations[0].rationale).toContain("$900 fees at last epoch's level");
+    expect(rec.allocations[0].rationale).not.toContain("$4,000");
     expect(rec.allocations[0].rationale).not.toContain("pool pays ~$");
   });
 
-  it("splits the payout into a posted-bribe floor and a fee forecast, both in the rationale and as separate fields", () => {
+  it("splits the payout into a posted-bribe floor and the fee part, both in the rationale and as separate fields", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4, currentBribesUsd: 300 }),
     ]);
     const rec = recommendAllocation(snapshot, "voter_roi", 8, 10_000);
     const a = rec.allocations[0];
     expect(a.bribeFloorUsd).toBe(300);
-    // feeForecastUsd = confidence * predicted + (1 - confidence) * lastEpoch = 0.4*2000 + 0.6*487
-    expect(a.feeForecastUsd).toBeCloseTo(0.4 * 2_000 + 0.6 * 487, 2);
+    // feeForecastUsd is last epoch's fees (487), whatever the model predicted (2,000).
+    expect(a.feeForecastUsd).toBeCloseTo(487, 2);
     expect(a.rationale).toContain("$300 bribe floor");
   });
 
