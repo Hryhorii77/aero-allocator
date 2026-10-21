@@ -120,4 +120,39 @@ describe("replayVoterRoi", () => {
     expect(r.topPoolRealizedUsd).toBe(0);
     expect(r.vsTopPoolPct).toBeNull();
   });
+
+  it("sums what the model promised and what was paid, as a share", () => {
+    const only = forecast(pool(), steady(5_000));
+    const r = replayVoterRoi(snap(only), 10_000, { now: NOW, epochs: 2 });
+    const promised = r.epochs.reduce((s, e) => s + e.splitExpectedUsd, 0);
+    expect(r.splitExpectedUsd).toBeCloseTo(promised, 1);
+    expect(r.paidOfPromisedPct).toBeCloseTo((r.splitRealizedUsd / r.splitExpectedUsd) * 100, 0);
+  });
+
+  describe("survival", () => {
+    // 8 pools, pool i pays (i+1)×$1000 a week on 100k votes, every epoch.
+    const ladder = () => {
+      lpCounter = 0;
+      return Array.from({ length: 8 }, (_, i) => forecast(pool({ symbol: `P${i}` }), steady((i + 1) * 1_000)));
+    };
+
+    it("counts how many predicted-top pools were still top once the epoch settled", () => {
+      const r = replayVoterRoi(snap(...ladder()), 10_000, { now: NOW, epochs: 1 });
+      // Nothing changes week to week, so every predicted-top pool survives.
+      expect(r.epochs[0].survival).toEqual({ topN: 4, stillTop: 4 });
+    });
+
+    it("drops a pool that fell out of the top when its epoch actually paid", () => {
+      const pools = ladder();
+      // The pool predicted best (P7) pays almost nothing in the scored epoch.
+      pools[7].history[1] = { ...pools[7].history[1], feesUsd: 10 };
+      const r = replayVoterRoi(snap(...pools), 10_000, { now: NOW, epochs: 1 });
+      expect(r.epochs[0].survival).toEqual({ topN: 4, stillTop: 3 });
+    });
+
+    it("is null when there are too few pools to say anything", () => {
+      const r = replayVoterRoi(snap(forecast(pool(), steady(5_000))), 10_000, { now: NOW, epochs: 1 });
+      expect(r.epochs[0].survival).toBeNull();
+    });
+  });
 });

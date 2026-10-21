@@ -31,12 +31,18 @@ export interface ReplayEpoch {
   splitExpectedUsd: number;
   topPool: { pool: string; symbol: string } | null;
   topPoolRealizedUsd: number;
+  /** Of the pools predicted to pay most per vote, how many were still among the top payers once the epoch settled. */
+  survival: { topN: number; stillTop: number } | null;
 }
 
 export interface VoterRoiReplay {
   votingPowerVe: number;
   epochs: ReplayEpoch[];
   splitRealizedUsd: number;
+  /** Sum of what the split's own model promised over the same epochs. */
+  splitExpectedUsd: number;
+  /** realized / promised × 100; null when nothing was promised. */
+  paidOfPromisedPct: number | null;
   topPoolRealizedUsd: number;
   /** (split − top pool) / top pool × 100; null when the baseline paid nothing. */
   vsTopPoolPct: number | null;
@@ -52,6 +58,7 @@ export const REPLAY_METHODOLOGY =
   "with the highest reward per vote the epoch before, among pools clearing the same reward floor.";
 
 const MIN_TRAILING_EPOCHS = 2;
+const SURVIVAL_TOP_N = 10;
 
 function round2(x: number): number {
   return Math.round(x * 100) / 100;
@@ -156,6 +163,32 @@ export function replayVoterRoi(
           (b.prev.feesUsd + b.prev.bribesUsd) / b.prev.votes - (a.prev.feesUsd + a.prev.bribesUsd) / a.prev.votes,
       )[0];
 
+    // Survival: rank the same eligible pools by predicted reward per vote
+    // (forecast fees + posted bribes over the last settled votes) and by what
+    // they paid per vote once the epoch closed; how much of the first top
+    // list is still in the second.
+    const eligible = rows.filter(
+      (r) =>
+        r.forecast.pool.gaugeAlive &&
+        r.prev.votes > 0 &&
+        r.actual.votes > 0 &&
+        r.prev.feesUsd + r.prev.bribesUsd >= SETTINGS.minVoterRewardCapacityUsd,
+    );
+    const topN = Math.min(SURVIVAL_TOP_N, Math.floor(eligible.length / 2));
+    let survival: ReplayEpoch["survival"] = null;
+    if (topN >= 3) {
+      const top = (score: (r: (typeof eligible)[number]) => number) =>
+        new Set(
+          [...eligible]
+            .sort((a, b) => score(b) - score(a))
+            .slice(0, topN)
+            .map((r) => r.forecast.pool.lp),
+        );
+      const predicted = top((r) => (r.forecast.predictedFeesUsd + r.prev.bribesUsd) / r.prev.votes);
+      const paid = top((r) => (r.actual.feesUsd + r.actual.bribesUsd) / r.actual.votes);
+      survival = { topN, stillTop: [...predicted].filter((lp) => paid.has(lp)).length };
+    }
+
     results.push({
       epochStart: ts,
       splitPoolCount: rec.allocations.length,
@@ -163,15 +196,19 @@ export function replayVoterRoi(
       splitExpectedUsd: round2(splitExpectedUsd),
       topPool: top ? { pool: top.forecast.pool.lp, symbol: top.forecast.pool.symbol } : null,
       topPoolRealizedUsd: top ? round2(payout(top.actual, votingPowerVe)) : 0,
+      survival,
     });
   }
 
   const splitTotal = results.reduce((s, e) => s + e.splitRealizedUsd, 0);
   const topTotal = results.reduce((s, e) => s + e.topPoolRealizedUsd, 0);
+  const expectedTotal = results.reduce((s, e) => s + e.splitExpectedUsd, 0);
   return {
     votingPowerVe,
     epochs: results,
     splitRealizedUsd: round2(splitTotal),
+    splitExpectedUsd: round2(expectedTotal),
+    paidOfPromisedPct: expectedTotal > 0 ? Math.round((splitTotal / expectedTotal) * 1000) / 10 : null,
     topPoolRealizedUsd: round2(topTotal),
     vsTopPoolPct: topTotal > 0 ? Math.round(((splitTotal - topTotal) / topTotal) * 1000) / 10 : null,
     epochsSplitWon: results.filter((e) => e.splitRealizedUsd > e.topPoolRealizedUsd).length,

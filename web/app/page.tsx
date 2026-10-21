@@ -159,6 +159,27 @@ interface TrackRecord {
   methodology: string;
 }
 
+/** aero-allocator/replay's VoterRoiReplay, as served in the dashboard payload. */
+interface VoterReplay {
+  votingPowerVe: number;
+  epochs: Array<{
+    epochStart: number;
+    splitPoolCount: number;
+    splitRealizedUsd: number;
+    splitExpectedUsd: number;
+    topPool: { pool: string; symbol: string } | null;
+    topPoolRealizedUsd: number;
+    survival: { topN: number; stillTop: number } | null;
+  }>;
+  splitRealizedUsd: number;
+  splitExpectedUsd: number;
+  paidOfPromisedPct: number | null;
+  topPoolRealizedUsd: number;
+  vsTopPoolPct: number | null;
+  epochsSplitWon: number;
+  methodology: string;
+}
+
 /** Dromos Labs' Predictive Allocation (real-time incentive allocation,
  * dated September 2026) is meant to replace weekly gauge voting for
  * Aerodrome. `live` is computed server-side from the same adapter the MCP
@@ -211,6 +232,8 @@ interface DashboardCachePayload {
   epochProgressPct: number;
   pools: PoolRow[];
   voterAlloc: Allocation;
+  /** Optional: caches written before the replay existed don't have it. */
+  voterReplay?: VoterReplay | null;
   protoAlloc: Allocation;
   edgeAlloc: Allocation;
   lpDeposits: LpDepositReport;
@@ -349,6 +372,11 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-21",
+    title:
+      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel.",
+  },
+  {
     date: "2026-10-18",
     title:
       "A phone layout of its own: four tabs along the bottom (overview, vote, pools, profile). Overview gives your expected $, the top pools and one \"next best move\"; copy-weights stays pinned while you scroll the split; filters wrap instead of scrolling sideways; collapsed cards say \"show\". Also renamed to Aero Allocator.",
@@ -486,6 +514,82 @@ export function shareText(votingPower: number, totalExpectedUsd: number, poolCou
   return (
     `${votingPower.toLocaleString("en-US")} ${DISPLAY_PRESET.veTokenSymbol} → ~${usd(totalExpectedUsd)} expected next epoch` +
     ` · ${poolCount} pool${poolCount === 1 ? "" : "s"} · ${clock} · aeroallocator.app`
+  );
+}
+
+/**
+ * The public scorecard for the split itself (not just the fee forecast behind
+ * it): the same voter_roi logic replayed on the latest settled epochs, shown
+ * as what it promised against what the epoch paid, whichever way that falls.
+ * The survival check counts how many of the pools predicted to pay most per
+ * vote were still among the top payers when the epoch closed.
+ */
+export function ReplayLine({ replay, onSeeHow }: { replay: VoterReplay; onSeeHow?: () => void }) {
+  const last = replay.epochs[0];
+  if (!last || last.splitExpectedUsd <= 0) return null;
+  const n = replay.epochs.length;
+  const paidPct = Math.round((last.splitRealizedUsd / last.splitExpectedUsd) * 100);
+  return (
+    <p className="mt-1 text-xs text-neutral-500">
+      Last settled epoch, for {replay.votingPowerVe.toLocaleString("en-US")} {DISPLAY_PRESET.veTokenSymbol}:{" "}
+      <span className="font-mono text-neutral-300">{usd(last.splitExpectedUsd)}</span> forecast vs{" "}
+      <span className="font-mono text-neutral-300">{usd(last.splitRealizedUsd)}</span> paid ({paidPct}%).
+      {last.survival && (
+        <>
+          {" "}
+          {last.survival.stillTop} of the {last.survival.topN} pools it ranked top were still top at close.
+        </>
+      )}
+      {n > 1 && replay.paidOfPromisedPct !== null && (
+        <>
+          {" "}
+          Over the last {n}: {Math.round(replay.paidOfPromisedPct)}% of the forecast was paid.
+        </>
+      )}
+      {onSeeHow && (
+        <>
+          {" "}
+          <button type="button" className={`underline ${LINK}`} onClick={onSeeHow}>
+            see each week
+          </button>
+        </>
+      )}
+    </p>
+  );
+}
+
+/** Per-epoch rows behind {@link ReplayLine}, including the plain "all-in on the top pool" comparison. */
+export function ReplayTable({ replay }: { replay: VoterReplay }) {
+  if (replay.epochs.length === 0) return null;
+  return (
+    <div className="mb-4 border-b border-neutral-800 pb-4">
+      <div className="mb-2 font-mono text-xs text-neutral-500">
+        split replay at {replay.votingPowerVe.toLocaleString("en-US")} {DISPLAY_PRESET.veTokenSymbol} (forecast vs paid)
+      </div>
+      <div className="space-y-0.5 font-mono text-[11px] text-neutral-500">
+        {replay.epochs.map((e) => (
+          <div key={e.epochStart} className="flex flex-wrap gap-x-3">
+            <span className="text-neutral-600">{new Date(e.epochStart * 1000).toISOString().slice(0, 10)}</span>
+            <span>
+              forecast <span className="text-neutral-300">{usd(e.splitExpectedUsd)}</span>
+            </span>
+            <span>
+              paid <span className="text-neutral-300">{usd(e.splitRealizedUsd)}</span>
+            </span>
+            {e.survival && (
+              <span>
+                top {e.survival.topN}: <span className="text-neutral-300">{e.survival.stillTop}</span> held
+              </span>
+            )}
+            <span>
+              all-in on {e.topPool?.symbol ?? "the top pool"}{" "}
+              <span className="text-neutral-300">{usd(e.topPoolRealizedUsd)}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{replay.methodology}</p>
+    </div>
   );
 }
 
@@ -1261,6 +1365,7 @@ export function CurrentVsRecommended({
 export default function Dashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [voterAlloc, setVoterAlloc] = useState<Allocation | null>(null);
+  const [voterReplay, setVoterReplay] = useState<VoterReplay | null>(null);
   const [protoAlloc, setProtoAlloc] = useState<Allocation | null>(null);
   const [edgeAlloc, setEdgeAlloc] = useState<Allocation | null>(null);
   const [lpDeposits, setLpDeposits] = useState<LpDepositReport | null>(null);
@@ -1360,6 +1465,7 @@ export default function Dashboard() {
       pools: cached.data.pools,
     });
     setVoterAlloc(cached.data.voterAlloc);
+    setVoterReplay(cached.data.voterReplay ?? null);
     setProtoAlloc(cached.data.protoAlloc);
     setEdgeAlloc(cached.data.edgeAlloc);
     setLpDeposits(cached.data.lpDeposits);
@@ -1497,6 +1603,7 @@ export default function Dashboard() {
       const snap: Snapshot = { generatedAt: data.generatedAt, epochStart: data.epochStart, epochProgressPct: data.epochProgressPct, pools: data.pools };
       setSnapshot(snap);
       setVoterAlloc(data.voterAlloc);
+      setVoterReplay(data.voterReplay ?? null);
       setProtoAlloc(data.protoAlloc);
       setEdgeAlloc(data.edgeAlloc);
       setLpDeposits(data.lpDeposits);
@@ -1510,6 +1617,7 @@ export default function Dashboard() {
         epochProgressPct: data.epochProgressPct,
         pools: data.pools,
         voterAlloc: data.voterAlloc,
+        voterReplay: data.voterReplay ?? null,
         protoAlloc: data.protoAlloc,
         edgeAlloc: data.edgeAlloc,
         lpDeposits: data.lpDeposits,
@@ -1566,6 +1674,8 @@ export default function Dashboard() {
       const res = await fetch(`/api/dashboard?votingPower=${vp}`);
       const data = await res.json();
       setVoterAlloc(data.voterAlloc);
+      // Sized to the same amount: dilution makes the replay size-dependent.
+      setVoterReplay(data.voterReplay ?? null);
     } finally {
       setAllocLoading(false);
     }
@@ -1593,6 +1703,16 @@ export default function Dashboard() {
   // Search/filter run over the *full* snapshot before the top-20 slice —
   // stables, AERO pairs, BTC, tokenized stocks, and new listings were all
   // mixed in one dump with no way to narrow it down (Grok round 8).
+  const openAccuracy = () => {
+    setMobileTab("pools");
+    // Wait a tick so the Pools tab's section is un-hidden first.
+    setTimeout(() => {
+      const el = document.getElementById("forecast-accuracy") as HTMLDetailsElement | null;
+      if (!el) return;
+      el.open = true;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
   const trimmedSearch = poolSearch.trim().toLowerCase();
   const matchingPools = (snapshot?.pools ?? [])
     .filter((p) => p.predictedFeesUsd > 0)
@@ -1716,21 +1836,13 @@ export default function Dashboard() {
           <button
             type="button"
             className={`underline ${LINK}`}
-            onClick={() => {
-              setMobileTab("pools");
-              // Wait a tick so the Pools tab's section is un-hidden first.
-              setTimeout(() => {
-                const el = document.getElementById("forecast-accuracy") as HTMLDetailsElement | null;
-                if (!el) return;
-                el.open = true;
-                el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }, 0);
-            }}
+            onClick={openAccuracy}
           >
             see how
           </button>
         </p>
       )}
+      {voterReplay && <ReplayLine replay={voterReplay} onSeeHow={trackRecord ? openAccuracy : undefined} />}
       <div className="mb-8 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-neutral-500">
         {paStatus?.applicable && (
           <>
@@ -2735,6 +2847,7 @@ export default function Dashboard() {
                 }
               >
               <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5">
+                {voterReplay && <ReplayTable replay={voterReplay} />}
                 {/* Plain-language headline before the metric grid — "skill vs.
                     naive baseline: +5.6%" doesn't read as an answer to "does
                     this forecast actually beat just guessing last epoch's
