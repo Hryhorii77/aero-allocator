@@ -336,6 +336,7 @@ export function recommendAllocation(
     votesAllocated?: number;
     bribeFloorUsd?: number;
     feeForecastUsd?: number;
+    undilutedRewardUsd?: number;
     rationale: string;
   }>;
 
@@ -387,6 +388,9 @@ export function recommendAllocation(
           votesAllocated: Math.round(v),
           bribeFloorUsd: round2(c.bribeFloorUsd),
           feeForecastUsd: round2(c.feeForecastUsd),
+          // What the same votes would pay if they didn't move the pool's total:
+          // the gap to expectedRewardUsd is the cost of your own dilution.
+          undilutedRewardUsd: round2((c.rewardsUsd * v) / Math.max(dilutionVotes(c.f), 1)),
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
             `($${Math.round(c.bribeFloorUsd).toLocaleString()} bribe floor + $${Math.round(c.feeForecastUsd).toLocaleString()} fees at last epoch's level ` +
@@ -411,7 +415,7 @@ export function recommendAllocation(
   }
 
   const totalW = scored.reduce((s, x) => s + x.weight, 0);
-  const allocations = scored.map(({ f, weight, expectedRewardUsd, votesAllocated, bribeFloorUsd, feeForecastUsd, rationale }) => ({
+  const allocations = scored.map(({ f, weight, expectedRewardUsd, votesAllocated, bribeFloorUsd, feeForecastUsd, undilutedRewardUsd, rationale }) => ({
     pool: f.pool.lp,
     symbol: f.pool.symbol,
     weightPct: round2((weight / totalW) * 100),
@@ -430,6 +434,7 @@ export function recommendAllocation(
     // with posted bribes, so there's no floor/forecast split to show.
     ...(bribeFloorUsd !== undefined && { bribeFloorUsd }),
     ...(feeForecastUsd !== undefined && { feeForecastUsd }),
+    ...(undilutedRewardUsd !== undefined && { undilutedRewardUsd }),
     ...(expectedRewardUsd !== undefined && { expectedRewardUsd }),
     confidence: f.confidence,
     rationale,
