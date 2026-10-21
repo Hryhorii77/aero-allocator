@@ -281,15 +281,15 @@ interface VoterRoiCandidate {
 
 /**
  * Eligible pools with their expected payout for the voter_roi objective:
- * predicted fees blended toward the last realized epoch by forecast
- * confidence (a shaky forecast shouldn't outrank a pool's demonstrated
- * payout), plus incentives already posted. Shared by recommendAllocation
- * and simulateBribeImpact so both reason about the same market.
+ * fees (the model's forecast blended toward the last realized epoch by
+ * confidence, or with feeBasis "last" just the last epoch), plus incentives
+ * already posted. Shared by recommendAllocation and simulateBribeImpact.
  */
 function voterRoiCandidates(
   snapshot: MarketSnapshot,
   minRewardsUsd = SETTINGS.minVoterRewardCapacityUsd,
   requireVoteHistory = false,
+  feeBasis: "model" | "last" = "model",
 ): VoterRoiCandidate[] {
   return snapshot.forecasts
     .filter((f) => f.pool.gaugeAlive && f.confidence > 0)
@@ -301,7 +301,14 @@ function voterRoiCandidates(
     .filter((f) => !requireVoteHistory || f.lastEpochVotes === undefined || (f.lastEpochVotes > 0 && f.rewardPer1kVotesUsd > 0))
     .map((f) => {
       const bribeFloorUsd = f.currentBribesUsd;
-      const feeForecastUsd = f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd;
+      // feeBasis "last" (what recommendAllocation uses): last epoch's fees
+      // instead of the model's blend. Replayed over settled epochs (replay.ts),
+      // the model figure paid ~50% of what it promised at 10k ve; last epoch's
+      // fees paid ~62% and earned ~9% more at 10k, ~7% more at 100k (equal at
+      // 1M). The pool-level forecast (predictedFeesUsd) still drives the pools
+      // table, and the bribe simulator keeps the model blend.
+      const feeForecastUsd =
+        feeBasis === "last" ? f.lastEpochFeesUsd : f.confidence * f.predictedFeesUsd + (1 - f.confidence) * f.lastEpochFeesUsd;
       return { f, bribeFloorUsd, feeForecastUsd, rewardsUsd: bribeFloorUsd + feeForecastUsd };
     })
     .filter((c) => c.rewardsUsd >= minRewardsUsd);
@@ -361,7 +368,7 @@ export function recommendAllocation(
           rationaleFor(f, "demand"),
       }));
   } else {
-    const candidates = voterRoiCandidates(snapshot, undefined, true);
+    const candidates = voterRoiCandidates(snapshot, undefined, true, "last");
 
     const votes = waterfillCapped(
       candidates.map((c) => ({ rewardsUsd: c.rewardsUsd, existingVotes: dilutionVotes(c.f) })),
@@ -382,8 +389,8 @@ export function recommendAllocation(
           feeForecastUsd: round2(c.feeForecastUsd),
           rationale:
             `~$${round2(expected)} expected for ${Math.round(v).toLocaleString()} votes ` +
-            `($${Math.round(c.bribeFloorUsd).toLocaleString()} bribe floor + $${Math.round(c.feeForecastUsd).toLocaleString()} fee forecast ` +
-            `pool payout, vs ~$${Math.round(c.f.lastEpochFeesUsd).toLocaleString()} fees last epoch; has ${c.f.currentVotes.toLocaleString()} votes so far, ~${dilutionVotes(c.f).toLocaleString()} projected at close); ` +
+            `($${Math.round(c.bribeFloorUsd).toLocaleString()} bribe floor + $${Math.round(c.feeForecastUsd).toLocaleString()} fees at last epoch's level ` +
+            `= pool payout; has ${c.f.currentVotes.toLocaleString()} votes so far, ~${dilutionVotes(c.f).toLocaleString()} projected at close); ` +
             rationaleFor(c.f, "roi"),
         };
       })
