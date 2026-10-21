@@ -15,7 +15,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { SiteFooter } from "./site-footer";
 import { TipJar } from "./tip-jar";
 import { useTheme } from "./theme";
-import { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate } from "@/lib/headline";
+import { HEADLINE_FORECAST_CAP_MULTIPLE, dilutionCost, headlineEstimate } from "@/lib/headline";
 
 // Re-exported so existing imports of these from the page keep working.
 export { HEADLINE_FORECAST_CAP_MULTIPLE, headlineEstimate };
@@ -87,6 +87,8 @@ interface AllocationRow {
   bribeFloorUsd?: number;
   /** Confidence-blended predicted-vs-last-epoch fee estimate, USD — the risky half of the payout (voter_roi only). */
   feeForecastUsd?: number;
+  /** voter_roi only: what these votes would pay if they didn't dilute the pool. */
+  undilutedRewardUsd?: number;
   confidence: number;
 }
 
@@ -374,7 +376,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-21",
     title:
-      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k.",
+      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k. Large holders also see what their own votes cost: the figure if they didn't move the pools, beside the after-dilution one.",
   },
   {
     date: "2026-10-18",
@@ -1755,6 +1757,7 @@ export default function Dashboard() {
   // parsed back out of that sentence.
   const voterTotalExpectedUsd = (voterAlloc?.allocations ?? []).reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
   const headline = headlineEstimate(voterAlloc?.allocations ?? [], voterTotalExpectedUsd);
+  const dilution = headline.forecastIsUpperBound ? null : dilutionCost(voterAlloc?.allocations ?? []);
   const theme = useTheme();
 
   // Keyed by lowercased address so on-chain reads (wagmi/viem checksummed)
@@ -2031,14 +2034,13 @@ export default function Dashboard() {
                         the epoch few votes are in, so the forecast overstates your share. Treat it as a ceiling.
                       </div>
                     )}
-                    {/* No miss-rate chip ("this split vs 100% into the then-top
-                        pool"), on purpose. It was built and run on live data
-                        (2026-09-25): the split lost to the single top pool for
-                        holders under ~100k ve over the last 5 epochs, and the
-                        forecast ran ~40% above what was paid. Parked until the
-                        engine improves and there's more than 8 weeks of
-                        history to judge it on — not hidden for looking bad,
-                        held because 5 epochs isn't a verdict either way. */}
+                    {dilution && (
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Your own votes move these pools: {usd(dilution.undilutedUsd)} if they didn&apos;t, so{" "}
+                        <span className="text-neutral-300">{usd(dilution.dilutedUsd)}</span> is after dilution (
+                        {dilution.lossPct.toFixed(0)}% less).
+                      </div>
+                    )}
                   </div>
                   <div className="mb-5 flex flex-wrap items-center gap-2">
                     {/* Phones: the two main actions pin above the bottom nav so they stay in thumb

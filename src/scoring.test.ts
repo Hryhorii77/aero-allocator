@@ -175,6 +175,17 @@ describe("recommendAllocation — voter_roi", () => {
     expect(rec.allocations[0].rationale).not.toContain("pool pays ~$");
   });
 
+  it("reports what the votes would pay without moving the pool, so the cost of your own dilution is visible", () => {
+    // 900 fees on 100k votes at close. 10,000 votes: undiluted 900 * 10k / 100k = 90,
+    // diluted 900 * 10k / (100k + 10k) = ~81.8.
+    const snapshot = snapshotOf([
+      makeForecast({ predictedFeesUsd: 900, lastEpochFeesUsd: 900, confidence: 0.5, currentVotes: 100_000 }),
+    ]);
+    const a = recommendAllocation(snapshot, "voter_roi", 8, 10_000).allocations[0];
+    expect(a.undilutedRewardUsd).toBeGreaterThan(a.expectedRewardUsd as number);
+    expect((a.expectedRewardUsd as number) / (a.undilutedRewardUsd as number)).toBeCloseTo(100_000 / 110_000, 2);
+  });
+
   it("splits the payout into a posted-bribe floor and the fee part, both in the rationale and as separate fields", () => {
     const snapshot = snapshotOf([
       makeForecast({ predictedFeesUsd: 2_000, lastEpochFeesUsd: 487, confidence: 0.4, currentBribesUsd: 300 }),

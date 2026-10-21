@@ -79,6 +79,7 @@ const dashboardPayload = {
         currentVotes: 58_330,
         votesAllocated: 8_000,
         expectedRewardUsd: 42,
+        undilutedRewardUsd: 60,
         confidence: 0.7,
       },
     ],
@@ -590,8 +591,9 @@ describe("Dashboard", () => {
     // with the hero number instead of sitting below the rows as its own line.
     expect(screen.getByText(/your\s+voter \$, not pool fees/i)).toBeInTheDocument();
     // Sum of the fixture's single allocation's expectedRewardUsd (42).
-    // Shown twice: the Voter ROI headline and the phone Overview, from the same number.
-    expect(screen.getAllByText("$42")).toHaveLength(2);
+    // Shown three times, all from the same number: the Voter ROI headline, the
+    // phone Overview, and the "after dilution" figure in the dilution line.
+    expect(screen.getAllByText("$42")).toHaveLength(3);
   });
 
   it("doesn't claim the veAERO amount came from a wallet when none is connected", async () => {
@@ -1160,6 +1162,33 @@ describe("Dashboard", () => {
 
     await user.click(screen.getByText(/hide 1 thin pool/i));
     expect(screen.queryByText("THIN-POOL")).not.toBeInTheDocument();
+  });
+
+  it("says what your own votes cost: the undiluted figure beside the post-dilution headline", async () => {
+    renderDashboard();
+    await waitForPoolsLoaded();
+    expect(screen.getByText(/your own votes move these pools/i)).toHaveTextContent("$60 if they didn't");
+    expect(screen.getByText(/your own votes move these pools/i)).toHaveTextContent("30% less");
+  });
+
+  it("omits the dilution line when the rows carry no undiluted figure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) {
+          const [row] = dashboardPayload.voterAlloc.allocations;
+          return jsonResponse({
+            ...dashboardPayload,
+            voterAlloc: { ...dashboardPayload.voterAlloc, allocations: [{ ...row, undilutedRewardUsd: undefined }] },
+          });
+        }
+        return jsonResponse({}, false);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+    expect(screen.queryByText(/your own votes move these pools/i)).not.toBeInTheDocument();
   });
 
   it("shows last settled epoch's forecast vs paid and the survival check, and lists each week under accuracy", async () => {

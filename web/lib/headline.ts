@@ -28,3 +28,22 @@ export function headlineEstimate(
     forecastIsUpperBound,
   };
 }
+
+/**
+ * What your own votes cost you: the same split's expected reward if it didn't
+ * move the pools it votes into ("$146") against the post-dilution figure
+ * ("$123"). Null when rows lack the number or the gap is under 2%, where it
+ * would only be noise.
+ */
+export function dilutionCost(
+  rows: Array<{ expectedRewardUsd?: number; undilutedRewardUsd?: number }>,
+): { undilutedUsd: number; dilutedUsd: number; lossPct: number } | null {
+  if (rows.length === 0 || rows.some((r) => r.expectedRewardUsd === undefined || r.undilutedRewardUsd === undefined)) {
+    return null;
+  }
+  const dilutedUsd = rows.reduce((s, r) => s + (r.expectedRewardUsd as number), 0);
+  const undilutedUsd = rows.reduce((s, r) => s + (r.undilutedRewardUsd as number), 0);
+  if (undilutedUsd <= 0) return null;
+  const lossPct = ((undilutedUsd - dilutedUsd) / undilutedUsd) * 100;
+  return lossPct >= 2 ? { undilutedUsd, dilutedUsd, lossPct } : null;
+}

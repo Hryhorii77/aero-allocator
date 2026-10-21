@@ -83,8 +83,10 @@ export interface AllocationRecommendation {
     expectedRewardUsd?: number;
     /** Posted bribes already committed this epoch, USD — a floor, not a forecast (voter_roi only). */
     bribeFloorUsd?: number;
-    /** Confidence-blended predicted-vs-last-epoch fee estimate, USD — the risky half of the payout estimate (voter_roi only). */
+    /** Last epoch's fees, assumed to repeat, USD — the risky half of the payout estimate (voter_roi only). */
     feeForecastUsd?: number;
+    /** voter_roi only: expected reward if these votes didn't dilute the pool; the gap to expectedRewardUsd is your own dilution. */
+    undilutedRewardUsd?: number;
     confidence: number;
     rationale: string;
   }>;
