@@ -3,6 +3,7 @@
 import { MobileTabBar, type MobileTab } from "./mobile-tabs";
 import { OverviewPanel } from "./overview";
 import { ProfilePanel } from "./profile";
+import { UpgradeChecklist } from "./upgrade-checklist";
 import { nextBestMove } from "@/lib/next-move";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
@@ -376,7 +377,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-21",
     title:
-      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k. Large holders also see what their own votes cost: the figure if they didn't move the pools, beside the after-dilution one.",
+      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k. Large holders also see what their own votes cost: the figure if they didn't move the pools, beside the after-dilution one. And a four-step upgrade checklist (veAERO to sAERO) with Aero's own dates, shown until a week after launch.",
   },
   {
     date: "2026-10-18",
@@ -1824,6 +1825,7 @@ export default function Dashboard() {
         Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
       </p>
       <AeroLaunchNotice />
+      <UpgradeChecklist />
       {trackRecord && (
         <p className="mt-2 text-xs text-neutral-500">
           Forecast{" "}
