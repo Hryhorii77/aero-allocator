@@ -87,6 +87,36 @@ const dashboardPayload = {
   edgeAlloc: { objective: "edge_hunter", summary: "test edge_hunter summary", allocations: [] },
   lpDeposits: { rewardTokenSymbol: "AERO", opportunities: [] },
   voteSwings: { epochProgressPct: 42.5, risers: [], fallers: [] },
+  voterReplay: {
+    votingPowerVe: 10_000,
+    epochs: [
+      {
+        epochStart: 1_699_000_000,
+        splitPoolCount: 3,
+        splitRealizedUsd: 22.76,
+        splitExpectedUsd: 27.79,
+        topPool: { pool: "0xpoolA", symbol: "POOL-A" },
+        topPoolRealizedUsd: 25.1,
+        survival: { topN: 10, stillTop: 7 },
+      },
+      {
+        epochStart: 1_698_395_200,
+        splitPoolCount: 3,
+        splitRealizedUsd: 20,
+        splitExpectedUsd: 30,
+        topPool: { pool: "0xpoolB", symbol: "POOL-B" },
+        topPoolRealizedUsd: 18,
+        survival: null,
+      },
+    ],
+    splitRealizedUsd: 42.76,
+    splitExpectedUsd: 57.79,
+    paidOfPromisedPct: 74,
+    topPoolRealizedUsd: 43.1,
+    vsTopPoolPct: -0.8,
+    epochsSplitWon: 1,
+    methodology: "replay methodology text",
+  },
   trackRecord: {
     epochsWindow: 26,
     poolsAnalyzed: 30,
@@ -1132,6 +1162,39 @@ describe("Dashboard", () => {
     expect(screen.queryByText("THIN-POOL")).not.toBeInTheDocument();
   });
 
+  it("shows last settled epoch's forecast vs paid and the survival check, and lists each week under accuracy", async () => {
+    // jsdom has no layout, so no scrollIntoView.
+    Element.prototype.scrollIntoView = vi.fn();
+    const user = userEvent.setup();
+    renderDashboard();
+    await waitForPoolsLoaded();
+
+    expect(screen.getByText(/last settled epoch, for 10,000/i)).toBeInTheDocument();
+    expect(screen.getByText(/\(82%\)/)).toBeInTheDocument(); // 22.76 / 27.79
+    expect(screen.getByText(/7 of the 10 pools it ranked top were still top at close/i)).toBeInTheDocument();
+    expect(screen.getByText(/over the last 2: 74% of the forecast was paid/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /see each week/i }));
+    // Per-week rows, including the plain all-in comparison.
+    expect(await screen.findByText(/split replay at 10,000/i)).toBeInTheDocument();
+    expect(screen.getByText(/all-in on POOL-A/i)).toBeInTheDocument();
+    expect(screen.getByText("replay methodology text")).toBeInTheDocument();
+  });
+
+  it("shows no replay line when the payload has none (older cache or too little history)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const s = String(url);
+        if (s.includes("/api/dashboard")) return jsonResponse({ ...dashboardPayload, voterReplay: null });
+        return jsonResponse({}, false);
+      }),
+    );
+    renderDashboard();
+    await waitForPoolsLoaded();
+    expect(screen.queryByText(/last settled epoch, for/i)).not.toBeInTheDocument();
+  });
+
   it("renders the forecast-accuracy track record panel from /api/dashboard's trackRecord field", async () => {
     renderDashboard();
     await waitForPoolsLoaded();
@@ -1256,7 +1319,7 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
     const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
     const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
-    expect(new Set(dates)).toEqual(new Set(["2026-10-18", "2026-10-17"]));
+    expect(new Set(dates)).toEqual(new Set(["2026-10-21", "2026-10-18", "2026-10-17"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {

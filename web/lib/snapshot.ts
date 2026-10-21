@@ -9,6 +9,7 @@ import {
   type MarketSnapshot,
 } from "aero-allocator/scoring";
 import { getBacktestReport, type BacktestReport } from "aero-allocator/backtest";
+import { replayVoterRoi } from "aero-allocator/replay";
 import { getRewardTokenPriceUsd } from "aero-allocator/data";
 import { currentEpochStart, epochProgress, PROTOCOL, SETTINGS } from "aero-allocator/config";
 import { adapter as predictiveAllocationAdapter } from "aero-allocator/predictive-allocation";
@@ -297,6 +298,12 @@ export async function buildFullForecast(votingPower: number, refresh = false) {
         .reverse(),
     })),
     voterAlloc: recommendAllocation(snap, "voter_roi", 8, votingPower),
+    // The same split replayed over the last settled epochs: what it promised
+    // vs what the epochs paid, and the top-pool survival check. Pure
+    // arithmetic over histories the snapshot already holds (no extra RPC).
+    // Raw snapshot on purpose: the replay rebuilds each epoch's forecast
+    // itself, and the calibrated confidence was fitted on these same epochs.
+    voterReplay: replayVoterRoi(rawSnap, votingPower, { maxPools: 8 }),
     protoAlloc: recommendAllocation(snap, "protocol_efficiency", 8),
     edgeAlloc: recommendAllocation(snap, "edge_hunter", 8),
     lpDeposits: recommendLpDeposits(rawSnap, rewardTokenPriceUsd, { maxPools: 15 }),
