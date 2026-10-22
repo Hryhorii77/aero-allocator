@@ -12,6 +12,7 @@
     "./position": "./dist/position.js",
     "./data": "./dist/data.js",
     "./config": "./dist/config.js",
+    "./prices": "./dist/prices.js",
     "./types": "./dist/types.js",
     "./backtest": "./dist/backtest.js",
     "./replay": "./dist/replay.js",

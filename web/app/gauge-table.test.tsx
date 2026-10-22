@@ -11,6 +11,8 @@ const gauges = Array.from({ length: 15 }, (_, i) => ({
   sharePct: 10 - i * 0.5,
   capPerWeek: 250000,
   activated: i !== 14,
+  incentivesUsdPerWeek: i === 0 ? 4137 : 0,
+  incentivesUsdPer1k: i === 0 ? 4.26 : 0,
 }));
 
 describe("GaugeTable", () => {
@@ -34,6 +36,8 @@ describe("GaugeTable", () => {
     expect(screen.getByText("T11/USDC")).toBeInTheDocument();
     expect(screen.queryByText("T12/USDC")).not.toBeInTheDocument();
     expect(screen.getAllByText(/250,000/)).toHaveLength(12);
+    expect(screen.getByText(/\$4,137/)).toBeInTheDocument();
+    expect(screen.getByText(/\$4\.26/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "show all 15" }));
     expect(screen.getByText("T14/USDC")).toBeInTheDocument();
     expect(screen.getByText("not activated")).toBeInTheDocument();
