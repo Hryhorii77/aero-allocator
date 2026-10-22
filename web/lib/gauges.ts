@@ -11,7 +11,7 @@ import { SAERO } from "./saero";
 //  - gaugeStates(gauge).point: decaying weight { bias, slope, ts, permanentStakeBalance }.
 export const FACTORY_REGISTRY_BASE: Address = "0x7b2A2c12dC5Ea2a31455952a05031C3E4BB28F3E";
 
-const registryAbi = parseAbi([
+export const registryAbi = parseAbi([
   "function gaugeFactories() view returns (address[])",
   "function factoryToGauges(address) view returns (address[])",
   "function gaugeToTarget(address) view returns (address)",
@@ -122,7 +122,7 @@ export function buildGaugeRows(
   return { rows, totalWeight };
 }
 
-function client() {
+export function client() {
   return createPublicClient({
     chain: base,
     transport: fallback([http(RPC_URL ?? PRESET.defaultRpcUrl), http(RPC_URL_FALLBACK)]),
@@ -201,4 +201,19 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);
   return { chainId: 8453, generatedAt: nowSec * 1000, totalWeight, gauges: rows };
+}
+
+// One read of ~270 gauges costs a few dozen RPC multicalls, so share it across callers for a minute.
+const LIST_TTL_MS = 60_000;
+let listCache: { at: number; value: GaugeList } | null = null;
+let listInflight: Promise<GaugeList> | null = null;
+
+export async function getBaseGauges(): Promise<GaugeList> {
+  if (listCache && Date.now() - listCache.at <= LIST_TTL_MS) return listCache.value;
+  listInflight ??= readBaseGauges().finally(() => {
+    listInflight = null;
+  });
+  const value = await listInflight;
+  listCache = { at: Date.now(), value };
+  return value;
 }
