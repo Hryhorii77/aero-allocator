@@ -1,6 +1,7 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
 import { base } from "viem/chains";
 import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
+import { getPrices } from "aero-allocator/prices";
 import { SAERO } from "./saero";
 
 // Gauge list for Aero on Base (the new system): FactoryRegistry -> gaugeFactories -> factoryToGauges, so no
@@ -15,7 +16,15 @@ const registryAbi = parseAbi([
   "function factoryToGauges(address) view returns (address[])",
   "function gaugeToTarget(address) view returns (address)",
   "function emissionCap(address) view returns (uint128)",
+  "function gaugeToRewards(address) view returns (address)",
 ]);
+// Incentive programs live on each gauge's rewards contract. Program ids are 1-based (id 0 is an empty slot),
+// \`rate\` is tokens (raw units) per second scaled by 1e18, and a program streams between start and end.
+const incentiveAbi = parseAbi([
+  "function incentiveCount() view returns (uint256)",
+  "function incentive(uint256) view returns ((address token, uint256 amount, uint256 rate, uint48 start, uint48 end, address creator))",
+]);
+const RATE_SCALE = 1e18;
 const leafAbi = parseAbi([
   "function gaugeStates(address) view returns (uint128 ceiling, uint128 claimed, uint48 lastSettlement, bool isRegistered, bool isActivated, uint128 surplus, uint256 lastIndex, uint256 lastTimeIndex, (int128 bias, int128 slope, uint48 ts, uint128 permanentStakeBalance) point)",
 ]);
@@ -43,6 +52,29 @@ export function weeklyCap(capPerSec: bigint): number {
   return (Number(capPerSec) / 1e18) * WEEK;
 }
 
+export interface IncentiveProgram {
+  token: Address;
+  rate: bigint;
+  start: number;
+  end: number;
+}
+
+/** USD per week streamed right now by the programs that are active at `nowSec`; tokens without a price count as 0. */
+export function activeIncentiveUsdPerWeek(
+  programs: IncentiveProgram[],
+  nowSec: number,
+  price: (token: Address) => { priceUsd: number; decimals: number } | null | undefined,
+): number {
+  let usd = 0;
+  for (const p of programs) {
+    if (p.start > nowSec || p.end <= nowSec) continue;
+    const pr = price(p.token);
+    if (!pr) continue;
+    usd += ((Number(p.rate) / RATE_SCALE) * WEEK * pr.priceUsd) / 10 ** pr.decimals;
+  }
+  return usd;
+}
+
 export interface GaugeRow {
   gauge: Address;
   pool: Address;
@@ -54,6 +86,10 @@ export interface GaugeRow {
   /** Emission cap in AERO per week; 0 when the registry reports none. */
   capPerWeek: number;
   activated: boolean;
+  /** Incentives streaming now, in USD per week (0 when none, or none priced). */
+  incentivesUsdPerWeek: number;
+  /** Incentives per 1,000 of allocated power per week: the pull of the gauge's incentives on a marginal allocator. */
+  incentivesUsdPer1k: number;
 }
 
 export interface GaugeList {
@@ -65,7 +101,7 @@ export interface GaugeList {
 
 /** Turns raw per-gauge reads into rows, heaviest first, with each gauge's share of the total. */
 export function buildGaugeRows(
-  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean }>,
+  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number }>,
   nowSec: number,
 ): { rows: GaugeRow[]; totalWeight: number } {
   const weights = raw.map((r) => gaugeWeight(r.point, nowSec));
@@ -79,6 +115,8 @@ export function buildGaugeRows(
       sharePct: totalWeight > 0 ? (weights[i] / totalWeight) * 100 : 0,
       capPerWeek: weeklyCap(r.capPerSec),
       activated: r.activated,
+      incentivesUsdPerWeek: r.incentivesUsdPerWeek ?? 0,
+      incentivesUsdPer1k: weights[i] > 0 ? ((r.incentivesUsdPerWeek ?? 0) / weights[i]) * 1000 : 0,
     }))
     .sort((a, b) => b.weight - a.weight);
   return { rows, totalWeight };
@@ -123,6 +161,32 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
   });
   const symbolOf = new Map(uniqueTokens.map((t, i) => [t, symbols[i].status === "success" ? String(symbols[i].result) : t.slice(0, 6)]));
 
+  const rewards = await c.multicall({
+    allowFailure: false,
+    contracts: gauges.map((g) => ({ address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "gaugeToRewards", args: [g] }) as const),
+  });
+  const counts = await c.multicall({
+    allowFailure: true,
+    contracts: rewards.map((r) => ({ address: r, abi: incentiveAbi, functionName: "incentiveCount" }) as const),
+  });
+  const progCalls = rewards.flatMap((r, gi) => {
+    const n = counts[gi].status === "success" ? Number(counts[gi].result) : 0;
+    return Array.from({ length: Math.min(n, 50) }, (_, k) => ({ gi, id: BigInt(k + 1), r }));
+  });
+  const progRes = await c.multicall({
+    allowFailure: true,
+    contracts: progCalls.map((x) => ({ address: x.r, abi: incentiveAbi, functionName: "incentive", args: [x.id] }) as const),
+  });
+  const byGauge: IncentiveProgram[][] = gauges.map(() => []);
+  progRes.forEach((res, i) => {
+    if (res.status !== "success") return;
+    const p = res.result;
+    if (p.end > nowSec && p.start <= nowSec) byGauge[progCalls[i].gi].push({ token: p.token, rate: p.rate, start: p.start, end: p.end });
+  });
+  const incentiveTokens = [...new Set(byGauge.flat().map((p) => p.token))];
+  const prices = incentiveTokens.length ? await getPrices(incentiveTokens).catch(() => new Map()) : new Map();
+  const priceOf = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
+
   const raw = gauges.map((gauge, i) => {
     const state = per[i * 3 + 2] as readonly [bigint, bigint, number, boolean, boolean, bigint, bigint, bigint, { bias: bigint; slope: bigint; ts: number; permanentStakeBalance: bigint }];
     return {
@@ -132,6 +196,7 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
       point: state[8],
       capPerSec: per[i * 3 + 1] as bigint,
       activated: state[4],
+      incentivesUsdPerWeek: activeIncentiveUsdPerWeek(byGauge[i], nowSec, priceOf),
     };
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);

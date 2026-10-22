@@ -38,8 +38,8 @@ export function GaugeTable() {
         Aero gauges on Base{data ? ` (${data.gauges.length})` : ""}
       </summary>
       <p className="mt-2 text-xs text-neutral-500">
-        Share of the allocation weight now sitting on each gauge, and its emission cap in AERO per week. Fees and bribes per
-        gauge are not included yet.
+        Share of the allocation weight now sitting on each gauge, and its emission cap in AERO per week. Incentives streaming now are shown where a gauge has
+        any; trading fees per gauge are not included yet, so this is not a full return figure.
       </p>
       {failed && <p className="mt-2 text-xs text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
       {!data && !failed && <p className="mt-2 text-xs text-neutral-500">Loading gauges…</p>}
@@ -55,6 +55,12 @@ export function GaugeTable() {
                 <span>
                   cap <span className="text-neutral-300">{fmt(g.capPerWeek)}</span> AERO/wk
                 </span>
+                {g.incentivesUsdPerWeek > 0 && (
+                  <span>
+                    incentives <span className="text-neutral-300">${fmt(g.incentivesUsdPerWeek)}</span>/wk ·{" "}
+                    <span className="text-neutral-300">${g.incentivesUsdPer1k.toFixed(2)}</span> per 1k
+                  </span>
+                )}
                 {!g.activated && <span className="text-amber-500">not activated</span>}
               </div>
             ))}
