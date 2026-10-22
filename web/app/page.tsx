@@ -6,6 +6,7 @@ import { ProfilePanel } from "./profile";
 import { UpgradeChecklist } from "./upgrade-checklist";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { SaeroPositions } from "./saero-positions";
+import { GaugeTable } from "./gauge-table";
 import { nextBestMove } from "@/lib/next-move";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
@@ -379,7 +380,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-22",
     title:
-      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Allocation tools for the new system are next.",
+      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds and its emission cap per week. Allocation tools for the new system are next.",
   },
   {
     date: "2026-10-21",
@@ -1850,6 +1851,7 @@ export default function Dashboard() {
       <AeroLaunchNotice />
       <AeroLiveNotice />
       <SaeroPositions />
+      <GaugeTable />
       <UpgradeChecklist />
       {trackRecord && (
         <p className="mt-2 text-xs text-neutral-500">
