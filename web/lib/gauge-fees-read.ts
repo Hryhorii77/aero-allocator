@@ -1,4 +1,6 @@
-import { parseAbi, type Address } from "viem";
+import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
+import { base } from "viem/chains";
+import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
 import { getPrices } from "aero-allocator/prices";
 import { client, FACTORY_REGISTRY_BASE, getBaseGauges, registryAbi, type GaugeRow } from "./gauges";
 import { BLOCKS_PER_HOUR, feePace, readFeeEvents, type LogReader } from "./gauge-fees";
@@ -22,6 +24,19 @@ const rewardsAbi = parseAbi([
 export const FEE_WINDOW_HOURS = 5;
 const BY_WEIGHT = 40;
 const BY_PENDING = 25;
+
+/**
+ * Event-log reads need an RPC that allows address lists over ~10,000 blocks. A configured RPC_URL (often a
+ * provider's free tier, which caps eth_getLogs ranges) can refuse them, so the public node known to allow it is
+ * tried first and the configured ones only after it.
+ */
+export function logRpcUrls(): string[] {
+  return [...new Set([PRESET.defaultRpcUrl, RPC_URL, RPC_URL_FALLBACK].filter((u): u is string => !!u))];
+}
+
+function logClient() {
+  return createPublicClient({ chain: base, transport: fallback(logRpcUrls().map((u) => http(u))) });
+}
 
 export interface GaugeFee {
   gauge: Address;
@@ -89,9 +104,10 @@ export async function readGaugeFees(nowSec = Math.floor(Date.now() / 1000)): Pro
   const picked = pickCandidates(list.gauges, pendingUsd);
   const startSec = Math.max(nowSec - FEE_WINDOW_HOURS * 3600, Math.floor(AERO_LAUNCH_AT_MS / 1000));
   const windowSec = nowSec - startSec;
-  const head = await c.getBlockNumber();
+  const lc = logClient();
+  const head = await lc.getBlockNumber();
   const fromBlock = head - BigInt(Math.ceil((windowSec / 3600) * BLOCKS_PER_HOUR));
-  const events = await readFeeEvents(c as unknown as LogReader, picked.map((g) => rewardsOf.get(g)!), fromBlock, head);
+  const events = await readFeeEvents(lc as unknown as LogReader, picked.map((g) => rewardsOf.get(g)!), fromBlock, head);
   const evTokens = [...new Set(events.map((e) => e.token))].filter((t) => !tokens.has(t));
   if (evTokens.length) for (const [k, v] of await getPrices(evTokens).catch(() => new Map())) prices.set(k, v);
 
