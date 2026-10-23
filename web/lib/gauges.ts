@@ -1,7 +1,7 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
-import { base } from "viem/chains";
 import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
-import { getPrices } from "aero-allocator/prices";
+import { AERO_CHAINS, BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
+import { getChainPrices } from "./chain-prices";
 import { SAERO } from "./saero";
 
 // Gauge list for Aero on Base (the new system): FactoryRegistry -> gaugeFactories -> factoryToGauges, so no
@@ -9,7 +9,7 @@ import { SAERO } from "./saero";
 //  - emissionCap(gauge): the gauge's emission cap in tokens per second (NOT gaugeStates.ceiling, which is a
 //    cumulative counter of share credited to the gauge).
 //  - gaugeStates(gauge).point: decaying weight { bias, slope, ts, permanentStakeBalance }.
-export const FACTORY_REGISTRY_BASE: Address = "0x7b2A2c12dC5Ea2a31455952a05031C3E4BB28F3E";
+export const FACTORY_REGISTRY_BASE: Address = BASE_CHAIN.registry;
 
 export const registryAbi = parseAbi([
   "function gaugeFactories() view returns (address[])",
@@ -81,7 +81,7 @@ export interface GaugeRow {
   symbol: string;
   /** Allocation weight in whole AERO-equivalent power. */
   weight: number;
-  /** Share of all Base gauge weight, 0-100. */
+  /** Share of all gauge weight on this chain, 0-100. */
   sharePct: number;
   /** Emission cap in AERO per week; 0 when the registry reports none. */
   capPerWeek: number;
@@ -93,7 +93,7 @@ export interface GaugeRow {
 }
 
 export interface GaugeList {
-  chainId: 8453;
+  chainId: number;
   generatedAt: number;
   totalWeight: number;
   gauges: GaugeRow[];
@@ -122,27 +122,27 @@ export function buildGaugeRows(
   return { rows, totalWeight };
 }
 
-export function client() {
-  return createPublicClient({
-    chain: base,
-    transport: fallback([http(RPC_URL ?? PRESET.defaultRpcUrl), http(RPC_URL_FALLBACK)]),
-  });
+/** A client for one Aero chain. Base keeps the configured RPC_URL (+ fallback); the others use their public nodes. */
+export function client(cfg: AeroChain = BASE_CHAIN) {
+  const urls = cfg.id === BASE_CHAIN.id ? [RPC_URL ?? PRESET.defaultRpcUrl, RPC_URL_FALLBACK] : cfg.rpcs;
+  return createPublicClient({ chain: cfg.chain, transport: fallback(urls.filter((u): u is string => !!u).map((u) => http(u))) });
 }
 
-/** Reads every Aero gauge on Base. A few dozen multicalls; the route caches the result. */
-export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Promise<GaugeList> {
-  const c = client();
-  const factories = await c.readContract({ address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "gaugeFactories" });
+/** Reads every Aero gauge on one chain. A few dozen multicalls; the route caches the result. */
+export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() / 1000)): Promise<GaugeList> {
+  const c = client(cfg);
+  const registry = cfg.registry;
+  const factories = await c.readContract({ address: registry, abi: registryAbi, functionName: "gaugeFactories" });
   const lists = await Promise.all(
-    factories.map((f) => c.readContract({ address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "factoryToGauges", args: [f] })),
+    factories.map((f) => c.readContract({ address: registry, abi: registryAbi, functionName: "factoryToGauges", args: [f] })),
   );
   const gauges = [...new Set(lists.flat())];
 
   const per = await c.multicall({
     allowFailure: false,
     contracts: gauges.flatMap((g) => [
-      { address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "gaugeToTarget", args: [g] },
-      { address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "emissionCap", args: [g] },
+      { address: registry, abi: registryAbi, functionName: "gaugeToTarget", args: [g] },
+      { address: registry, abi: registryAbi, functionName: "emissionCap", args: [g] },
       { address: SAERO.leafVoter, abi: leafAbi, functionName: "gaugeStates", args: [g] },
     ] as const),
   });
@@ -163,7 +163,7 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
 
   const rewards = await c.multicall({
     allowFailure: false,
-    contracts: gauges.map((g) => ({ address: FACTORY_REGISTRY_BASE, abi: registryAbi, functionName: "gaugeToRewards", args: [g] }) as const),
+    contracts: gauges.map((g) => ({ address: registry, abi: registryAbi, functionName: "gaugeToRewards", args: [g] }) as const),
   });
   const counts = await c.multicall({
     allowFailure: true,
@@ -184,7 +184,7 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
     if (p.end > nowSec && p.start <= nowSec) byGauge[progCalls[i].gi].push({ token: p.token, rate: p.rate, start: p.start, end: p.end });
   });
   const incentiveTokens = [...new Set(byGauge.flat().map((p) => p.token))];
-  const prices = incentiveTokens.length ? await getPrices(incentiveTokens).catch(() => new Map()) : new Map();
+  const prices = incentiveTokens.length ? await getChainPrices(cfg.llama, incentiveTokens) : new Map();
   const priceOf = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
 
   const raw = gauges.map((gauge, i) => {
@@ -200,20 +200,28 @@ export async function readBaseGauges(nowSec = Math.floor(Date.now() / 1000)): Pr
     };
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);
-  return { chainId: 8453, generatedAt: nowSec * 1000, totalWeight, gauges: rows };
+  return { chainId: cfg.id, generatedAt: nowSec * 1000, totalWeight, gauges: rows };
 }
 
 // One read of ~270 gauges costs a few dozen RPC multicalls, so share it across callers for a minute.
 const LIST_TTL_MS = 60_000;
-let listCache: { at: number; value: GaugeList } | null = null;
-let listInflight: Promise<GaugeList> | null = null;
+const caches = new Map<number, { at: number; value: GaugeList }>();
+const inflight = new Map<number, Promise<GaugeList>>();
 
-export async function getBaseGauges(): Promise<GaugeList> {
-  if (listCache && Date.now() - listCache.at <= LIST_TTL_MS) return listCache.value;
-  listInflight ??= readBaseGauges().finally(() => {
-    listInflight = null;
-  });
-  const value = await listInflight;
-  listCache = { at: Date.now(), value };
+export async function getGauges(chainId: number): Promise<GaugeList> {
+  const cfg = chainById(chainId);
+  if (!cfg) throw new Error(`Unsupported chain ${chainId}`);
+  const hit = caches.get(chainId);
+  if (hit && Date.now() - hit.at <= LIST_TTL_MS) return hit.value;
+  let p = inflight.get(chainId);
+  if (!p) {
+    p = readGauges(cfg).finally(() => inflight.delete(chainId));
+    inflight.set(chainId, p);
+  }
+  const value = await p;
+  caches.set(chainId, { at: Date.now(), value });
   return value;
 }
+
+export const getBaseGauges = () => getGauges(BASE_CHAIN.id);
+export const SUPPORTED_CHAIN_IDS = AERO_CHAINS.map((c) => c.id);

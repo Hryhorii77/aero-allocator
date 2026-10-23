@@ -6,7 +6,8 @@ import type { GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { MIN_RANK_WEIGHT, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { AERO_LAUNCH_AT_MS } from "./launch";
-import { btn } from "./ui";
+import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
+import { btn, chip } from "./ui";
 
 const SHOWN = 12;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -22,16 +23,33 @@ export function GaugeTable() {
   const [feesFailed, setFeesFailed] = useState(false);
   const [amountText, setAmountText] = useState("10000");
 
+  const [chainId, setChainId] = useState<number>(BASE_CHAIN.id);
+  const onBase = chainId === BASE_CHAIN.id;
+  const chainName = AERO_CHAINS.find((c) => c.id === chainId)?.name ?? "";
+
   useEffect(() => {
-    const isLive = DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS;
-    setLive(isLive);
-    if (!isLive) return;
+    setLive(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);
+  }, []);
+
+  useEffect(() => {
+    if (!live) return;
     let cancelled = false;
-    fetch("/api/gauges")
+    setData(null);
+    setFailed(false);
+    setAll(false);
+    fetch(`/api/gauges?chain=${chainId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: GaugeList) => !cancelled && setData(d))
       .catch(() => !cancelled && setFailed(true));
-    // Fee estimates read event logs and take several seconds the first time, so they load after the list.
+    return () => {
+      cancelled = true;
+    };
+  }, [live, chainId]);
+
+  // Fee estimates read event logs and take several seconds the first time, so they load after the list. Base only.
+  useEffect(() => {
+    if (!live) return;
+    let cancelled = false;
     fetch("/api/gauge-fees")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: GaugeFees) => !cancelled && setFees(d))
@@ -39,21 +57,34 @@ export function GaugeTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [live]);
 
   if (!live) return null;
   const rows = data ? (all ? data.gauges : data.gauges.slice(0, SHOWN)) : [];
   const amount = Number(amountText.replace(/,/g, ""));
-  const ranked = data && fees ? rankByUsdPerDay(data.gauges, fees.fees, amount).slice(0, 8) : [];
+  const ranked = onBase && data && fees ? rankByUsdPerDay(data.gauges, fees.fees, amount).slice(0, 8) : [];
   return (
     <details open className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2">
       <summary className="cursor-pointer select-none text-sm font-medium text-neutral-200">
-        Aero gauges on Base{data ? ` (${data.gauges.length})` : ""}
+        Aero gauges on {chainName}{data ? ` (${data.gauges.length})` : ""}
       </summary>
       <p className="mt-2 text-xs text-neutral-500">
         Share of the allocation weight now sitting on each gauge, and its emission cap in AERO per week. Incentives streaming now are shown where a gauge has
-        any; trading fees per gauge are not included yet, so this is not a full return figure.
+        any; trading fees are in the ranking below (Base), not in this list, so this is not a full return figure.
       </p>
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="chain">
+        {AERO_CHAINS.map((c) => (
+          <button key={c.id} type="button" className={chip(c.id === chainId)} aria-pressed={c.id === chainId} onClick={() => setChainId(c.id)}>
+            {c.name}
+          </button>
+        ))}
+      </div>
+      {!onBase && (
+        <p className="mt-2 text-xs text-amber-500">
+          On {chainName} you can see weights, caps and incentives. Fee estimates, the $/day ranking and allocating are Base only for now (Arc isn&rsquo;t read yet).
+        </p>
+      )}
+      {onBase && (
       <div className="mt-3 rounded-md border border-neutral-800 px-2 py-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-400">
           <span>What</span>
@@ -95,6 +126,7 @@ export function GaugeTable() {
           </p>
         )}
       </div>
+      )}
       {failed && <p className="mt-2 text-xs text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
       {!data && !failed && <p className="mt-2 text-xs text-neutral-500">Loading gauges…</p>}
       {data && (
