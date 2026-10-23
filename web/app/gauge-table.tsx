@@ -91,8 +91,7 @@ export function GaugeTable() {
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
             Fees are the pace of the last ~{Math.round(fees.windowHours)} hours, not a promise: a quiet or busy stretch moves
             them a lot. Your own allocation shares the gauge, so the figure already counts that. Only gauges with a fee
-            estimate and at least {fmt(MIN_RANK_WEIGHT)} power are ranked ({fees.fees.length} gauges checked: the heaviest plus the
-            busiest by recent fees).
+            estimate and at least {fmt(MIN_RANK_WEIGHT)} power are ranked ({fees.fees.length} of {data?.gauges.length ?? "all"} gauges have a measurable pace).
           </p>
         )}
       </div>
