@@ -59,3 +59,16 @@ describe("eventsWithin / coverageHours", () => {
     expect(coverageHours(l, 400_000n)).toBeCloseTo((2 * 43_200) / 1800);
   });
 });
+
+describe("block time", () => {
+  it("retains by days of the chain's own block time (12 s blocks: 7,200 a day)", () => {
+    const a = appendEvents(null, [ev(1500)], { from: 1000n, to: 2000n, reset: true }, 1, 12);
+    // 4 days = 28,800 blocks of 12 s; 1500 is still inside at block 20,000 but gone by 30,000.
+    expect(appendEvents(a, [], { from: 2001n, to: 20_000n, reset: false }, 2, 12).events).toHaveLength(1);
+    expect(appendEvents(a, [], { from: 2001n, to: 30_500n, reset: false }, 2, 12).events).toHaveLength(0);
+  });
+  it("reports coverage hours with the chain's block time", () => {
+    const l = appendEvents(null, [], { from: 1000n, to: 1300n, reset: true }, 1, 12);
+    expect(coverageHours(l, 1300n, 2, 12)).toBeCloseTo((300 * 12) / 3600);
+  });
+});
