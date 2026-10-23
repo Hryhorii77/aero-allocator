@@ -42,3 +42,22 @@ describe("bestSplit", () => {
     expect(bestSplit([], 100)).toBeNull();
   });
 });
+
+import { currentUsdPerDay } from "./split";
+
+describe("currentUsdPerDay", () => {
+  const row = (n: number, fees: number, inc: number, weight: number) => ({ gauge: `0x${n.toString(16).padStart(40, "0")}` as `0x${string}`, symbol: `P${n}`, feesUsdPerDay: fees, incentivesUsdPerDay: inc, weight });
+
+  it("prices each current gauge by your share once your own power is out of its weight", () => {
+    // 100 power into a gauge holding 900 others: you own 10% of 1,000 -> 10% of (600 + 400).
+    const r = currentUsdPerDay([row(1, 600, 400, 900)], [{ gauge: row(1, 0, 0, 0).gauge, symbol: "P1", pct: 100 }], 100);
+    expect(r.usd).toBeCloseTo(100, 6);
+    expect(r.unmeasured).toEqual([]);
+  });
+
+  it("splits your power by the current shares and lists gauges it can't price", () => {
+    const r = currentUsdPerDay([row(1, 1000, 0, 900)], [{ gauge: row(1, 0, 0, 0).gauge, symbol: "P1", pct: 50 }, { gauge: row(2, 0, 0, 0).gauge, symbol: "P2", pct: 50 }], 200);
+    expect(r.usd).toBeCloseTo((1000 * 100) / 1000, 6);
+    expect(r.unmeasured).toEqual(["P2"]);
+  });
+});

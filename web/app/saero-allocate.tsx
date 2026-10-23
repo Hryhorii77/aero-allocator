@@ -8,13 +8,15 @@ import type { Address } from "viem";
 import type { GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
-import { bestSplit } from "@/lib/split";
+import { bestSplit, currentUsdPerDay, type Split } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, MAX_GAUGES, planAllocation } from "@/lib/allocate";
 import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
 import { btn, chip, LINK } from "./ui";
 
 const CHOICES = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtSigned = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(0)}`;
 const usd = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 /** Equal shares in hundredths of a percent that add up to exactly 100. */
@@ -63,6 +65,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
   const [rows, setRows] = useState<YieldRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [current, setCurrent] = useState<CurrentPick[] | null>(null);
+  const [compare, setCompare] = useState<{ nowUsd: number | null; unmeasured: string[]; best: Split | null } | null>(null);
   const [feesNote, setFeesNote] = useState<number | null>(null);
   const [pct, setPct] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
@@ -75,26 +78,33 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
       fetch("/api/gauges").then((r) => (r.ok ? (r.json() as Promise<GaugeList>) : Promise.reject(new Error(String(r.status))))),
       fetch("/api/gauge-fees").then((r) => (r.ok ? (r.json() as Promise<GaugeFees>) : Promise.reject(new Error(String(r.status))))),
     ])
-      .then(([g, f]) => {
+      .then(async ([g, f]) => {
         if (cancelled) return;
-        const all = rankByUsdPerDay(g.gauges, f.fees, position.staked);
-        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), position.staked);
+        const symbolOf = (a: string) => g.gauges.find((x) => x.gauge.toLowerCase() === a.toLowerCase())?.symbol ?? `${a.slice(0, 6)}…`;
+        const cur = await readCurrent(position.tokenId, symbolOf).catch(() => [] as CurrentPick[]);
+        if (cancelled) return;
+        // Your power counts in a gauge's weight today (the amounts here are power, as Aero shows them), so take it out before comparing.
+        const power = position.votingPower > 0 ? position.votingPower : position.staked;
+        const own = new Map(cur.map((c) => [c.gauge.toLowerCase(), (c.pct / 100) * power]));
+        const gauges = g.gauges.map((x) => ({ ...x, weight: Math.max(0, x.weight - (own.get(x.gauge.toLowerCase()) ?? 0)) }));
+        const all = rankByUsdPerDay(gauges, f.fees, power);
+        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), power);
         const splitGauges = new Set((split?.parts ?? []).map((p) => p.gauge.toLowerCase()));
         const top = all.slice(0, CHOICES);
         const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
-        const symbolOf = (a: string) => g.gauges.find((x) => x.gauge.toLowerCase() === a.toLowerCase())?.symbol ?? `${a.slice(0, 6)}…`;
         setFeesNote(f.windowHours);
-        readCurrent(position.tokenId, symbolOf)
-          .catch(() => [] as CurrentPick[])
-          .then((cur) => {
-            if (cancelled) return;
-            setCurrent(cur);
-            // Keep your current gauges selectable even when they're outside the top picks.
-            const extra = cur
-              .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
-              .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 0, windowHours: 0 });
-            setRows([...ranked, ...extra]);
-          });
+        setCurrent(cur);
+        if (cur.length > 0) {
+          // A gauge you're on can fall under the ranking's minimum weight once you leave it; price it from its raw row instead.
+          const priced = cur.length ? rankByUsdPerDay(gauges, f.fees, power, 0) : [];
+          const now = currentUsdPerDay(priced, cur, power);
+          setCompare({ nowUsd: now.unmeasured.length === cur.length ? null : now.usd, unmeasured: now.unmeasured, best: split });
+        } else setCompare(null);
+        // Keep your current gauges selectable even when they're outside the top picks.
+        const extra = cur
+          .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
+          .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 0, windowHours: 0 });
+        setRows([...ranked, ...extra]);
         if (split) setPct(Object.fromEntries(split.parts.map((p) => [p.gauge, String(p.pct)])));
         else {
           const eq = equalShares(Math.min(3, ranked.length));
@@ -105,7 +115,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     return () => {
       cancelled = true;
     };
-  }, [open, rows, position.staked, position.tokenId]);
+  }, [open, rows, position.staked, position.votingPower, position.tokenId]);
 
   const picks = useMemo(
     () =>
@@ -176,6 +186,26 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         <p className="mt-2 text-xs text-neutral-400">
           Right now on Base:{" "}
           <span className="text-neutral-200">{current.map((c) => `${c.symbol} ${fmt(c.pct)}%`).join(", ")}</span>
+        </p>
+      )}
+      {compare && compare.best && (
+        <p className="mt-1 text-xs text-neutral-400">
+          {compare.nowUsd === null ? (
+            <>Where you are now can&rsquo;t be priced yet (no fee history for it). </>
+          ) : (
+            <>
+              That earns about <span className="text-neutral-200">${usd2(compare.nowUsd)}</span> a day
+              {compare.unmeasured.length > 0 && ` (not counting ${compare.unmeasured.join(", ")}, which can't be priced yet)`}.{" "}
+            </>
+          )}
+          {compare.nowUsd !== null && compare.best.usdPerDay <= compare.nowUsd * 1.05 ? (
+            <>The best split would earn about the same, so there is nothing to gain by moving.</>
+          ) : (
+            <>
+              The best split would earn about <span className="text-emerald-400">${usd2(compare.best.usdPerDay)}</span> a day
+              {compare.nowUsd !== null && compare.nowUsd > 0 && <> ({fmtSigned((compare.best.usdPerDay / compare.nowUsd - 1) * 100)}%)</>}.
+            </>
+          )}
         </p>
       )}
       {current && current.length === 0 && <p className="mt-2 text-xs text-neutral-500">Nothing is allocated to gauges on Base yet.</p>}
