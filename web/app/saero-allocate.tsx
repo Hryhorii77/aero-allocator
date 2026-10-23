@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { simulateContract } from "wagmi/actions";
+import { readContract, readContracts, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import type { Address } from "viem";
 import type { GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
 import { AllocateError, allocateAbi, allocateArgs, MAX_GAUGES, planAllocation } from "@/lib/allocate";
-import { SAERO, type SaeroPosition } from "@/lib/saero";
+import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
 import { btn, chip, LINK } from "./ui";
 
 const CHOICES = 10;
@@ -21,6 +21,31 @@ export function equalShares(n: number): number[] {
   if (n <= 0) return [];
   const base = Math.floor(10_000 / n);
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? 10_000 - base * (n - 1) : base) / 100);
+}
+
+export interface CurrentPick {
+  gauge: Address;
+  symbol: string;
+  /** Share of the amount booked on Base, 0-100. */
+  pct: number;
+}
+
+/** The gauges this position is on now (leaf allocatedGauges + allocations), read in the browser. Empty if none or unreadable. */
+async function readCurrent(tokenId: bigint, symbolOf: (g: string) => string): Promise<CurrentPick[]> {
+  const { wagmiConfig } = await import("@/lib/wagmi");
+  const gauges = (await readContract(wagmiConfig, { address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "allocatedGauges", args: [tokenId], chainId: base.id })) as Address[];
+  if (gauges.length === 0) return [];
+  const amounts = (await readContracts(wagmiConfig, {
+    allowFailure: false,
+    contracts: gauges.map((gauge) => ({ address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "allocations" as const, args: [tokenId, gauge] as const, chainId: base.id })),
+  })) as bigint[];
+  const total = amounts.reduce((a, b) => a + b, 0n);
+  if (total === 0n) return [];
+  return gauges
+    .map((gauge, i) => ({ gauge, symbol: symbolOf(gauge), pct: Number((amounts[i] * 10_000n) / total) / 100, raw: amounts[i] }))
+    .filter((c) => c.raw > 0n && c.gauge !== "0x0000000000000000000000000000000000000000")
+    .sort((a, b) => b.pct - a.pct)
+    .map(({ gauge, symbol, pct }) => ({ gauge, symbol, pct }));
 }
 
 /**
@@ -36,6 +61,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<YieldRow[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [current, setCurrent] = useState<CurrentPick[] | null>(null);
   const [feesNote, setFeesNote] = useState<number | null>(null);
   const [pct, setPct] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
@@ -50,9 +76,21 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     ])
       .then(([g, f]) => {
         if (cancelled) return;
-        const ranked = rankByUsdPerDay(g.gauges, f.fees, position.staked).slice(0, CHOICES);
-        setRows(ranked);
+        const all = rankByUsdPerDay(g.gauges, f.fees, position.staked);
+        const ranked = all.slice(0, CHOICES);
+        const symbolOf = (a: string) => g.gauges.find((x) => x.gauge.toLowerCase() === a.toLowerCase())?.symbol ?? `${a.slice(0, 6)}…`;
         setFeesNote(f.windowHours);
+        readCurrent(position.tokenId, symbolOf)
+          .catch(() => [] as CurrentPick[])
+          .then((cur) => {
+            if (cancelled) return;
+            setCurrent(cur);
+            // Keep your current gauges selectable even when they're outside the top picks.
+            const extra = cur
+              .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
+              .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0 });
+            setRows([...ranked, ...extra]);
+          });
         const top = equalShares(Math.min(3, ranked.length));
         setPct(Object.fromEntries(ranked.slice(0, top.length).map((r, i) => [r.gauge, String(top[i])])));
       })
@@ -60,7 +98,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     return () => {
       cancelled = true;
     };
-  }, [open, rows, position.staked]);
+  }, [open, rows, position.staked, position.tokenId]);
 
   const picks = useMemo(
     () =>
@@ -127,6 +165,13 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         Pick up to {MAX_GAUGES} gauges (the best {CHOICES} by estimated $/day for {fmt(position.staked)} AERO are listed) and give each a share. This{" "}
         <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for 47 hours.
       </p>
+      {current && current.length > 0 && (
+        <p className="mt-2 text-xs text-neutral-400">
+          Right now on Base:{" "}
+          <span className="text-neutral-200">{current.map((c) => `${c.symbol} ${fmt(c.pct)}%`).join(", ")}</span>
+        </p>
+      )}
+      {current && current.length === 0 && <p className="mt-2 text-xs text-neutral-500">Nothing is allocated to gauges on Base yet.</p>}
       {failed && <p className="mt-2 text-xs text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
       {!rows && !failed && <p className="mt-2 text-xs text-neutral-500">Loading gauges…</p>}
       {rows && (
@@ -139,7 +184,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
                   <input type="checkbox" checked={on} onChange={() => toggle(r.gauge)} aria-label={`include ${r.symbol}`} />
                   <span className="truncate text-neutral-200">{r.symbol}</span>
                 </label>
-                <span className="text-emerald-400">${usd(r.usdPerDay)}/day</span>
+                {r.sharePct > 0 ? <span className="text-emerald-400">${usd(r.usdPerDay)}/day</span> : <span className="text-neutral-500">no estimate</span>}
                 {on && (
                   <label className="flex items-center gap-1">
                     <input

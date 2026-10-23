@@ -68,6 +68,8 @@ export const saeroLeafAbi = [
       { name: "chainAllocation", type: "uint128" },
     ],
   },
+  { type: "function", name: "allocatedGauges", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "address[]" }] },
+  { type: "function", name: "allocations", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }, { name: "gauge", type: "address" }], outputs: [{ type: "uint128" }] },
   { type: "function", name: "allocationCooldown", stateMutability: "view", inputs: [], outputs: [{ type: "uint48" }] },
 ] as const;
 

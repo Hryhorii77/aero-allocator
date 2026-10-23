@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const OWNER = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae";
 const account = vi.hoisted(() => ({ address: undefined as string | undefined, chainId: 8453 as number | undefined }));
 const write = vi.hoisted(() => ({ writeContract: vi.fn(), reset: vi.fn() }));
-const sim = vi.hoisted(() => ({ simulateContract: vi.fn() }));
+const sim = vi.hoisted(() => ({ simulateContract: vi.fn(), readContract: vi.fn(), readContracts: vi.fn() }));
 vi.mock("wagmi", () => ({
   useAccount: () => account,
   useSwitchChain: () => ({ switchChain: vi.fn() }),
@@ -53,6 +53,8 @@ describe("SaeroAllocate", () => {
     account.chainId = 8453;
     write.writeContract.mockReset();
     sim.simulateContract.mockReset();
+    sim.readContract.mockReset().mockResolvedValue([]);
+    sim.readContracts.mockReset().mockResolvedValue([]);
     mockFetch();
   });
 
@@ -68,6 +70,23 @@ describe("SaeroAllocate", () => {
     expect(call.functionName).toBe("allocate");
     expect(call.args[1]).toEqual([{ chainId: 8453n, delta: 1000n * 10n ** 18n, gasLimit: 0n, value: 0n }]);
     expect(call.args[2][0].gauges.reduce((a: bigint, x: { allocated: bigint }) => a + x.allocated, 0n)).toBe(1000n * 10n ** 18n);
+  });
+
+  it("shows what the position is on now and keeps those gauges selectable even outside the top picks", async () => {
+    const outside = g(9);
+    sim.readContract.mockResolvedValue([g(2), outside]);
+    sim.readContracts.mockResolvedValue([300n * 10n ** 18n, 100n * 10n ** 18n]);
+    render(<SaeroAllocate position={{ ...position, parkedRaw: 0n, onBaseRaw: 400n * 10n ** 18n }} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/P2 75%/)).toBeInTheDocument();
+    expect(screen.getByText(/0x0000…\s*25%/)).toBeInTheDocument();
+    expect(screen.getByLabelText(`include ${outside.slice(0, 6)}…`)).toBeInTheDocument();
+  });
+
+  it("says so when nothing is allocated yet", async () => {
+    render(<SaeroAllocate position={position} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/Nothing is allocated to gauges on Base yet/)).toBeInTheDocument();
   });
 
   it("does not ask the wallet when the simulation says the contract would reject it", async () => {
