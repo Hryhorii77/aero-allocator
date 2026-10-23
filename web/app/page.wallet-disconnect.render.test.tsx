@@ -21,6 +21,9 @@ const { useAccountMock, useReadContractMock } = vi.hoisted(() => ({
   })),
 }));
 
+// These test the weekly dashboard, which the page only renders before Aero's launch (or on Velodrome); keep them off the real clock.
+vi.mock("./launch", async (orig) => ({ ...(await orig<typeof import("./launch")>()), hasAeroLaunched: () => false }));
+
 vi.mock("wagmi", () => ({
   useAccount: useAccountMock,
   useConnect: () => ({ connectors: [], connect: vi.fn(), isPending: false }),

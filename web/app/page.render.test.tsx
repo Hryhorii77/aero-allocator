@@ -1344,7 +1344,7 @@ describe("Dashboard", () => {
     await user.click(screen.getByText(/what's new/i));
 
     expect(details.open).toBe(true);
-    expect(screen.getByText(/four tabs along the bottom/i)).toBeInTheDocument();
+    expect(screen.getByText(/The page is now only about sAERO/i)).toBeInTheDocument();
   });
 
   it("only carries the last two ship days", async () => {
@@ -1352,7 +1352,7 @@ describe("Dashboard", () => {
     await waitForPoolsLoaded();
     const details = screen.getByText(/what's new/i).closest("details") as HTMLDetailsElement;
     const dates = [...details.querySelectorAll("li > span:first-child")].map((el) => el.textContent);
-    expect(new Set(dates)).toEqual(new Set(["2026-10-22", "2026-10-21", "2026-10-18", "2026-10-17"]));
+    expect(new Set(dates)).toEqual(new Set(["2026-10-23", "2026-10-22", "2026-10-21"]));
   });
 
   it("points at the commit history rather than listing every change ever shipped", async () => {
@@ -1774,15 +1774,24 @@ describe("Dashboard — highlighted token pools", () => {
 describe("Dashboard after the Aero launch", () => {
   afterEach(() => vi.mocked(hasAeroLaunched).mockReturnValue(false));
 
-  it("asks where to allocate sAERO and drops the weekly vote clock and snapshot chips", async () => {
+  it("shows only the sAERO page: no weekly vote sections, clock or snapshot, and never fetches the weekly snapshot", async () => {
     vi.mocked(hasAeroLaunched).mockReturnValue(true);
+    const f = vi.fn(async (url: string | URL) => {
+      if (String(url).includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
+      return { ok: false, status: 500 } as Response;
+    });
+    vi.stubGlobal("fetch", f);
     renderDashboard();
     expect(await screen.findByRole("heading", { level: 1, name: /Where to allocate your sAERO/ })).toBeInTheDocument();
-    await waitForPoolsLoaded();
-    await waitFor(() => expect(screen.queryByText(/Where to vote your/)).not.toBeInTheDocument());
+    expect(screen.getByText("Your sAERO positions")).toBeInTheDocument();
     expect(screen.getByText(/Where to allocate your sAERO: gauges ranked/)).toBeInTheDocument();
-    expect(screen.queryByText(/votes close in|voting closed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/snapshot \d+\w* ago/i)).not.toBeInTheDocument();
+    // The what's-new log may still mention old features by name; the page itself must not show them.
+    const outsideLog = (re: RegExp) => screen.queryAllByText(re).filter((el) => !el.closest("details"));
+    for (const gone of [/Where to vote your/, /Voter ROI/, /predicted hot pools/i, /cast vote/i, /votes close in|voting closed/i, /snapshot \d+\w* ago/i]) {
+      expect(outsideLog(gone)).toEqual([]);
+    }
+    expect(f.mock.calls.map((c) => String(c[0])).some((u) => u.includes("/api/dashboard"))).toBe(false);
+    expect(screen.getAllByRole("button", { name: /connect wallet/i })).toHaveLength(1);
   });
 
   it("keeps the weekly-vote header before launch", async () => {

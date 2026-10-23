@@ -1,6 +1,7 @@
 "use client";
 
 import { DISPLAY_PRESET } from "@/lib/protocol";
+import { SAERO } from "@/lib/saero";
 import { LINK } from "./ui";
 import { TipJar } from "./tip-jar";
 import { useAeroLive } from "./use-aero-live";
@@ -45,7 +46,12 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
         </div>
         <div className="flex flex-col gap-1.5 sm:text-right">
           <div className="mb-0.5 text-xs uppercase tracking-wider text-neutral-500">Onchain</div>
-          {explorer && addresses && (
+          {aeroLive && explorer && (
+            <a href={`${explorer.url}/address/${SAERO.voter}`} target="_blank" rel="noreferrer" className={LINK}>
+              Aero voter contract ↗
+            </a>
+          )}
+          {!aeroLive && explorer && addresses && (
             <a
               href={`${explorer.url}/address/${addresses.voterAddress}`}
               target="_blank"
@@ -55,17 +61,18 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
               Voter contract ↗
             </a>
           )}
-          <a href={`${DISPLAY_PRESET.appUrl}/vote`} target="_blank" rel="noreferrer" className={LINK}>
-            {displayName} ↗
+          <a href={aeroLive ? "https://aero.xyz" : `${DISPLAY_PRESET.appUrl}/vote`} target="_blank" rel="noreferrer" className={LINK}>
+            {aeroLive ? "Aero" : displayName} ↗
           </a>
         </div>
       </div>
       <div className="mt-6 space-y-2 border-t border-neutral-800 pt-4">
         <p>Not investment advice. Forecasts are estimates and can be wrong.</p>
         <p>
-          Independent and non-custodial. Not affiliated with {displayName}, Dromos Labs or {networkName}. Votes are
-          cast from your own wallet; this app never asks for a seed phrase.
+          Independent and non-custodial. Not affiliated with {aeroLive ? "Aero" : displayName}, Dromos Labs or {networkName}.{" "}
+          {aeroLive ? "Allocations are sent" : "Votes are cast"} from your own wallet; this app never asks for a seed phrase.
         </p>
+        {!aeroLive && (
         <p>
           Or skip the UI and ask an agent:{" "}
           <span className="font-mono text-neutral-400">&quot;recommend a voter_roi allocation for my {veTokenSymbol}&quot;</span>
@@ -75,10 +82,17 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
           </a>
           .
         </p>
+        )}
       </div>
       <p className="mt-4">
-        Live data: {displayName} Sugar contracts on {networkName} + DefiLlama prices · snapshot{" "}
-        {new Date(snapshotAt).toLocaleTimeString()}
+        {aeroLive ? (
+          <>Live data: Aero&rsquo;s contracts on {networkName} and the other Aero chains, trading-fee logs, and DefiLlama prices.</>
+        ) : (
+          <>
+            Live data: {displayName} Sugar contracts on {networkName} + DefiLlama prices · snapshot{" "}
+            {new Date(snapshotAt).toLocaleTimeString()}
+          </>
+        )}
       </p>
       <p className="mt-1">MIT licensed · Built on {networkName}</p>
     </footer>
