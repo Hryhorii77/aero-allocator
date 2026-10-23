@@ -36,6 +36,13 @@ export const saeroEscrowAbi = [
 export const saeroVoterAbi = [
   {
     type: "function",
+    name: "allocationChainAmounts",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }, { name: "chainId", type: "uint256" }],
+    outputs: [{ type: "uint128" }],
+  },
+  {
+    type: "function",
     name: "tokenStates",
     stateMutability: "view",
     inputs: [{ name: "tokenId", type: "uint256" }],
@@ -49,6 +56,18 @@ export const saeroVoterAbi = [
 ] as const;
 
 export const saeroLeafAbi = [
+  {
+    type: "function",
+    name: "tokenStates",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [
+      { name: "operator", type: "address" },
+      { name: "lastAllocated", type: "uint48" },
+      { name: "canVoteForZeroCapGauges", type: "bool" },
+      { name: "chainAllocation", type: "uint128" },
+    ],
+  },
   { type: "function", name: "allocationCooldown", stateMutability: "view", inputs: [], outputs: [{ type: "uint48" }] },
 ] as const;
 
@@ -64,9 +83,14 @@ export interface SaeroPosition {
   /** Lock end as unix seconds; 0 for a permanent stake. */
   endSec: number;
   isPermanent: boolean;
-  /** Amount currently allocated, in whole tokens. */
+  /** Amount booked on any chain (staked when fully booked), in whole tokens. */
   committed: number;
-  /** Unix seconds of the last allocation, 0 if never allocated. */
+  /** Power idle on CHAIN0 (not on any chain or gauge), whole tokens and base units. */
+  parked: number;
+  parkedRaw: bigint;
+  /** Power booked on Base (the gauges below Base), base units. */
+  onBaseRaw: bigint;
+  /** Unix seconds of the last gauge allocation on Base (the leaf's cooldown anchor), 0 if never. */
   lastAllocatedSec: number;
 }
 
@@ -88,7 +112,7 @@ export function formatDuration(totalSeconds: number): string {
   return `${m}m`;
 }
 
-/** Shares of a position's power that are allocated; 0 when it has none. */
-export function allocatedPct(p: Pick<SaeroPosition, "committed" | "staked">): number {
-  return p.staked > 0 ? Math.min(100, (p.committed / p.staked) * 100) : 0;
+/** Share of a position's power that is placed on a chain (not idle on CHAIN0); 0 when it has none. */
+export function allocatedPct(p: Pick<SaeroPosition, "parked" | "staked">): number {
+  return p.staked > 0 ? Math.max(0, Math.min(100, ((p.staked - p.parked) / p.staked) * 100)) : 0;
 }

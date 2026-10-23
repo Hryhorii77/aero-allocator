@@ -18,9 +18,11 @@ import {
   type SaeroPosition,
 } from "@/lib/saero";
 import { AERO_LAUNCH_AT_MS } from "./launch";
+import { SaeroAllocate } from "./saero-allocate";
 import { btn, LINK } from "./ui";
 
 const MAX_POSITIONS = 25;
+const CALLS_PER_POSITION = 6;
 const toTokens = (v: bigint) => Number(v) / 1e18;
 
 /** Reads every sAERO position of an address straight from Base in this browser, so the address never reaches our server. */
@@ -60,12 +62,19 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
     { address: SAERO.votingEscrow, abi: saeroEscrowAbi, functionName: "staked" as const, args: [id] as const, chainId },
     { address: SAERO.votingEscrow, abi: saeroEscrowAbi, functionName: "balanceOfNFT" as const, args: [id] as const, chainId },
     { address: SAERO.voter, abi: saeroVoterAbi, functionName: "tokenStates" as const, args: [id] as const, chainId },
+    { address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "tokenStates" as const, args: [id] as const, chainId },
+    { address: SAERO.voter, abi: saeroVoterAbi, functionName: "allocationChainAmounts" as const, args: [id, 0n] as const, chainId },
+    { address: SAERO.voter, abi: saeroVoterAbi, functionName: "allocationChainAmounts" as const, args: [id, BigInt(SAERO_CHAIN_ID)] as const, chainId },
   ]);
   const res = (await readContracts(wagmiConfig, { allowFailure: false, contracts: calls as never })) as unknown[];
   const positions = ids.map((tokenId, i): SaeroPosition => {
-    const staked = res[i * 3] as { amount: bigint; end: number; isPermanent: boolean };
-    const vp = res[i * 3 + 1] as bigint;
-    const state = res[i * 3 + 2] as readonly [bigint, number, number, boolean];
+    const o = i * CALLS_PER_POSITION;
+    const staked = res[o] as { amount: bigint; end: number; isPermanent: boolean };
+    const vp = res[o + 1] as bigint;
+    const state = res[o + 2] as readonly [bigint, number, number, boolean];
+    const leaf = res[o + 3] as readonly [string, number, boolean, bigint];
+    const parkedRaw = res[o + 4] as bigint;
+    const onBaseRaw = res[o + 5] as bigint;
     return {
       tokenId,
       staked: toTokens(staked.amount),
@@ -73,7 +82,10 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
       endSec: staked.isPermanent ? 0 : Number(staked.end),
       isPermanent: staked.isPermanent,
       committed: toTokens(state[0]),
-      lastAllocatedSec: Number(state[2]),
+      parked: toTokens(parkedRaw),
+      parkedRaw,
+      onBaseRaw,
+      lastAllocatedSec: Number(leaf[1]),
     };
   });
   return { positions, cooldownSec };
@@ -181,6 +193,7 @@ export function SaeroPositions() {
                     {cd.ready ? "ready to allocate" : `next allocation in ${formatDuration(cd.secondsLeft)}`}
                   </span>
                 </div>
+                {connected && owner && connected.toLowerCase() === owner.toLowerCase() && <SaeroAllocate position={p} cooldownReady={cd.ready} />}
               </li>
             );
           })}

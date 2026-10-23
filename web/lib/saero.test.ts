@@ -33,9 +33,10 @@ describe("formatDuration", () => {
 });
 
 describe("allocatedPct", () => {
-  it("is committed over staked, capped at 100, and 0 for an empty stake", () => {
-    expect(allocatedPct({ committed: 5, staked: 10 })).toBe(50);
-    expect(allocatedPct({ committed: 12, staked: 10 })).toBe(100);
-    expect(allocatedPct({ committed: 0, staked: 0 })).toBe(0);
+  it("is the share not idle on CHAIN0, clamped to 0-100, and 0 for an empty stake", () => {
+    expect(allocatedPct({ parked: 5, staked: 10 })).toBe(50);
+    expect(allocatedPct({ parked: 0, staked: 10 })).toBe(100);
+    expect(allocatedPct({ parked: 12, staked: 10 })).toBe(0);
+    expect(allocatedPct({ parked: 0, staked: 0 })).toBe(0);
   });
 });
