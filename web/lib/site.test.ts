@@ -18,6 +18,14 @@ describe("siteMetadata", () => {
     expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share"] });
   });
 
+  it("describes sAERO allocation on the hosted Aerodrome site, not the retired weekly vote", async () => {
+    const m = await load();
+    expect(String(m.title)).toMatch(/sAERO/);
+    expect(String(m.title)).not.toMatch(/hot pools/);
+    expect(String(m.description)).not.toMatch(/next-epoch/);
+    expect(m.openGraph?.images).toEqual([expect.objectContaining({ alt: expect.stringMatching(/sAERO/) })]);
+  });
+
   it("uses NEXT_PUBLIC_SITE_URL when a deployment sets one", async () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://votes.example.org");
     expect(String((await load()).metadataBase)).toBe("https://votes.example.org/");

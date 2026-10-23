@@ -10,10 +10,16 @@ import { DISPLAY_PRESET, PROTOCOL } from "./protocol";
 export const SITE_URL: string | undefined =
   process.env.NEXT_PUBLIC_SITE_URL ?? (PROTOCOL === "aerodrome" ? "https://aeroallocator.app" : undefined);
 
-const TITLE = `${DISPLAY_PRESET.appName} — predicted hot pools`;
-const DESCRIPTION =
-  `Live forecast of next-epoch fee demand across ${DISPLAY_PRESET.displayName} pools on ${DISPLAY_PRESET.networkName}, ` +
-  `with dilution-aware ${DISPLAY_PRESET.veTokenSymbol} allocation recommendations.`;
+// Aero retired the weekly vote on 2026-10-22, so the hosted Aerodrome site describes sAERO allocation; the Velodrome build still
+// describes the weekly vote.
+const AERO = PROTOCOL === "aerodrome";
+const TITLE = AERO ? `${DISPLAY_PRESET.appName} — where your sAERO earns the most` : `${DISPLAY_PRESET.appName} — predicted hot pools`;
+const DESCRIPTION = AERO
+  ? "Read your sAERO positions, see which Aero gauges pay the most per day for your amount (fees and incentives, after your own dilution), " +
+    "and allocate from your wallet. Non-custodial, free."
+  : `Live forecast of next-epoch fee demand across ${DISPLAY_PRESET.displayName} pools on ${DISPLAY_PRESET.networkName}, ` +
+    `with dilution-aware ${DISPLAY_PRESET.veTokenSymbol} allocation recommendations.`;
+const IMAGE_ALT = AERO ? "What your sAERO earns per day in the best split of Aero gauges" : "Expected voter $ next epoch";
 
 /**
  * Pasting the site's address into a post unfurls the share card
@@ -32,7 +38,7 @@ export function siteMetadata(): Metadata {
         description: DESCRIPTION,
         siteName: DISPLAY_PRESET.appName,
         type: "website",
-        images: [{ url: "/api/share", width: 1200, height: 630, alt: "Expected voter $ next epoch" }],
+        images: [{ url: "/api/share", width: 1200, height: 630, alt: IMAGE_ALT }],
       },
       twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/api/share"] },
     }),

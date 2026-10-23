@@ -6,6 +6,12 @@ import { DISPLAY_PRESET } from "@/lib/protocol";
 import { recommendAllocation } from "aero-allocator/scoring";
 import { SETTINGS, currentEpochStart } from "aero-allocator/config";
 import { headlineEstimate } from "@/lib/headline";
+import { getGauges } from "@/lib/gauges";
+import { getGaugeFees } from "@/lib/gauge-fees-read";
+import { rankByUsdPerDay } from "@/lib/gauge-yield";
+import { bestSplit } from "@/lib/split";
+import { BASE_CHAIN } from "@/lib/aero-chains";
+import { hasAeroLaunched } from "../../launch";
 
 export const maxDuration = 60;
 
@@ -19,6 +25,40 @@ export const maxDuration = 60;
 // Cached for a few minutes at the edge: the figure moves with the snapshot,
 // not with every viewer, and a card being unfurled by a crowd shouldn't each
 // cost a recommendation.
+type Palette = { bg: string; text: string; muted: string; accent: string; money: string };
+
+function card(c: Palette, big: string, sub: string, foot: string, maxAge: number) {
+  return new ImageResponse(
+    (
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: c.bg, padding: "64px 72px", color: c.text }}>
+        <div style={{ display: "flex", fontSize: 36, color: c.muted }}>
+          {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")}&nbsp;<span style={{ color: c.accent }}>Allocator</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", fontSize: 200, lineHeight: 1, color: c.money, fontWeight: 700 }}>{big}</div>
+          <div style={{ display: "flex", fontSize: 44, marginTop: 20, color: c.text }}>{sub}</div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 34, color: c.muted }}>
+          <div style={{ display: "flex" }}>{foot}</div>
+          <div style={{ display: "flex", color: c.accent }}>aeroallocator.app</div>
+        </div>
+      </div>
+    ),
+    { width: 1200, height: 630, headers: { "Cache-Control": `public, s-maxage=${maxAge}, stale-while-revalidate=600` } },
+  );
+}
+
+/** After Aero's launch the card is the sAERO answer: what an amount earns per day in the best split of Base gauges. */
+async function saeroCard(c: Palette, amount: number) {
+  const [list, fees] = await Promise.all([getGauges(BASE_CHAIN.id), getGaugeFees(BASE_CHAIN.id)]);
+  const ranked = rankByUsdPerDay(list.gauges, fees.fees, amount);
+  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
+  const sAero = `${amount.toLocaleString("en-US")} sAERO`;
+  if (!split) return card(c, "sAERO", "Where your sAERO earns the most on Aero", "gauges ranked by what your amount earns per day", 300);
+  const where = split.parts.slice(0, 3).map((p) => `${p.symbol} ${Math.round(p.pct)}%`).join(" · ");
+  return card(c, usd(split.usdPerDay), `per day, best split of ${sAero} on Base`, where, 300);
+}
+
 export async function GET(req: Request) {
   const limit = checkRateLimit(req, { key: "share", limit: 20, windowMs: 60_000 });
   if (!limit.allowed) return rateLimitResponse(limit.retryAfterSec);
@@ -32,6 +72,7 @@ export async function GET(req: Request) {
     : { bg: "#0a0a0a", text: "#d4d4d4", muted: "#a3a3a3", accent: "#38bdf8", money: "#34d399" };
 
   try {
+    if (DISPLAY_PRESET.protocol === "aerodrome" && hasAeroLaunched()) return await saeroCard(c, votingPower);
     const snap = await calibratedSnapshot(false);
     const rec = recommendAllocation(snap, "voter_roi", 8, votingPower);
     const forecastUsd = rec.allocations.reduce((s, a) => s + (a.expectedRewardUsd ?? 0), 0);
