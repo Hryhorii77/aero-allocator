@@ -1791,6 +1791,10 @@ describe("Dashboard after the Aero launch", () => {
       expect(outsideLog(gone)).toEqual([]);
     }
     expect(f.mock.calls.map((c) => String(c[0])).some((u) => u.includes("/api/dashboard"))).toBe(false);
+    // A jump bar in the header gets you to each section.
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    expect(within(nav).getByRole("link", { name: "Gauges" })).toHaveAttribute("href", "#gauges");
+    expect(within(nav).getByRole("link", { name: "Positions" })).toHaveAttribute("href", "#positions");
     expect(screen.getAllByRole("button", { name: /connect wallet/i })).toHaveLength(1);
   });
 

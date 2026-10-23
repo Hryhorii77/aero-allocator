@@ -116,7 +116,7 @@ export function GaugeTable() {
   const shown = all ? lines : lines.slice(0, SHOWN);
 
   return (
-    <section className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
+    <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>
         Where your sAERO earns the most on {chainName}
         {data ? <span className="font-normal text-neutral-500"> · {data.gauges.length} gauges</span> : ""}
