@@ -127,7 +127,7 @@ export function SaeroPositions() {
 
   if (!live) return null;
   return (
-    <section className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
+    <section id="positions" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>Your sAERO positions</h2>
       <p className={`mt-1 ${NOTE}`}>
         Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated 47 hours after its last

@@ -46,7 +46,7 @@ export function UpgradeChecklist() {
   }, []);
   if (!show) return null;
   return (
-    <details open className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-3 sm:px-5">
+    <details id="upgrade" open className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-3 sm:px-5">
       <summary className="cursor-pointer select-none text-sm font-medium text-neutral-200">
         Upgrading {DISPLAY_PRESET.veTokenSymbol} to sAERO: what to do, in order
       </summary>

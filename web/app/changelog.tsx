@@ -15,7 +15,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-23",
     title:
-      "The gauge list is now one aligned table (what your amount earns per day, fees, incentives, power in the gauge and how steady the fee pace is; sortable), built phone-first: two columns on a phone, the rest under the pool name. The amount and address boxes now say what is wrong as you type, and text is larger and consistent across the page. Each pool now shows its kind (CL10, CL100, stable, volatile…) and current fee, and its name links to the pool contract, so same-named pools can be told apart.",
+      "The gauge list is now one aligned table (what your amount earns per day, fees, incentives, power in the gauge and how steady the fee pace is; sortable), built phone-first: two columns on a phone, the rest under the pool name. The amount and address boxes now say what is wrong as you type, and text is larger and consistent across the page. Each pool now shows its kind (CL10, CL100, stable, volatile…) and current fee, and its name links to the pool contract, so same-named pools can be told apart. A sticky bar at the top jumps between the gauge table, your positions and the upgrade guide.",
   },
   {
     date: "2026-10-23",

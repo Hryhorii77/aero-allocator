@@ -1,13 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { AllocatorMark } from "./allocator-mark";
 import { ChangelogPanel } from "./changelog";
 import { GaugeTable } from "./gauge-table";
+import { JumpBar } from "./jump-bar";
 import { SaeroPositions } from "./saero-positions";
 import { SiteFooter } from "./site-footer";
 import { ThemeToggle } from "./theme-toggle";
-import { UpgradeChecklist } from "./upgrade-checklist";
+import { UpgradeChecklist, upgradeChecklistVisible } from "./upgrade-checklist";
 import { ConnectButton } from "./wallet";
 import { LEAD } from "./ui";
 
@@ -16,11 +18,15 @@ import { LEAD } from "./ui";
  * button. The weekly-vote dashboard it replaced lives on for Velodrome and for the days before launch (page.tsx).
  */
 export function SaeroPage() {
+  // Same mounted-state rule as the checklist itself, so the link only exists while the section does.
+  const [upgrade, setUpgrade] = useState(false);
+  useEffect(() => setUpgrade(upgradeChecklistVisible(Date.now(), DISPLAY_PRESET.protocol)), []);
+  const sections = [{ id: "gauges", label: "Gauges" }, { id: "positions", label: "Positions" }, ...(upgrade ? [{ id: "upgrade", label: "Upgrade guide" }] : [])];
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 overflow-x-clip px-6 py-10 lg:px-8">
-      <header className="sm:sticky sm:top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-3 backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <div className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+      <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-2 backdrop-blur sm:py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+          <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white sm:text-3xl">
             <AllocatorMark />
             {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")} <span className="text-sky-400">Allocator</span>
           </div>
@@ -29,6 +35,7 @@ export function SaeroPage() {
             <ConnectButton />
           </div>
         </div>
+        <JumpBar items={sections} />
       </header>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Where to allocate your sAERO.</h1>
       <p className={`mt-2 ${LEAD}`}>
