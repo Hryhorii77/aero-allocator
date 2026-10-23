@@ -109,3 +109,30 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Light-mode text that must read on a pale page. The light theme mirrors each Tailwind shade (400 <-> 600, 500 stays 500), which
+   leaves these text colors too pale: amber-500 was 2.0:1, emerald/sky 400 about 3.5:1, rose 400 4.3:1 and neutral-500 4.46:1 against
+   the 4.5:1 that WCAG AA asks of body text. Only the text utilities are overridden, so backgrounds and borders keep the mirrored
+   scale. Dark mode is untouched. */
+:root[data-theme="light"] .text-amber-400,
+:root[data-theme="light"] .text-amber-500 {
+  color: oklch(45% 0.11 65);
+}
+:root[data-theme="light"] .text-emerald-400,
+:root[data-theme="light"] .text-emerald-500 {
+  color: oklch(46% 0.13 163);
+}
+:root[data-theme="light"] .text-sky-400 {
+  color: oklch(46% 0.15 245);
+}
+:root[data-theme="light"] .text-rose-400 {
+  color: oklch(48% 0.2 17);
+}
+:root[data-theme="light"] .text-neutral-500 {
+  color: oklch(49% 0 0);
+}
+/* Control edges (inputs, secondary buttons, badges) mirror to a pale grey that is about 1.4:1 on the page; WCAG asks 3:1 for the
+   boundary of a control. Cards and dividers (border-neutral-800 and lighter) stay as the quiet decoration they are. */
+:root[data-theme="light"] .border-neutral-700 {
+  border-color: oklch(62% 0 0);
+}
