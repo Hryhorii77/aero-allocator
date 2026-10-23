@@ -83,8 +83,10 @@ export async function readFeeEvents(
   fromBlock: bigint,
   toBlock: bigint,
   concurrency = 3,
+  limits: { span?: number; addresses?: number } = {},
 ): Promise<Array<FeeEvent & { rewards: Address }>> {
-  const jobs = chunk(rewards, ADDRESSES_PER_QUERY).flatMap((addrs) => blockRanges(fromBlock, toBlock).map(([f, t]) => ({ addrs, f, t })));
+  const span = BigInt(limits.span ?? BLOCKS_PER_QUERY);
+  const jobs = chunk(rewards, limits.addresses ?? ADDRESSES_PER_QUERY).flatMap((addrs) => blockRanges(fromBlock, toBlock, span).map(([f, t]) => ({ addrs, f, t })));
   const out: Array<FeeEvent & { rewards: Address }> = [];
   let next = 0;
   const worker = async () => {

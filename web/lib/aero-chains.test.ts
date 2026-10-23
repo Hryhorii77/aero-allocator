@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AERO_CHAINS, BASE_CHAIN, chainById } from "./aero-chains";
+import { AERO_CHAINS, BASE_CHAIN, chainById, lookbackBlocks } from "./aero-chains";
 import { FACTORY_REGISTRY_BASE } from "./gauges";
 
 describe("AERO_CHAINS", () => {
@@ -17,8 +17,22 @@ describe("AERO_CHAINS", () => {
     expect(chainById(10)?.name).toBe("OP");
     expect(chainById(5042)).toBeUndefined();
   });
-  it("measures fee pace only where public nodes can serve enough log history", () => {
-    expect(AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.key)).toEqual(["base", "ethereum", "optimism"]);
+  it("measures fee pace on every chain it reads, each with a node that was tested to serve the logs", () => {
+    expect(AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.key)).toEqual(["base", "ethereum", "optimism", "arbitrum", "ink", "robinhood"]);
     for (const c of AERO_CHAINS) expect(c.blockSec).toBeGreaterThan(0);
+  });
+  it("uses the log nodes found to serve deep history, not the ones that refuse it", () => {
+    // publicnode only serves recent Arbitrum blocks ("archive requests require a paid plan"); Ink's default node caps queries at 1,000 blocks.
+    expect(chainById(42161)!.logRpcs).toEqual(["https://arb1.arbitrum.io/rpc"]);
+    expect(chainById(57073)!.logRpcs).toEqual(["https://rpc-qnd.inkonchain.com"]);
+    for (const c of AERO_CHAINS) {
+      if (c.logSpan) expect(c.logSpan).toBeLessThanOrEqual(50_000);
+      if (c.logAddresses) expect(c.logAddresses).toBeGreaterThan(0);
+    }
+  });
+  it("turns a backfill in hours into blocks with the chain's own block time, else uses the default", () => {
+    expect(lookbackBlocks(chainById(57073)!, 9_500n)).toBe(86_400n);
+    expect(lookbackBlocks(chainById(42161)!, 9_500n)).toBe(BigInt(Math.round(86_400 / 0.295)));
+    expect(lookbackBlocks(chainById(8453)!, 9_500n)).toBe(9_500n);
   });
 });
