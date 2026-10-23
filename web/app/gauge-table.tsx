@@ -65,6 +65,7 @@ export function GaugeTable() {
   const onBase = chainId === BASE_CHAIN.id;
   const cfg = AERO_CHAINS.find((c) => c.id === chainId);
   const chainName = cfg?.name ?? "";
+  const explorer = cfg?.chain.blockExplorers?.default.url;
   const hasFees = !!cfg?.feeLogs;
 
   useEffect(() => {
@@ -195,7 +196,21 @@ export function GaugeTable() {
                   return (
                     <tr key={g.gauge} className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
-                        <div className="break-words font-medium text-neutral-100">{g.symbol}</div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          {explorer ? (
+                            <a href={`${explorer}/address/${g.pool}`} target="_blank" rel="noreferrer" title="Open the pool contract" className="break-words font-medium text-neutral-100 underline-offset-2 hover:text-sky-300 hover:underline">
+                              {g.symbol}
+                            </a>
+                          ) : (
+                            <span className="break-words font-medium text-neutral-100">{g.symbol}</span>
+                          )}
+                          {g.poolType && (
+                            <span className="whitespace-nowrap rounded-md border border-neutral-700 px-1.5 py-0.5 text-xs text-neutral-400" title={g.feePct != null ? `Current fee ${g.feePct.toFixed(2)}%` : undefined}>
+                              {g.poolType}
+                              {g.feePct != null ? ` · ${g.feePct < 0.1 ? g.feePct.toFixed(3) : g.feePct.toFixed(2)}%` : ""}
+                            </span>
+                          )}
+                        </div>
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}

@@ -29,6 +29,12 @@ const leafAbi = parseAbi([
   "function gaugeStates(address) view returns (uint128 ceiling, uint128 claimed, uint48 lastSettlement, bool isRegistered, bool isActivated, uint128 surplus, uint256 lastIndex, uint256 lastTimeIndex, (int128 bias, int128 slope, uint48 ts, uint128 permanentStakeBalance) point)",
 ]);
 const poolAbi = parseAbi(["function token0() view returns (address)", "function token1() view returns (address)"]);
+// Pool kind: concentrated-liquidity pools answer tickSpacing() and fee(); classic pools are told apart by their symbol ("vAMMV2-…" / "sAMMV2-…").
+const poolKindAbi = parseAbi([
+  "function tickSpacing() view returns (int24)",
+  "function fee() view returns (uint24)",
+  "function symbol() view returns (string)",
+]);
 const erc20Abi = parseAbi(["function symbol() view returns (string)"]);
 
 const WEEK = 604_800;
@@ -90,6 +96,23 @@ export interface GaugeRow {
   incentivesUsdPerWeek: number;
   /** Incentives per 1,000 of allocated power per week: the pull of the gauge's incentives on a marginal allocator. */
   incentivesUsdPer1k: number;
+  /** "CL100" (concentrated liquidity, by tick spacing), "stable" or "volatile"; empty when it can't be told. Absent in older payloads. */
+  poolType?: string;
+  /** Current fee of a concentrated-liquidity pool in percent (they move with volatility); null for classic pools. */
+  feePct?: number | null;
+}
+
+/** "WETH/USDC · CL100": the pair plus its kind, so same-named gauges can be told apart. */
+export function gaugeLabel(g: { symbol: string; poolType?: string }): string {
+  return g.poolType ? `${g.symbol} · ${g.poolType}` : g.symbol;
+}
+
+/** Pool kind from what the pool answers: tick spacing for concentrated liquidity, else the "vAMM"/"sAMM" symbol prefix. */
+export function poolKind(tickSpacing: number | null, symbol: string | null, feePips: number | null): { poolType: string; feePct: number | null } {
+  if (tickSpacing !== null && tickSpacing > 0) return { poolType: `CL${tickSpacing}`, feePct: feePips === null ? null : feePips / 10_000 };
+  if (symbol?.startsWith("sAMM")) return { poolType: "stable", feePct: null };
+  if (symbol?.startsWith("vAMM")) return { poolType: "volatile", feePct: null };
+  return { poolType: "", feePct: null };
 }
 
 export interface GaugeList {
@@ -101,7 +124,7 @@ export interface GaugeList {
 
 /** Turns raw per-gauge reads into rows, heaviest first, with each gauge's share of the total. */
 export function buildGaugeRows(
-  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number }>,
+  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number; poolType?: string; feePct?: number | null }>,
   nowSec: number,
 ): { rows: GaugeRow[]; totalWeight: number } {
   const weights = raw.map((r) => gaugeWeight(r.point, nowSec));
@@ -117,6 +140,8 @@ export function buildGaugeRows(
       activated: r.activated,
       incentivesUsdPerWeek: r.incentivesUsdPerWeek ?? 0,
       incentivesUsdPer1k: weights[i] > 0 ? ((r.incentivesUsdPerWeek ?? 0) / weights[i]) * 1000 : 0,
+      poolType: r.poolType ?? "",
+      feePct: r.feePct ?? null,
     }))
     .sort((a, b) => b.weight - a.weight);
   return { rows, totalWeight };
@@ -154,6 +179,18 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
       { address: p, abi: poolAbi, functionName: "token1" },
     ] as const),
   });
+  const kinds = await c.multicall({
+    allowFailure: true,
+    contracts: pools.flatMap((p) => [
+      { address: p, abi: poolKindAbi, functionName: "tickSpacing" },
+      { address: p, abi: poolKindAbi, functionName: "fee" },
+      { address: p, abi: poolKindAbi, functionName: "symbol" },
+    ] as const),
+  });
+  const kindOf = (i: number) => {
+    const [t, f, s] = [kinds[i * 3], kinds[i * 3 + 1], kinds[i * 3 + 2]];
+    return poolKind(t.status === "success" ? Number(t.result) : null, s.status === "success" ? String(s.result) : null, f.status === "success" ? Number(f.result) : null);
+  };
   const uniqueTokens = [...new Set(tokens as Address[])];
   const symbols = await c.multicall({
     allowFailure: true,
@@ -197,6 +234,7 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
       capPerSec: per[i * 3 + 1] as bigint,
       activated: state[4],
       incentivesUsdPerWeek: activeIncentiveUsdPerWeek(byGauge[i], nowSec, priceOf),
+      ...kindOf(i),
     };
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);

@@ -61,6 +61,27 @@ describe("GaugeTable", () => {
     expect(screen.getByText(/pace of the last ~5 hours/)).toBeInTheDocument();
   });
 
+  it("tells same-named gauges apart with a pool-type badge and links each pool to its contract", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const twins = [
+      { ...gauges[0], gauge: "0xa", pool: "0x00000000000000000000000000000000000000a1", symbol: "msUSD/USDC", poolType: "CL10", feePct: 0.0232 },
+      { ...gauges[1], gauge: "0xb", pool: "0x00000000000000000000000000000000000000b1", symbol: "msUSD/USDC", poolType: "CL100", feePct: 0.2 },
+      { ...gauges[2], gauge: "0xc", pool: "0x00000000000000000000000000000000000000c1", symbol: "AERO/USDC", poolType: "volatile", feePct: null },
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges: twins }) })));
+    render(<GaugeTable />);
+    await screen.findAllByText("msUSD/USDC");
+    expect(screen.getByText("CL10 · 0.023%")).toBeInTheDocument();
+    expect(screen.getByText("CL100 · 0.20%")).toBeInTheDocument();
+    expect(screen.getByText("volatile")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "msUSD/USDC" });
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      "https://basescan.org/address/0x00000000000000000000000000000000000000a1",
+      "https://basescan.org/address/0x00000000000000000000000000000000000000b1",
+    ]);
+    expect(links[0]).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+  });
+
   it("sorts by the column you click", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));

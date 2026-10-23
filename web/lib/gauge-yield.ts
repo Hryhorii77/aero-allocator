@@ -17,6 +17,8 @@ export interface YieldRow {
   sharePct: number;
   /** Power already in the gauge, whole tokens. */
   weight: number;
+  /** Pool kind ("CL100", "stable", "volatile"), to tell same-named gauges apart. */
+  poolType?: string;
   /** How many hours of fee history the pace rests on. */
   windowHours: number;
 }
@@ -53,6 +55,7 @@ export function rankByUsdPerDay(
       usdPerDay: (f + incentivesUsdPerDay) * share,
       sharePct: share * 100,
       weight: g.weight,
+      poolType: g.poolType,
       windowHours: fee.windowHours,
     });
   }

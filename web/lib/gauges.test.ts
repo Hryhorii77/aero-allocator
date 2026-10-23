@@ -76,3 +76,30 @@ describe("incentivesUsdPer1k", () => {
     expect(rows[0].incentivesUsdPer1k).toBe(250);
   });
 });
+
+import { gaugeLabel, poolKind } from "./gauges";
+
+describe("poolKind", () => {
+  it("names concentrated-liquidity pools by tick spacing and turns the fee into percent", () => {
+    expect(poolKind(200, "CL200-USDC/cbZEC", 1568)).toEqual({ poolType: "CL200", feePct: 0.1568 });
+    expect(poolKind(1, null, null)).toEqual({ poolType: "CL1", feePct: null });
+  });
+
+  it("tells classic pools apart by the symbol prefix", () => {
+    expect(poolKind(null, "vAMMV2-AERO/USDC", null)).toEqual({ poolType: "volatile", feePct: null });
+    expect(poolKind(null, "sAMMV2-USDC/USDT", null)).toEqual({ poolType: "stable", feePct: null });
+  });
+
+  it("is empty when nothing identifies the pool", () => {
+    expect(poolKind(null, null, null)).toEqual({ poolType: "", feePct: null });
+    expect(poolKind(0, "weird", 500)).toEqual({ poolType: "", feePct: null });
+  });
+});
+
+describe("gaugeLabel", () => {
+  it("adds the pool kind after the pair, or just the pair when unknown", () => {
+    expect(gaugeLabel({ symbol: "msUSD/USDC", poolType: "CL10" })).toBe("msUSD/USDC · CL10");
+    expect(gaugeLabel({ symbol: "msUSD/USDC", poolType: "" })).toBe("msUSD/USDC");
+    expect(gaugeLabel({ symbol: "msUSD/USDC" })).toBe("msUSD/USDC");
+  });
+});

@@ -5,7 +5,7 @@ import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContr
 import { readContract, readContracts, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import type { Address } from "viem";
-import type { GaugeList } from "@/lib/gauges";
+import { gaugeLabel, type GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
 import { bestSplit, currentUsdPerDay, type Split } from "@/lib/split";
@@ -80,7 +80,10 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     ])
       .then(async ([g, f]) => {
         if (cancelled) return;
-        const symbolOf = (a: string) => g.gauges.find((x) => x.gauge.toLowerCase() === a.toLowerCase())?.symbol ?? `${a.slice(0, 6)}…`;
+        const symbolOf = (a: string) => {
+          const x = g.gauges.find((y) => y.gauge.toLowerCase() === a.toLowerCase());
+          return x ? gaugeLabel(x) : `${a.slice(0, 6)}…`;
+        };
         const cur = await readCurrent(position.tokenId, symbolOf).catch(() => [] as CurrentPick[]);
         if (cancelled) return;
         // Your power counts in a gauge's weight today (the amounts here are power, as Aero shows them), so take it out before comparing.
@@ -88,7 +91,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         const own = new Map(cur.map((c) => [c.gauge.toLowerCase(), (c.pct / 100) * power]));
         const gauges = g.gauges.map((x) => ({ ...x, weight: Math.max(0, x.weight - (own.get(x.gauge.toLowerCase()) ?? 0)) }));
         const all = rankByUsdPerDay(gauges, f.fees, power);
-        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), power);
+        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), power);
         const splitGauges = new Set((split?.parts ?? []).map((p) => p.gauge.toLowerCase()));
         const top = all.slice(0, CHOICES);
         const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
@@ -218,8 +221,8 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
             return (
               <li key={r.gauge} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm text-neutral-400">
                 <label className="flex min-w-0 items-center gap-2">
-                  <input type="checkbox" checked={on} onChange={() => toggle(r.gauge)} aria-label={`include ${r.symbol}`} />
-                  <span className="truncate text-neutral-200">{r.symbol}</span>
+                  <input type="checkbox" checked={on} onChange={() => toggle(r.gauge)} aria-label={`include ${gaugeLabel(r)}`} />
+                  <span className="truncate text-neutral-200">{gaugeLabel(r)}</span>
                 </label>
                 {r.sharePct > 0 ? <span className={`text-emerald-400 ${NUM}`}>${usd(r.usdPerDay)}/day</span> : <span className="text-neutral-500">no estimate</span>}
                 {on && (
@@ -229,7 +232,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
                       inputMode="decimal"
                       value={pct[r.gauge]}
                       onChange={(e) => setPct((cur) => ({ ...cur, [r.gauge]: e.target.value }))}
-                      aria-label={`share of ${r.symbol}`}
+                      aria-label={`share of ${gaugeLabel(r)}`}
                       className={inputCls(false, `w-20 !px-2 !py-1 text-right ${NUM}`)}
                     />
                     %
