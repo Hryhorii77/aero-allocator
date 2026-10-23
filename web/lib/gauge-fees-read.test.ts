@@ -7,6 +7,8 @@ vi.mock("aero-allocator/config", () => ({
 }));
 vi.mock("aero-allocator/prices", () => ({ getPrices: vi.fn() }));
 
+vi.mock("./fee-ledger-store", () => ({ loadLedger: vi.fn(), saveLedger: vi.fn() }));
+
 import { logRpcUrls } from "./gauge-fees-read";
 
 describe("logRpcUrls", () => {
