@@ -5,6 +5,7 @@ import type { GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { bestSplit } from "@/lib/split";
+import { gaugeLabel } from "@/lib/gauges";
 import { NOTE, NUM } from "./ui";
 
 const LOCK_HOURS = 47;
@@ -28,7 +29,7 @@ function Card({ value, label, tone }: { value: string; label: string; tone?: "go
 export function AllocationDesk({ gauges, fees, amount }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number }) {
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount), [gauges, fees, amount]);
   const split = useMemo(
-    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount),
+    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount),
     [ranked, amount],
   );
   if (!(amount > 0)) return <p className="mt-2 text-sm text-amber-500">Enter an amount above zero.</p>;
