@@ -1,11 +1,11 @@
 name: Fee Ledger
 
-# Hourly nudge that keeps the stored record of Aero gauge fee releases current (Base, Ethereum, OP). Public RPCs only serve event logs
+# Twice-hourly nudge (GitHub drops or delays scheduled runs, and the first hourly slot never fired, so there are two chances an hour) that keeps the stored record of Aero gauge fee releases current (Base, Ethereum, OP). Public RPCs only serve event logs
 # about 5.5 hours back, so the multi-day fee pace on the site depends on this running at least every few hours.
 # The endpoint is public and does nothing if the record was updated in the last 20 minutes.
 on:
   schedule:
-    - cron: "11 * * * *"
+    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 jobs:
