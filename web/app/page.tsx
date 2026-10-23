@@ -6,8 +6,9 @@ import { ProfilePanel } from "./profile";
 import { UpgradeChecklist } from "./upgrade-checklist";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { useAeroLive } from "./use-aero-live";
-import { SaeroPositions } from "./saero-positions";
-import { GaugeTable } from "./gauge-table";
+import { AllocatorMark } from "./allocator-mark";
+import { ChangelogPanel } from "./changelog";
+import { SaeroPage } from "./saero-page";
 import { nextBestMove } from "@/lib/next-move";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
@@ -366,40 +367,6 @@ const POOL_FILTER_CHIPS: Array<{ key: PoolFilterKey; label: string }> = [
   { key: "highConf", label: "high conf" },
 ];
 
-// Plain-language shipped-feature log, newest first — hand-curated from real
-// commits (not every commit; internal refactors/test-only changes are left
-// out) so users can see the dashboard is actively maintained without digging
-// through GitHub history themselves.
-//
-// Kept to the last two ship days only. The point of this panel is "this
-// thing is alive", which the newest entries make just as well as eighteen of
-// them — and eighteen made it a wall of text nobody finishes. Anything older
-// is a commit away via the link at the foot of the panel; trimmed entries stay
-// in git history, so nothing is actually lost by pruning here. When a third
-// ship day lands, drop the oldest day's entries.
-const CHANGELOG: Array<{ date: string; title: string }> = [
-  {
-    date: "2026-10-22",
-    title:
-      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds, its emission cap per week and the incentives streaming to it. It also ranks gauges by what an amount of sAERO would earn per day (fees at the last ~5 hours' pace plus incentives, after your own dilution), dropping gauges whose fee pace can't be measured safely. Connected to the wallet that owns a position, an allocate button lets you pick up to 20 gauges from the top estimates, shows the shares, simulates the transaction on Base and then asks your wallet to sign; Aero's allocate replaces the whole Base distribution and locks the position for 47 hours. Positions now show how much is placed on a chain versus idle, and the cooldown comes from the gauge contract. The gauge list now has chain buttons for Ethereum, OP, Arbitrum, Ink and Robinhood Chain (weights, caps and incentives, read straight from each chain; Arc is not read yet). Fee estimates and the $/day ranking now also cover Ethereum (about a day and a quarter of history) and OP; Arbitrum, Ink and Robinhood Chain stay without fees because public nodes keep too little log history for their block times. Allocating stays Base only. The allocate panel now also shows which gauges the position is on right now and keeps them selectable, since the new allocation replaces them. After launch the page headline and footer now talk about allocating sAERO, and the weekly vote clock and snapshot chips in the header are gone.",
-  },
-  {
-    date: "2026-10-21",
-    title:
-      "Forecast vs paid, in public: under the title, the last settled epoch's forecast next to what it paid for your amount, how many of the pools it ranked top were still top at close, and each recent week in the accuracy panel. The split now sizes on last epoch's fees: replayed over past epochs it paid about 62% of what it promised at 10k veAERO (was 51%) and earned 7-9% more at 10k-100k. Large holders also see what their own votes cost: the figure if they didn't move the pools, beside the after-dilution one. And a four-step upgrade checklist (veAERO to sAERO) with Aero's own dates, shown until a week after launch.",
-  },
-  {
-    date: "2026-10-18",
-    title:
-      "A phone layout of its own: four tabs along the bottom (overview, vote, pools, profile). Overview gives your expected $, the top pools and one \"next best move\"; copy-weights stays pinned while you scroll the split; filters wrap instead of scrolling sideways; collapsed cards say \"show\". Also renamed to Aero Allocator.",
-  },
-  {
-    date: "2026-10-17",
-    title:
-      "Wallets on phones: \"connect wallet\" opens WalletConnect's wallet search straight away (pick your wallet, approve in its app, come back connected). Desktop gets the same Other wallets option (scan a QR).",
-  },
-];
-
 // Aero's launch update (aero.xyz/articles/aero-launch-update-all-systems-go)
 // gives October 21, 2026, 8:00 PM EDT — October 22, 00:00 UTC. Its Predictive
 // Allocation FAQ (aero.xyz/articles/aero-predictive-allocation-faq) says the
@@ -408,7 +375,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
 // 6:59 PM EDT (22:59 UTC), all old gauges are then deactivated, and veAERO is
 // upgraded to sAERO. So this states the date, attributes those claims to Aero,
 // and says what this app covers until then. Migration steps stay on Aero's hub.
-export { AERO_LAUNCH_AT_MS };
+export { AERO_LAUNCH_AT_MS, ChangelogPanel };
 const AERO_UPGRADE_URL = "https://aero.xyz/aero-upgrade/";
 
 /** One quiet line until the launch instant, then gone — it must not go on saying "launches" afterwards. Mounted state, not a render-time Date.now(), so server and client HTML agree. */
@@ -428,52 +395,6 @@ export function AeroLaunchNotice() {
       sAERO. Before upgrading, claim your rewards and rebases (unclaimed ones can&rsquo;t be recovered) and reset your
       votes. This app covers the classic weekly gauge vote until then.
     </p>
-  );
-}
-
-/** After the launch instant: say plainly that the weekly vote below is the retired system, and what this app does now. */
-export function AeroLiveNotice() {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    setShow(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);
-  }, []);
-  if (!show) return null;
-  return (
-    <p className="mt-3 rounded-lg border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-sm text-amber-100/90">
-      Aero is live. Weekly voting has ended: the percentages and pool table below describe the retired weekly vote and no
-      longer apply to sAERO. Use the sAERO panel below to read your positions and, from the wallet that
-      owns one, allocate it to gauges on Base. Other chains aren&rsquo;t supported yet.
-    </p>
-  );
-}
-
-export function ChangelogPanel() {
-  return (
-    <details className="mt-6 rounded-lg border border-neutral-800 px-3 py-2">
-      <summary className="cursor-pointer select-none font-mono text-xs uppercase tracking-wider text-neutral-400">
-        what&apos;s new
-      </summary>
-      <ul className="mt-3 space-y-2">
-        {CHANGELOG.map((entry) => (
-          <li key={entry.date + entry.title} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
-            <span className="shrink-0 font-mono text-xs text-neutral-600 sm:w-24">{entry.date}</span>
-            <span className="text-xs leading-relaxed text-neutral-400">{entry.title}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-neutral-600">
-        Older changes live in the{" "}
-        <a
-          href="https://github.com/Hryhorii77/aero-allocator/commits/main"
-          target="_blank"
-          rel="noreferrer"
-          className={LINK}
-        >
-          commit history
-        </a>
-        .
-      </p>
-    </details>
   );
 }
 
@@ -867,22 +788,6 @@ function SwingRow({ s, tone, token }: { s: VoteSwingSignal; tone: "riser" | "fal
       </summary>
       <p className="mt-2 text-xs leading-relaxed text-neutral-500">{s.rationale}</p>
     </details>
-  );
-}
-
-/**
- * The same glyph the browser tab already carries (app/icon.svg), reused so
- * the wordmark has an owner instead of being type alone — deliberately this
- * app's own abstract mark, not an Aerodrome-derived one: this is an
- * unofficial third-party desk and shouldn't dress like the protocol.
- */
-function AllocatorMark() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-[0.85em] w-[0.85em] shrink-0 text-sky-400">
-      <path d="M6 20 L10 20 L14 7 L10 7 Z" fill="currentColor" />
-      <path d="M12 20 L16 20 L19 9 L15 9 Z" fill="currentColor" />
-      <path d="M15 9 L19 9 L22 2 Z" fill="currentColor" />
-    </svg>
   );
 }
 
@@ -1390,7 +1295,7 @@ export function CurrentVsRecommended({
   );
 }
 
-export default function Dashboard() {
+function Dashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [voterAlloc, setVoterAlloc] = useState<Allocation | null>(null);
   const [voterReplay, setVoterReplay] = useState<VoterReplay | null>(null);
@@ -1542,7 +1447,6 @@ export default function Dashboard() {
   // the table behind it; everything a first-time voter doesn't need lives
   // under More, collapsed.
   const [mobileTab, setMobileTab] = useState<MobileTab>("overview");
-  const aeroLive = useAeroLive();
   const onTab = (t: MobileTab) => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
@@ -1827,8 +1731,8 @@ export default function Dashboard() {
             {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")} <span className="text-sky-400">Allocator</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {snapshot && !aeroLive && <EpochCountdown epochStart={snapshot.epochStart} />}
-            {snapshot && !aeroLive && (
+            {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
+            {snapshot && (
               <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
             )}
             <ThemeToggle />
@@ -1845,17 +1749,12 @@ export default function Dashboard() {
           tabs they would push the content down a full screen. */}
       <div className={`sm:block ${mobileTab === "overview" ? "" : "hidden"}`}>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-        {aeroLive ? "Where to allocate your sAERO." : `Where to vote your ${DISPLAY_PRESET.veTokenSymbol} this week.`}
+        Where to vote your {DISPLAY_PRESET.veTokenSymbol} this week.
       </h1>
       <p className="mt-1 text-[15px] text-neutral-400">
-        {aeroLive
-          ? "Read your positions. See which gauges earn the most per day. Allocate from your wallet."
-          : `Type how much you hold. Copy the percentages. Paste into ${DISPLAY_PRESET.displayName}.`}
+        Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
       </p>
       <AeroLaunchNotice />
-      <AeroLiveNotice />
-      <SaeroPositions />
-      <GaugeTable />
       <UpgradeChecklist />
       {trackRecord && (
         <p className="mt-2 text-xs text-neutral-500">
@@ -1940,7 +1839,7 @@ export default function Dashboard() {
               hasVotedThisEpoch: currentVotes ? currentVotes.length > 0 : null,
             })}
             closeText={
-              !aeroLive && msUntilVoteLock(snapshot.epochStart) > 0
+              msUntilVoteLock(snapshot.epochStart) > 0
                 ? `epoch vote closes in ${formatCountdown(msUntilVoteLock(snapshot.epochStart))}`
                 : null
             }
@@ -2965,4 +2864,12 @@ export default function Dashboard() {
       )}
     </main>
   );
+}
+
+/**
+ * Aero retired the weekly vote on 2026-10-22, so on the Aerodrome build the page after launch is the sAERO page and never
+ * fetches the weekly snapshot. Velodrome (and Aerodrome before launch) keep the weekly dashboard.
+ */
+export default function Page() {
+  return useAeroLive() ? <SaeroPage /> : <Dashboard />;
 }
