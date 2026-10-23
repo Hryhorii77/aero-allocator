@@ -19,7 +19,7 @@ import {
 } from "@/lib/saero";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { SaeroAllocate } from "./saero-allocate";
-import { btn, LINK } from "./ui";
+import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const MAX_POSITIONS = 25;
 const CALLS_PER_POSITION = 6;
@@ -127,9 +127,9 @@ export function SaeroPositions() {
 
   if (!live) return null;
   return (
-    <section className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-3">
-      <h2 className="text-sm font-medium text-neutral-100">Your sAERO positions</h2>
-      <p className="mt-1 text-xs text-neutral-500">
+    <section className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
+      <h2 className={H2}>Your sAERO positions</h2>
+      <p className={`mt-1 ${NOTE}`}>
         Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated 47 hours after its last
         allocation.
       </p>
@@ -146,22 +146,32 @@ export function SaeroPositions() {
             setInput(e.target.value);
             if (state !== "loading") setState("idle");
           }}
+          onBlur={() => {
+            if (input.trim() !== "" && !isAddress(input.trim()) && state !== "loading") setState("invalid");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") load(input);
           }}
           placeholder={connected ? "or paste another address" : "paste an address (0x…)"}
           aria-label="address to read sAERO positions for"
+          aria-invalid={state === "invalid"}
+          aria-describedby={state === "invalid" ? "address-error" : undefined}
           spellCheck={false}
-          className="w-64 max-w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+          autoComplete="off"
+          className={inputCls(state === "invalid", `min-w-0 flex-1 basis-56 sm:max-w-sm ${NUM}`)}
         />
         <button type="button" className={btn("secondary", "sm")} onClick={() => load(input)} disabled={state === "loading" || input.trim() === ""}>
           read
         </button>
-        {state === "invalid" && <span className="text-xs text-amber-500">That isn&rsquo;t an address.</span>}
-        {state === "error" && <span className="text-xs text-rose-400">Read failed. Try again in a moment.</span>}
       </div>
+      {state === "invalid" && (
+        <p id="address-error" role="alert" className="mt-2 text-sm text-rose-400">
+          That isn&rsquo;t an address. It starts with 0x and has 42 characters.
+        </p>
+      )}
+      {state === "error" && <p className="mt-2 text-sm text-rose-400">Read failed. Try again in a moment.</p>}
       {state === "done" && result && result.positions.length === 0 && (
-        <p className="mt-3 text-xs text-amber-500">
+        <p className="mt-3 text-sm text-amber-500">
           No sAERO positions at {owner?.slice(0, 6)}…{owner?.slice(-4)}. Upgrade a veAERO lock on{" "}
           <a href="https://aero.xyz/aero-upgrade/" target="_blank" rel="noreferrer" className={LINK}>
             Aero&rsquo;s Upgrade Hub
@@ -174,15 +184,15 @@ export function SaeroPositions() {
           {result.positions.map((p) => {
             const cd = cooldownState(p.lastAllocatedSec, result.cooldownSec, nowSec);
             return (
-              <li key={p.tokenId.toString()} className="rounded-md border border-neutral-800 px-2 py-2 text-xs text-neutral-400">
+              <li key={p.tokenId.toString()} className="rounded-lg border border-neutral-800 px-3 py-3 text-sm text-neutral-400">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-mono text-neutral-200">#{p.tokenId.toString()}</span>
+                  <span className={`font-semibold text-neutral-100 ${NUM}`}>#{p.tokenId.toString()}</span>
                   <span>
-                    <span className="font-mono text-neutral-200">{fmt(p.staked)}</span> AERO staked ·{" "}
-                    <span className="font-mono text-neutral-200">{fmt(p.votingPower)}</span> power
+                    <span className={`text-neutral-200 ${NUM}`}>{fmt(p.staked)}</span> AERO staked ·{" "}
+                    <span className={`text-neutral-200 ${NUM}`}>{fmt(p.votingPower)}</span> power
                   </span>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-3">
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
                   <span>
                     {p.isPermanent ? "permanent" : `locked to ${new Date(p.endSec * 1000).toISOString().slice(0, 10)}`}
                   </span>

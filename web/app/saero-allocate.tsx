@@ -11,7 +11,7 @@ import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
 import { bestSplit, currentUsdPerDay, type Split } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, MAX_GAUGES, planAllocation } from "@/lib/allocate";
 import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
-import { btn, chip, LINK } from "./ui";
+import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const CHOICES = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -167,7 +167,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
 
   const usable = position.parkedRaw + position.onBaseRaw > 0n;
   if (!usable) {
-    return <p className="mt-2 text-xs text-neutral-500">All of this position&rsquo;s power sits on other chains; allocating there isn&rsquo;t supported yet.</p>;
+    return <p className={`mt-2 ${NOTE}`}>All of this position&rsquo;s power sits on other chains; allocating there isn&rsquo;t supported yet.</p>;
   }
   if (!open) {
     return (
@@ -177,19 +177,19 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     );
   }
   return (
-    <div className="mt-2 rounded-md border border-neutral-800 px-2 py-2">
-      <p className="text-xs text-neutral-400">
+    <div className="mt-3 rounded-lg border border-neutral-800 px-3 py-3">
+      <p className={BODY}>
         Pick up to {MAX_GAUGES} gauges (the best {CHOICES} by estimated $/day for {fmt(position.staked)} AERO are listed) and give each a share. This{" "}
         <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for 47 hours.
       </p>
       {current && current.length > 0 && (
-        <p className="mt-2 text-xs text-neutral-400">
+        <p className={`mt-3 ${BODY}`}>
           Right now on Base:{" "}
           <span className="text-neutral-200">{current.map((c) => `${c.symbol} ${fmt(c.pct)}%`).join(", ")}</span>
         </p>
       )}
       {compare && compare.best && (
-        <p className="mt-1 text-xs text-neutral-400">
+        <p className={`mt-1 ${BODY}`}>
           {compare.nowUsd === null ? (
             <>Where you are now can&rsquo;t be priced yet (no fee history for it). </>
           ) : (
@@ -208,20 +208,20 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
           )}
         </p>
       )}
-      {current && current.length === 0 && <p className="mt-2 text-xs text-neutral-500">Nothing is allocated to gauges on Base yet.</p>}
-      {failed && <p className="mt-2 text-xs text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
-      {!rows && !failed && <p className="mt-2 text-xs text-neutral-500">Loading gauges…</p>}
+      {current && current.length === 0 && <p className={`mt-3 ${NOTE}`}>Nothing is allocated to gauges on Base yet.</p>}
+      {failed && <p className="mt-2 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
+      {!rows && !failed && <p className={`mt-3 ${NOTE}`}>Loading gauges…</p>}
       {rows && (
-        <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">
+        <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-1">
           {rows.map((r) => {
             const on = r.gauge in pct;
             return (
-              <li key={r.gauge} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
+              <li key={r.gauge} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm text-neutral-400">
                 <label className="flex min-w-0 items-center gap-2">
                   <input type="checkbox" checked={on} onChange={() => toggle(r.gauge)} aria-label={`include ${r.symbol}`} />
                   <span className="truncate text-neutral-200">{r.symbol}</span>
                 </label>
-                {r.sharePct > 0 ? <span className="text-emerald-400">${usd(r.usdPerDay)}/day</span> : <span className="text-neutral-500">no estimate</span>}
+                {r.sharePct > 0 ? <span className={`text-emerald-400 ${NUM}`}>${usd(r.usdPerDay)}/day</span> : <span className="text-neutral-500">no estimate</span>}
                 {on && (
                   <label className="flex items-center gap-1">
                     <input
@@ -230,7 +230,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
                       value={pct[r.gauge]}
                       onChange={(e) => setPct((cur) => ({ ...cur, [r.gauge]: e.target.value }))}
                       aria-label={`share of ${r.symbol}`}
-                      className="w-16 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right font-mono text-xs text-neutral-200 focus:border-sky-600 focus:outline-none"
+                      className={inputCls(false, `w-20 !px-2 !py-1 text-right ${NUM}`)}
                     />
                     %
                   </label>
@@ -241,18 +241,18 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         </ul>
       )}
       {rows && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span className={sums100 ? "text-neutral-300" : "text-amber-500"}>Shares add up to {fmt(total)}%</span>
           {!sums100 && <span className="text-amber-500">(must be 100%)</span>}
           {plan.err && picks.length > 0 && <span className="text-amber-500">{plan.err}</span>}
         </div>
       )}
       {feesNote !== null && (
-        <p className="mt-1 text-[11px] text-neutral-500">
+        <p className={`mt-2 ${NOTE}`}>
           Estimates use the fee pace of the last ~{Math.round(feesNote)} hours; they&rsquo;re not a promise.
         </p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           className={btn("primary", "sm")}
@@ -264,14 +264,14 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         <button type="button" className={chip(false)} onClick={() => setOpen(false)}>
           close
         </button>
-        {!cooldownReady && <span className="text-xs text-amber-500">Still in cooldown.</span>}
+        {!cooldownReady && <span className="text-sm text-amber-500">Still in cooldown.</span>}
       </div>
-      {problem && <p className="mt-2 text-xs text-rose-400">{problem}</p>}
+      {problem && <p className="mt-2 text-sm text-rose-400">{problem}</p>}
       {sendError && !problem && (
-        <p className="mt-2 text-xs text-rose-400">{/reject|denied/i.test(sendError.message) ? "You rejected the request in your wallet." : "The transaction failed to send."}</p>
+        <p className="mt-2 text-sm text-rose-400">{/reject|denied/i.test(sendError.message) ? "You rejected the request in your wallet." : "The transaction failed to send."}</p>
       )}
       {hash && (
-        <p className="mt-2 text-xs text-neutral-400">
+        <p className={`mt-2 ${BODY}`}>
           {confirmed ? "Allocated. " : "Sent. "}
           <a className={LINK} href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noreferrer">
             view on Basescan ↗

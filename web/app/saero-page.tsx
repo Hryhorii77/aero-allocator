@@ -9,6 +9,7 @@ import { SiteFooter } from "./site-footer";
 import { ThemeToggle } from "./theme-toggle";
 import { UpgradeChecklist } from "./upgrade-checklist";
 import { ConnectButton } from "./wallet";
+import { LEAD } from "./ui";
 
 /**
  * The page after Aero's launch (Aerodrome build): where an amount of sAERO earns the most, your own positions, and the allocate
@@ -30,7 +31,7 @@ export function SaeroPage() {
         </div>
       </header>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Where to allocate your sAERO.</h1>
-      <p className="mt-1 text-[15px] text-neutral-400">
+      <p className={`mt-2 ${LEAD}`}>
         See which gauges pay the most per day for your amount, then allocate from your wallet. Your address never reaches our server.
       </p>
       <GaugeTable />

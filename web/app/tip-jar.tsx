@@ -110,7 +110,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
             </button>
           </div>
           <div className="mt-3 text-xs text-neutral-500">USDC on Base</div>
-          <div className="mt-1 break-all font-mono text-[11px] text-neutral-400">{TIP_ADDRESS}</div>
+          <div className="mt-1 break-all font-mono text-xs text-neutral-400">{TIP_ADDRESS}</div>
           <div className="mt-2 flex gap-2">
             <button type="button" onClick={copy} className={`flex-1 ${btn("secondary", "sm")}`}>
               {copied ? "copied" : "copy address"}

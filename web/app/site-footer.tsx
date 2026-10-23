@@ -19,15 +19,14 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
   const { displayName, appName, networkName, veTokenSymbol } = DISPLAY_PRESET;
 
   return (
-    <footer className="mt-12 text-[13px] leading-relaxed text-neutral-500">
+    <footer className="mt-12 text-sm leading-relaxed text-neutral-500">
       <div className="flex flex-col gap-6 sm:flex-row sm:justify-between sm:gap-8">
         <div>
           <div className="text-base font-semibold text-neutral-100">{appName}</div>
           <p className="mb-3 mt-1 max-w-md text-neutral-400">
             {aeroLive
-              ? "Where to allocate your sAERO: gauges ranked by what your amount earns per day. Allocation happens in your wallet on "
-              : `Where to vote your ${veTokenSymbol} this week: forecast fees, split by dilution. Voting stays on `}
-            {displayName}.
+              ? "Where to allocate your sAERO: gauges ranked by what your amount earns per day. Allocation happens in your wallet, on Aero."
+              : `Where to vote your ${veTokenSymbol} this week: forecast fees, split by dilution. Voting stays on ${displayName}.`}
           </p>
           <div className="flex flex-wrap gap-x-4">
             <a href={X_URL} target="_blank" rel="noreferrer" className={LINK}>

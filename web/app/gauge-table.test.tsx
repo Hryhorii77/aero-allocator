@@ -28,32 +28,66 @@ describe("GaugeTable", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it("lists the top 12 with share and cap, and can show all", async () => {
+  it("without fee estimates it is a table sorted by weight: top 10, a show-all button, incentives per day", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
     render(<GaugeTable />);
     expect(await screen.findByText("T0/USDC")).toBeInTheDocument();
-    expect(screen.getByText("T11/USDC")).toBeInTheDocument();
-    expect(screen.queryByText("T12/USDC")).not.toBeInTheDocument();
-    expect(screen.getAllByText(/250,000/)).toHaveLength(12);
-    expect(screen.getByText(/\$4,137/)).toBeInTheDocument();
-    expect(screen.getByText(/\$4\.26/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: /Aero gauges on Base/ })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Share of weight" })).toBeInTheDocument();
+    expect(screen.getByText("T9/USDC")).toBeInTheDocument();
+    expect(screen.queryByText("T10/USDC")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/\$591/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "show all 15" }));
     expect(screen.getByText("T14/USDC")).toBeInTheDocument();
     expect(screen.getByText("not activated")).toBeInTheDocument();
   });
 
-  it("ranks gauges by dollars per day for the typed amount once fees load", async () => {
+  it("with fees, ranks gauges by dollars per day for the typed amount and leaves the rest as dashes", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
     render(<GaugeTable />);
     expect(await screen.findByText(/per day, best split of your amount/)).toBeInTheDocument();
     expect(screen.getByText(/over the 47 h lock/)).toBeInTheDocument();
-    expect(screen.getByText("thin")).toBeInTheDocument();
-    expect(screen.getByText(/fees \$1,000 \+ incentives \$0 per day/)).toBeInTheDocument();
+    const rows = screen.getAllByRole("row");
+    // header + 10 gauges; T3 is the only one with a fee estimate, so it leads.
+    expect(rows).toHaveLength(11);
+    expect(rows[1]).toHaveTextContent("T3/USDC");
+    // 1,000 fees x 10,000 power / (497,000 already there + 10,000) = $19.72
+    expect(rows[1]).toHaveTextContent("$19.72");
+    expect(rows[1]).toHaveTextContent("thin pace");
+    expect(rows[2]).toHaveTextContent("–");
+    expect(screen.getByRole("columnheader", { name: /You earn \/ day/ })).toHaveAttribute("aria-sort", "descending");
     expect(screen.getByText(/pace of the last ~5 hours/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("sAERO amount"), { target: { value: "0" } });
-    expect(screen.getByText(/Enter an amount above zero/)).toBeInTheDocument();
+  });
+
+  it("sorts by the column you click", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    fireEvent.click(screen.getByRole("button", { name: "Power in it" }));
+    expect(screen.getByRole("columnheader", { name: /Power in it/ })).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("T0/USDC");
+  });
+
+  it("flags a bad amount inline instead of ranking it", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    const box = screen.getByLabelText("sAERO amount");
+    for (const [text, msg] of [["0", /Enter an amount above zero/], ["abc", /Numbers only/], ["-5", /Numbers only/], ["", /Enter how much sAERO you hold/]] as const) {
+      fireEvent.change(box, { target: { value: text } });
+      expect(screen.getByRole("alert")).toHaveTextContent(msg);
+      expect(box).toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByText(/per day, best split of your amount/)).not.toBeInTheDocument();
+      // The table falls back to weight while the amount is unusable.
+      expect(screen.getByRole("columnheader", { name: "Share of weight" })).toBeInTheDocument();
+    }
+    fireEvent.change(box, { target: { value: "25,000" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(await screen.findByText(/per day, best split of your amount/)).toBeInTheDocument();
   });
 
   it("says so when the read fails", async () => {
