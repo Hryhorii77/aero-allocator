@@ -48,7 +48,10 @@ describe("SaeroPositions", () => {
       .mockResolvedValueOnce([
         { amount: e18(100), end: 1918425600, isPermanent: false },
         e18(98),
-        [e18(50), 1918425600, NOW - 3600, false],
+        [e18(100), 1918425600, NOW - 3600, false],
+        ["0x0000000000000000000000000000000000000000", NOW - 3600, false, e18(50)],
+        e18(50),
+        e18(50),
       ]);
     render(<SaeroPositions />);
     fireEvent.change(await screen.findByLabelText(/address to read/i), { target: { value: OWNER } });

@@ -380,7 +380,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-22",
     title:
-      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds, its emission cap per week and the incentives streaming to it. It also ranks gauges by what an amount of sAERO would earn per day (fees at the last ~5 hours' pace plus incentives, after your own dilution), dropping gauges whose fee pace can't be measured safely. Allocation tools for the new system are next.",
+      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds, its emission cap per week and the incentives streaming to it. It also ranks gauges by what an amount of sAERO would earn per day (fees at the last ~5 hours' pace plus incentives, after your own dilution), dropping gauges whose fee pace can't be measured safely. Connected to the wallet that owns a position, an allocate button lets you pick up to 20 gauges from the top estimates, shows the shares, simulates the transaction on Base and then asks your wallet to sign; Aero's allocate replaces the whole Base distribution and locks the position for 47 hours. Positions now show how much is placed on a chain versus idle, and the cooldown comes from the gauge contract.",
   },
   {
     date: "2026-10-21",
@@ -440,8 +440,8 @@ export function AeroLiveNotice() {
   return (
     <p className="mt-3 rounded-lg border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-sm text-amber-100/90">
       Aero is live. Weekly voting has ended: the percentages and pool table below describe the retired weekly vote and no
-      longer apply to sAERO. Allocation tools for the new system are being built; for now you can read your sAERO
-      positions and when each can next be allocated.
+      longer apply to sAERO. Use the sAERO panel below to read your positions and, from the wallet that
+      owns one, allocate it to gauges on Base. Other chains aren&rsquo;t supported yet.
     </p>
   );
 }
