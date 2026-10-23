@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_RANK_WEIGHT, rankByUsdPerDay } from "./gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, rankByUsdPerDay } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 
 const row = (gauge: string, weight: number, inc = 0, activated = true): GaugeRow => ({
@@ -35,5 +35,20 @@ describe("rankByUsdPerDay", () => {
   it("matches gauges case-insensitively and returns nothing for a non-positive amount", () => {
     expect(rankByUsdPerDay([row("0xAbC", 1e6)], [fee("0xabc", 5)], 1000)).toHaveLength(1);
     expect(rankByUsdPerDay([row("0xa", 1e6)], [fee("0xa", 5)], 0)).toEqual([]);
+  });
+});
+
+describe("aprPct", () => {
+  it("is the yearly return on the amount at the AERO price", () => {
+    // $10/day on 10,000 AERO at $0.75 = $3,650 a year on $7,500.
+    expect(aprPct(10, 10_000, 0.75)).toBeCloseTo(48.667, 3);
+    expect(aprPct(0, 10_000, 0.75)).toBe(0);
+  });
+
+  it("is null without a price or an amount rather than a made-up number", () => {
+    expect(aprPct(10, 10_000, null)).toBeNull();
+    expect(aprPct(10, 10_000, undefined)).toBeNull();
+    expect(aprPct(10, 10_000, 0)).toBeNull();
+    expect(aprPct(10, 0, 0.75)).toBeNull();
   });
 });

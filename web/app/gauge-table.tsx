@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
-import { AllocationDesk } from "./allocation-desk";
+import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { btn, chip, H2, input, NOTE, NUM } from "./ui";
 
 const SHOWN = 10;
@@ -105,6 +105,7 @@ export function GaugeTable() {
   const parsed = parseAmount(amountText);
   const amount = parsed.ok ? parsed.value : 0;
   const estimating = hasFees && !!fees && parsed.ok;
+  const showApr = estimating && !!fees?.aeroUsd;
   const lines = useMemo<Line[]>(() => {
     if (!data) return [];
     const byGauge = new Map((estimating && fees ? rankByUsdPerDay(data.gauges, fees.fees, amount) : []).map((y) => [y.gauge.toLowerCase(), y]));
@@ -174,6 +175,7 @@ export function GaugeTable() {
                   <Th className="text-right" sortKey={estimating ? "you" : undefined} active={estimating && sortKey === "you"} onSort={setSortKey}>
                     {estimating ? "You earn / day" : "Share of weight"}
                   </Th>
+                  {showApr && <Th className="hidden text-right sm:table-cell">Est. APR</Th>}
                   {estimating && (
                     <Th className="hidden text-right sm:table-cell" sortKey="fees" active={sortKey === "fees"} onSort={setSortKey}>
                       Fees / day
@@ -193,6 +195,7 @@ export function GaugeTable() {
                 {shown.map(({ g, y }) => {
                   const conf = y ? paceConfidence(y.windowHours) : null;
                   const incPerDay = g.incentivesUsdPerWeek / 7;
+                  const apr = y ? aprPct(y.usdPerDay, amount, fees?.aeroUsd) : null;
                   return (
                     <tr key={g.gauge} className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
@@ -213,6 +216,7 @@ export function GaugeTable() {
                         </div>
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
+                          {apr !== null ? `${fmtApr(apr)} APR · ` : ""}
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
                           {fmt(g.weight)} power
                           {conf ? <> · <span className={PACE_TONE[conf]}>{conf} pace</span></> : ""}
@@ -231,6 +235,7 @@ export function GaugeTable() {
                           <span className="text-neutral-300">{g.sharePct.toFixed(2)}%</span>
                         )}
                       </td>
+                      {showApr && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{apr === null ? "–" : fmtApr(apr)}</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{y ? `$${fmt(y.feesUsdPerDay)}` : "–"}</td>}
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{incPerDay > 0 ? `$${fmt(incPerDay)}` : "–"}</td>
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{fmt(g.weight)}</td>
@@ -253,6 +258,9 @@ export function GaugeTable() {
                 &ldquo;You earn&rdquo; is what {fmt(amount)} sAERO would make per day in that gauge alone, after it joins the power already there. Fees
                 are the pace of the last ~{Math.round(fees.windowHours)} hours, not a promise (&ldquo;thin&rdquo; means under 6 hours of history); a gauge with no fee history or under {fmt(MIN_RANK_WEIGHT)} power
                 shows a dash. {fees.fees.length} of {data.gauges.length} gauges have a measurable pace.
+                {fees.aeroUsd ? (
+                  <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). Aero&rsquo;s own APR uses its own method and can differ.</>
+                ) : null}
               </>
             ) : (
               <>Weight is each gauge&rsquo;s share of the allocation weight on {chainName}. Incentives are what projects are streaming to it now.</>

@@ -11,6 +11,9 @@ export const SAERO = {
   leafVoter: "0x382409fad8503FbCdbB27A4211551fa03e884078",
 } as const;
 
+/** AERO on Base: what a sAERO position is made of, so its price values the amount an APR is measured against. */
+export const AERO_TOKEN = "0x940181a94A35A4569E4529A3CDfB74e38FD98631" as const;
+
 export const saeroEscrowAbi = [
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "tokenOfOwnerByIndex", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "index", type: "uint256" }], outputs: [{ type: "uint256" }] },

@@ -3,12 +3,14 @@
 import { useMemo } from "react";
 import type { GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { bestSplit } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
 import { NOTE, NUM } from "./ui";
 
 const LOCK_HOURS = 47;
+/** "27%" for ordinary figures, "1.2k%" for the absurd ones a tiny gauge can show. */
+export const fmtApr = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k%` : `${n.toFixed(n < 10 ? 1 : 0)}%`);
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -27,6 +29,7 @@ function Card({ value, label, tone }: { value: string; label: string; tone?: "go
  * to over the 47-hour lock, and how much history each estimate rests on.
  */
 export function AllocationDesk({ gauges, fees, amount }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number }) {
+  const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount), [gauges, fees, amount]);
   const split = useMemo(
     () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount),
@@ -43,7 +46,7 @@ export function AllocationDesk({ gauges, fees, amount }: { gauges: GaugeRow[]; f
   return (
     <div className="mt-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Card value={`$${usd2(split.usdPerDay)}`} label="per day, best split of your amount" tone="good" />
+        <Card value={`$${usd2(split.usdPerDay)}`} label={`per day, best split of your amount${apr(split.usdPerDay) !== null ? ` · about ${fmtApr(apr(split.usdPerDay)!)} APR` : ""}`} tone="good" />
         <Card
           value={gain >= 0.5 ? `+${gain.toFixed(1)}%` : "same"}
           label={gain >= 0.5 ? "more than putting it all in the top gauge" : "as putting it all in the top gauge"}

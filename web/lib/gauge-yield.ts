@@ -23,6 +23,12 @@ export interface YieldRow {
   windowHours: number;
 }
 
+/** Yearly return in percent for earning `usdPerDay` on `amount` AERO at `aeroUsd` each; null when the price or amount is missing. */
+export function aprPct(usdPerDay: number, amount: number, aeroUsd: number | null | undefined): number | null {
+  if (!aeroUsd || !(aeroUsd > 0) || !(amount > 0)) return null;
+  return ((usdPerDay * 365) / (amount * aeroUsd)) * 100;
+}
+
 /** How much to trust a fee pace: a few hours of fee releases can swing a lot, a day or more is steadier. */
 export function paceConfidence(windowHours: number): "thin" | "fair" | "solid" {
   return windowHours >= 24 ? "solid" : windowHours >= 6 ? "fair" : "thin";
