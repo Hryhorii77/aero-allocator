@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 const FEE_CHAIN_IDS = AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.id);
 
-// Called hourly by a scheduled job to keep the fee record current. Public on purpose: it only reads public chain
+// Called every 30 min by Vercel Cron (web/vercel.json; the GitHub Fee Ledger workflow is a backup) to keep the fee record current. Public on purpose: it only reads public chain
 // data, does nothing if the record was updated in the last 20 minutes, and writes nothing a caller controls.
 export const GET = withApiErrorHandling("gauge-fees-ingest", async (req: Request) => {
   const rl = checkRateLimit(req, { key: "gauge-fees-ingest", limit: 12, windowMs: 60_000 });

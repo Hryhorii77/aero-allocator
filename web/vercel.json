@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/gauge-fees/ingest?chain=8453", "schedule": "*/30 * * * *" },
+    { "path": "/api/gauge-fees/ingest?chain=1", "schedule": "5,35 * * * *" },
+    { "path": "/api/gauge-fees/ingest?chain=10", "schedule": "10,40 * * * *" }
+  ]
+}
