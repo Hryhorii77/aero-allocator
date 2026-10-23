@@ -1,6 +1,6 @@
-import { decodeFunctionData } from "viem";
+import { decodeFunctionData, keccak256, toBytes } from "viem";
 import { describe, expect, it } from "vitest";
-import { AllocateError, allocateAbi, encodeAllocate, MAX_GAUGES, planAllocation, ZERO_GAUGE } from "./allocate";
+import { AllocateError, allocateAbi, allocateArgs, DEALLOC_GAUGE, encodeAllocate, explainAllocateError, MAX_GAUGES, planAllocation, planReturnAll, ZERO_GAUGE } from "./allocate";
 import { SAERO } from "./saero";
 
 const A = "0x0000000000000000000000000000000000000a01" as const;
@@ -64,5 +64,44 @@ describe("encodeAllocate", () => {
     const plan = planAllocation({ tokenId: 1n, parked: 0n, onBase: 50n, picks: [{ gauge: A, pct: 100 }] });
     const { args } = decodeFunctionData({ abi: allocateAbi, data: encodeAllocate(plan, OWNER).data });
     expect((args as any)[1]).toEqual([]);
+  });
+});
+
+describe("return to idle", () => {
+  it("uses the marker address the contracts define (low 20 bytes of keccak256 of its name)", () => {
+    expect(DEALLOC_GAUGE).toBe("0x2E67Fe7bD6843e2D0095f5d02C60a7cD29a26902");
+    expect(DEALLOC_GAUGE.toLowerCase()).toBe(`0x${keccak256(toBytes("DROMOS_DEALLOC_GAUGE")).slice(-40)}`);
+  });
+
+  it("is one marker entry for the whole Base amount, with no chain dispatch and no ETH", () => {
+    const onBase = 102_129_600_288_213_070_000n;
+    const plan = planReturnAll({ tokenId: 15308n, onBase });
+    expect(plan).toMatchObject({ delta: 0n, chainTotal: onBase, idle: 0n, gauges: [{ gauge: DEALLOC_GAUGE, allocated: onBase }] });
+    const [tokenId, chainDispatches, gaugeDispatches, refund] = allocateArgs(plan, OWNER);
+    expect(tokenId).toBe(15308n);
+    expect(chainDispatches).toEqual([]);
+    expect(gaugeDispatches).toHaveLength(1);
+    expect(gaugeDispatches[0]).toMatchObject({ chainId: 8453n, gasLimit: 0n, value: 0n });
+    expect(gaugeDispatches[0].gauges.map((g) => [g.gauge, g.allocated])).toEqual([[DEALLOC_GAUGE, onBase]]);
+    expect(refund).toBe(OWNER);
+    expect(encodeAllocate(plan, OWNER).value).toBe(0n);
+  });
+
+  it("refuses when nothing is on Base gauges", () => {
+    expect(() => planReturnAll({ tokenId: 1n, onBase: 0n })).toThrow(AllocateError);
+  });
+});
+
+describe("explainAllocateError", () => {
+  const wrap = (name: string) => ({ shortMessage: "reverted", cause: { cause: { data: { errorName: name } } } });
+  it("names the Voter's known rejections in plain words, found anywhere down the error chain", () => {
+    expect(explainAllocateError(wrap("CooldownActive"))).toMatch(/less than 47 hours ago/);
+    expect(explainAllocateError(wrap("ChainAllocationMismatch"))).toMatch(/don't add up/);
+    expect(explainAllocateError(wrap("StakeExpired"))).toMatch(/expired/);
+  });
+  it("returns null for an unknown or missing error so the caller falls back to viem's message", () => {
+    expect(explainAllocateError(wrap("SomethingElse"))).toBeNull();
+    expect(explainAllocateError(new Error("boom"))).toBeNull();
+    expect(explainAllocateError(undefined)).toBeNull();
   });
 });

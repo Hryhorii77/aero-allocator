@@ -19,6 +19,7 @@ import {
 } from "@/lib/saero";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { SaeroAllocate } from "./saero-allocate";
+import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const MAX_POSITIONS = 25;
@@ -203,7 +204,12 @@ export function SaeroPositions() {
                     {cd.ready ? "ready to allocate" : `next allocation in ${formatDuration(cd.secondsLeft)}`}
                   </span>
                 </div>
-                {connected && owner && connected.toLowerCase() === owner.toLowerCase() && <SaeroAllocate position={p} cooldownReady={cd.ready} />}
+                {connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
+                  <>
+                    <SaeroAllocate position={p} cooldownReady={cd.ready} />
+                    <SaeroReturn position={p} cooldownReady={cd.ready} />
+                  </>
+                )}
               </li>
             );
           })}
