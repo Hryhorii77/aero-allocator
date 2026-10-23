@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { GaugeTable } from "./gauge-table";
 
@@ -59,5 +59,22 @@ describe("GaugeTable", () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500 })));
     render(<GaugeTable />);
     expect(await screen.findByText(/Couldn.t load gauges/)).toBeInTheDocument();
+  });
+
+  it("switches chain: fetches that chain's gauges, drops the ranking and says what is Base only", async () => {
+    const f = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.includes("gauge-fees")
+          ? { generatedAt: 0, windowHours: 5, fees: [] }
+          : { chainId: url.includes("chain=1") ? 1 : 8453, generatedAt: 0, totalWeight: 1, gauges: [] },
+    }));
+    vi.stubGlobal("fetch", f);
+    render(<GaugeTable />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ethereum" }));
+    await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === "/api/gauges?chain=1")).toBe(true));
+    expect(screen.getByText(/Aero gauges on Ethereum/)).toBeInTheDocument();
+    expect(screen.getByText(/Base only for now/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("sAERO amount")).not.toBeInTheDocument();
   });
 });
