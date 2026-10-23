@@ -8,6 +8,14 @@ const { calibratedSnapshot, recommendAllocation } = vi.hoisted(() => ({
   })),
 }));
 
+const launch = vi.hoisted(() => ({ hasAeroLaunched: vi.fn(() => false) }));
+const gauges = vi.hoisted(() => ({
+  getGauges: vi.fn(async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges: [{ gauge: "0x0000000000000000000000000000000000000001", pool: "0x0000000000000000000000000000000000000002", symbol: "A/B", weight: 200_000, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 }] })),
+  getGaugeFees: vi.fn(async () => ({ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [{ gauge: "0x0000000000000000000000000000000000000001", feesUsdPerDay: 1000, windowHours: 30 }] })),
+}));
+vi.mock("../../launch", () => launch);
+vi.mock("@/lib/gauges", () => ({ getGauges: gauges.getGauges }));
+vi.mock("@/lib/gauge-fees-read", () => ({ getGaugeFees: gauges.getGaugeFees }));
 vi.mock("@/lib/snapshot", () => ({ calibratedSnapshot }));
 vi.mock("aero-allocator/scoring", () => ({ recommendAllocation }));
 
@@ -23,6 +31,27 @@ function req(query = "") {
 beforeEach(() => {
   calibratedSnapshot.mockClear();
   recommendAllocation.mockClear();
+  launch.hasAeroLaunched.mockReturnValue(false);
+});
+
+describe("GET /api/share after the Aero launch", () => {
+  it("draws the sAERO answer from gauges and fees and never touches the weekly snapshot", async () => {
+    launch.hasAeroLaunched.mockReturnValue(true);
+    const res = await GET(req("?vp=25000"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(gauges.getGauges).toHaveBeenCalledWith(8453);
+    expect(gauges.getGaugeFees).toHaveBeenCalledWith(8453);
+    expect(calibratedSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("answers 500 with a plain message when the gauges can't be read", async () => {
+    launch.hasAeroLaunched.mockReturnValue(true);
+    gauges.getGauges.mockRejectedValueOnce(new Error("rpc exploded"));
+    const res = await GET(req());
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe("Failed to generate the card");
+  });
 });
 
 describe("GET /api/share", () => {
