@@ -15,6 +15,11 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-23",
     title:
+      "The gauge list is now one aligned table (what your amount earns per day, fees, incentives, power in the gauge and how steady the fee pace is; sortable), built phone-first: two columns on a phone, the rest under the pool name. The amount and address boxes now say what is wrong as you type, and text is larger and consistent across the page.",
+  },
+  {
+    date: "2026-10-23",
+    title:
       "The page is now only about sAERO. The retired weekly-vote sections are gone (the vote split, the pool forecast tables, bribes, the vote clock and the snapshot chip), so there is no $0 forecast to puzzle over. The gauge ranking comes first, then your positions and the allocate button.",
   },
   {
@@ -31,19 +36,19 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
 
 export function ChangelogPanel() {
   return (
-    <details className="mt-6 rounded-lg border border-neutral-800 px-3 py-2">
-      <summary className="cursor-pointer select-none font-mono text-xs uppercase tracking-wider text-neutral-400">
+    <details className="mt-4 rounded-xl border border-neutral-800 px-3 py-3 sm:px-5">
+      <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300">
         what&apos;s new
       </summary>
       <ul className="mt-3 space-y-2">
         {CHANGELOG.map((entry) => (
           <li key={entry.date + entry.title} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
-            <span className="shrink-0 font-mono text-xs text-neutral-600 sm:w-24">{entry.date}</span>
-            <span className="text-xs leading-relaxed text-neutral-400">{entry.title}</span>
+            <span className="shrink-0 text-xs text-neutral-500 sm:w-24">{entry.date}</span>
+            <span className="text-sm leading-relaxed text-neutral-400">{entry.title}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-neutral-600">
+      <p className="mt-3 text-xs text-neutral-500">
         Older changes live in the{" "}
         <a
           href="https://github.com/Hryhorii77/aero-allocator/commits/main"

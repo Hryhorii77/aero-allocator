@@ -160,7 +160,7 @@ export function ConnectButton() {
             </div>
             <div className="mt-2 font-mono text-lg text-neutral-100">{short}</div>
             {connector?.name && <div className="text-xs text-neutral-500">{connectorDisplayName(connector.name)}</div>}
-            <div className="mt-2 break-all font-mono text-[11px] text-neutral-500">{address}</div>
+            <div className="mt-2 break-all font-mono text-xs text-neutral-500">{address}</div>
             <div className="mt-3 flex gap-2">
               <button type="button" onClick={copyAddress} className={`flex-1 ${btn("secondary", "sm")}`}>
                 {copied ? "copied" : "copy address"}

@@ -86,7 +86,7 @@ function Section({
           <WalletIcon wallet={w} />
           <span className="flex flex-col leading-tight">
             <span className="text-sm font-medium text-neutral-100">{w.name}</span>
-            {recentId && w.id === recentId && <span className="text-[10px] font-semibold text-sky-400">Recent</span>}
+            {recentId && w.id === recentId && <span className="text-xs font-semibold text-sky-400">Recent</span>}
           </span>
         </button>
       ))}

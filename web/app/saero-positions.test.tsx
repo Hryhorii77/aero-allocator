@@ -39,6 +39,26 @@ describe("SaeroPositions", () => {
     expect(read.readContract).not.toHaveBeenCalled();
   });
 
+  it("flags a half-typed address as soon as you leave the box, marks it invalid, and clears when you fix it", async () => {
+    render(<SaeroPositions />);
+    const box = await screen.findByLabelText(/address to read/i);
+    fireEvent.change(box, { target: { value: "0x1234" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.blur(box);
+    expect(screen.getByRole("alert")).toHaveTextContent(/starts with 0x and has 42 characters/);
+    expect(box).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(box, { target: { value: OWNER } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(box).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("does not nag about an empty box on blur", async () => {
+    render(<SaeroPositions />);
+    const box = await screen.findByLabelText(/address to read/i);
+    fireEvent.blur(box);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("shows size, lock end, allocated share and the 47h countdown", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) =>
       functionName === "balanceOf" ? 1n : 169_200,
