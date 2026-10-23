@@ -58,4 +58,9 @@ describe("feePace", () => {
     expect(feePace([usdc(10, 1000n), { ...usdc(10, 1000n), token: "0xweth" as const }], [], 5000n, price)).toBeNull();
     expect(feePace([usdc(10, 1000n), usdc(10, 1100n)], [], 1500n, price)).toBeNull(); // 500 blocks = 1000 s
   });
+
+  it("converts blocks to time with the chain's block time", () => {
+    const out = feePace([usdc(50_000, 1000n), usdc(10, 2000n)], [], 1000n + 600n, price, 12)!;
+    expect(out.windowSec).toBe(600 * 12);
+  });
 });

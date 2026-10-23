@@ -74,7 +74,22 @@ describe("GaugeTable", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Ethereum" }));
     await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === "/api/gauges?chain=1")).toBe(true));
     expect(screen.getByText(/Aero gauges on Ethereum/)).toBeInTheDocument();
-    expect(screen.getByText(/Base only for now/)).toBeInTheDocument();
+    expect(f.mock.calls.some(([u]) => String(u) === "/api/gauge-fees?chain=1")).toBe(true);
+    expect(screen.getByText(/Allocating is Base only for now/)).toBeInTheDocument();
+    expect(screen.getByLabelText("sAERO amount")).toBeInTheDocument();
+  });
+
+  it("shows no ranking and no fee request on a chain where fee pace isn't measured", async () => {
+    const f = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [] } : { chainId: 42161, generatedAt: 0, totalWeight: 1, gauges: [] }),
+    }));
+    vi.stubGlobal("fetch", f);
+    render(<GaugeTable />);
+    fireEvent.click(await screen.findByRole("button", { name: "Arbitrum" }));
+    await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === "/api/gauges?chain=42161")).toBe(true));
+    expect(f.mock.calls.some(([u]) => String(u).includes("gauge-fees?chain=42161"))).toBe(false);
+    expect(screen.getByText(/aren.t measured here/)).toBeInTheDocument();
     expect(screen.queryByLabelText("sAERO amount")).not.toBeInTheDocument();
   });
 });

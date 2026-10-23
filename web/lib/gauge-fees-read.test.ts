@@ -15,4 +15,8 @@ describe("logRpcUrls", () => {
   it("tries the public node first, then the configured one, without duplicates", () => {
     expect(logRpcUrls()).toEqual(["https://public.example", "https://private.example"]);
   });
+  it("uses a non-Base chain's own public nodes", async () => {
+    const { chainById } = await import("./aero-chains");
+    expect(logRpcUrls(chainById(1)!)).toEqual(chainById(1)!.rpcs);
+  });
 });

@@ -115,12 +115,13 @@ export function feePace(
   pending: Array<{ token: Address; amount: bigint }>,
   headBlock: bigint,
   price: (t: Address) => TokenPrice,
+  blockSec: number = BLOCK_SEC,
 ): { usdPerDay: number; windowSec: number } | null {
   if (events.length === 0) return null;
   const first = events.reduce((m, e) => (e.blockNumber < m ? e.blockNumber : m), events[0].blockNumber);
   const later = events.filter((e) => e.blockNumber > first);
   if (later.length === 0) return null;
-  const windowSec = Number(headBlock - first) * BLOCK_SEC;
+  const windowSec = Number(headBlock - first) * blockSec;
   if (windowSec < MIN_RATE_WINDOW_SEC) return null;
   return { usdPerDay: feesUsdPerDay(later, pending, windowSec, price), windowSec };
 }

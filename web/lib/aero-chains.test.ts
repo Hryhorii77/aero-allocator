@@ -17,4 +17,8 @@ describe("AERO_CHAINS", () => {
     expect(chainById(10)?.name).toBe("OP");
     expect(chainById(5042)).toBeUndefined();
   });
+  it("measures fee pace only where public nodes can serve enough log history", () => {
+    expect(AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.key)).toEqual(["base", "ethereum", "optimism"]);
+    for (const c of AERO_CHAINS) expect(c.blockSec).toBeGreaterThan(0);
+  });
 });

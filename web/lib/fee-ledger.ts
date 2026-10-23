@@ -7,8 +7,9 @@ import type { FeeEvent } from "./gauge-fees";
 
 /** Blocks a single catch-up may reach back; a little under the public nodes' 10,000-block log lookback. */
 export const MAX_LOOKBACK_BLOCKS = 9_500n;
-/** Base produces a block every 2 seconds: 43,200 a day. */
-const BLOCKS_PER_DAY = 43_200n;
+/** Base produces a block every 2 seconds: 43,200 a day. Other chains pass their own block time. */
+const DEFAULT_BLOCK_SEC = 2;
+const blocksPerDay = (blockSec: number) => Math.round(86_400 / blockSec);
 /** Events older than this are dropped; the pace never looks further back than FEE_PACE_DAYS anyway. */
 export const RETAIN_DAYS = 4;
 export const FEE_PACE_DAYS = 2;
@@ -51,6 +52,7 @@ export function appendEvents(
   fresh: Array<Pick<FeeEvent, "token" | "amount" | "blockNumber"> & { rewards: Address }>,
   range: { from: bigint; to: bigint; reset: boolean },
   nowMs: number,
+  blockSec: number = DEFAULT_BLOCK_SEC,
 ): Ledger {
   const base: Ledger =
     ledger && !range.reset
@@ -67,14 +69,14 @@ export function appendEvents(
     }
   }
   const lastBlock = Math.max(base.lastBlock, Number(range.to));
-  const cutoff = lastBlock - Number(BLOCKS_PER_DAY) * RETAIN_DAYS;
+  const cutoff = lastBlock - blocksPerDay(blockSec) * RETAIN_DAYS;
   const events = [...base.events, ...added].filter((e) => e.b >= cutoff);
   return { version: 1, coverageFrom: Math.max(base.coverageFrom, cutoff), lastBlock, updatedAt: nowMs, events };
 }
 
 /** One rewards contract's releases within the pace window, as FeeEvents ready for feePace. */
-export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint, days = FEE_PACE_DAYS): Array<Pick<FeeEvent, "token" | "amount" | "blockNumber">> {
-  const since = Number(headBlock - BLOCKS_PER_DAY * BigInt(days));
+export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint, days = FEE_PACE_DAYS, blockSec = DEFAULT_BLOCK_SEC): Array<Pick<FeeEvent, "token" | "amount" | "blockNumber">> {
+  const since = Number(headBlock) - blocksPerDay(blockSec) * days;
   const key = rewards.toLowerCase();
   return ledger.events
     .filter((e) => e.r === key && e.b >= Math.max(since, ledger.coverageFrom))
@@ -82,7 +84,7 @@ export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint,
 }
 
 /** Hours of history the record holds, capped at the pace window. */
-export function coverageHours(ledger: Ledger, headBlock: bigint, days = FEE_PACE_DAYS): number {
-  const from = Math.max(ledger.coverageFrom, Number(headBlock - BLOCKS_PER_DAY * BigInt(days)));
-  return Math.max(0, Number(headBlock) - from) / 1800;
+export function coverageHours(ledger: Ledger, headBlock: bigint, days = FEE_PACE_DAYS, blockSec = DEFAULT_BLOCK_SEC): number {
+  const from = Math.max(ledger.coverageFrom, Number(headBlock) - blocksPerDay(blockSec) * days);
+  return (Math.max(0, Number(headBlock) - from) * blockSec) / 3600;
 }
