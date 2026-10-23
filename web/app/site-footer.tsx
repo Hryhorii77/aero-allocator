@@ -3,6 +3,7 @@
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { LINK } from "./ui";
 import { TipJar } from "./tip-jar";
+import { useAeroLive } from "./use-aero-live";
 import { useProtocolAddresses } from "./wallet";
 
 const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
@@ -12,6 +13,7 @@ const X_URL = "https://x.com/hryhorii77";
  * links on the left, onchain links on the right, a ruled legal block, then a one-line meta row. */
 export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
   const { data: addresses } = useProtocolAddresses();
+  const aeroLive = useAeroLive();
   const explorer = DISPLAY_PRESET.chain.blockExplorers?.default;
   const { displayName, appName, networkName, veTokenSymbol } = DISPLAY_PRESET;
 
@@ -21,7 +23,9 @@ export function SiteFooter({ snapshotAt }: { snapshotAt: number }) {
         <div>
           <div className="text-base font-semibold text-neutral-100">{appName}</div>
           <p className="mb-3 mt-1 max-w-md text-neutral-400">
-            Where to vote your {veTokenSymbol} this week: forecast fees, split by dilution. Voting stays on{" "}
+            {aeroLive
+              ? "Where to allocate your sAERO: gauges ranked by what your amount earns per day. Allocation happens in your wallet on "
+              : `Where to vote your ${veTokenSymbol} this week: forecast fees, split by dilution. Voting stays on `}
             {displayName}.
           </p>
           <div className="flex flex-wrap gap-x-4">

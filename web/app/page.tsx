@@ -5,6 +5,7 @@ import { OverviewPanel } from "./overview";
 import { ProfilePanel } from "./profile";
 import { UpgradeChecklist } from "./upgrade-checklist";
 import { AERO_LAUNCH_AT_MS } from "./launch";
+import { useAeroLive } from "./use-aero-live";
 import { SaeroPositions } from "./saero-positions";
 import { GaugeTable } from "./gauge-table";
 import { nextBestMove } from "@/lib/next-move";
@@ -380,7 +381,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-22",
     title:
-      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds, its emission cap per week and the incentives streaming to it. It also ranks gauges by what an amount of sAERO would earn per day (fees at the last ~5 hours' pace plus incentives, after your own dilution), dropping gauges whose fee pace can't be measured safely. Connected to the wallet that owns a position, an allocate button lets you pick up to 20 gauges from the top estimates, shows the shares, simulates the transaction on Base and then asks your wallet to sign; Aero's allocate replaces the whole Base distribution and locks the position for 47 hours. Positions now show how much is placed on a chain versus idle, and the cooldown comes from the gauge contract. The gauge list now has chain buttons for Ethereum, OP, Arbitrum, Ink and Robinhood Chain (weights, caps and incentives, read straight from each chain; Arc is not read yet). Fee estimates and the $/day ranking now also cover Ethereum (about a day and a quarter of history) and OP; Arbitrum, Ink and Robinhood Chain stay without fees because public nodes keep too little log history for their block times. Allocating stays Base only. The allocate panel now also shows which gauges the position is on right now and keeps them selectable, since the new allocation replaces them.",
+      "Aero is live. Weekly voting has ended, so the page now says so, and a new panel reads your sAERO positions straight from Aero's Base contracts in your browser: size, lock end, how much is allocated and when each position can next be allocated (47 hours after its last allocation). Below it, all 270 Base gauges of the new system with the share of allocation weight each holds, its emission cap per week and the incentives streaming to it. It also ranks gauges by what an amount of sAERO would earn per day (fees at the last ~5 hours' pace plus incentives, after your own dilution), dropping gauges whose fee pace can't be measured safely. Connected to the wallet that owns a position, an allocate button lets you pick up to 20 gauges from the top estimates, shows the shares, simulates the transaction on Base and then asks your wallet to sign; Aero's allocate replaces the whole Base distribution and locks the position for 47 hours. Positions now show how much is placed on a chain versus idle, and the cooldown comes from the gauge contract. The gauge list now has chain buttons for Ethereum, OP, Arbitrum, Ink and Robinhood Chain (weights, caps and incentives, read straight from each chain; Arc is not read yet). Fee estimates and the $/day ranking now also cover Ethereum (about a day and a quarter of history) and OP; Arbitrum, Ink and Robinhood Chain stay without fees because public nodes keep too little log history for their block times. Allocating stays Base only. The allocate panel now also shows which gauges the position is on right now and keeps them selectable, since the new allocation replaces them. After launch the page headline and footer now talk about allocating sAERO, and the weekly vote clock and snapshot chips in the header are gone.",
   },
   {
     date: "2026-10-21",
@@ -1541,6 +1542,7 @@ export default function Dashboard() {
   // the table behind it; everything a first-time voter doesn't need lives
   // under More, collapsed.
   const [mobileTab, setMobileTab] = useState<MobileTab>("overview");
+  const aeroLive = useAeroLive();
   const onTab = (t: MobileTab) => (mobileTab === t ? "" : "hidden");
   // Defaults on: a visitor here to vote needs pool, predicted fees,
   // trend, edge, $/1k votes, and conf — not all 8 columns shouting at
@@ -1825,8 +1827,8 @@ export default function Dashboard() {
             {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")} <span className="text-sky-400">Allocator</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {snapshot && <EpochCountdown epochStart={snapshot.epochStart} />}
-            {snapshot && (
+            {snapshot && !aeroLive && <EpochCountdown epochStart={snapshot.epochStart} />}
+            {snapshot && !aeroLive && (
               <SnapshotFreshness generatedAt={snapshot.generatedAt} urgent={isUrgentWindow(snapshot.epochStart)} />
             )}
             <ThemeToggle />
@@ -1843,10 +1845,12 @@ export default function Dashboard() {
           tabs they would push the content down a full screen. */}
       <div className={`sm:block ${mobileTab === "overview" ? "" : "hidden"}`}>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-        Where to vote your {DISPLAY_PRESET.veTokenSymbol} this week.
+        {aeroLive ? "Where to allocate your sAERO." : `Where to vote your ${DISPLAY_PRESET.veTokenSymbol} this week.`}
       </h1>
       <p className="mt-1 text-[15px] text-neutral-400">
-        Type how much you hold. Copy the percentages. Paste into {DISPLAY_PRESET.displayName}.
+        {aeroLive
+          ? "Read your positions. See which gauges earn the most per day. Allocate from your wallet."
+          : `Type how much you hold. Copy the percentages. Paste into ${DISPLAY_PRESET.displayName}.`}
       </p>
       <AeroLaunchNotice />
       <AeroLiveNotice />
@@ -1936,7 +1940,7 @@ export default function Dashboard() {
               hasVotedThisEpoch: currentVotes ? currentVotes.length > 0 : null,
             })}
             closeText={
-              msUntilVoteLock(snapshot.epochStart) > 0
+              !aeroLive && msUntilVoteLock(snapshot.epochStart) > 0
                 ? `epoch vote closes in ${formatCountdown(msUntilVoteLock(snapshot.epochStart))}`
                 : null
             }

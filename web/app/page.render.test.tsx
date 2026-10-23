@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi";
 import Dashboard, { CurrentVsRecommended } from "./page";
+import { hasAeroLaunched } from "./launch";
+
+// The pre-launch dashboard tests below describe the weekly-vote header; they must not depend on today's real clock.
+vi.mock("./launch", async (orig) => ({ ...(await orig<typeof import("./launch")>()), hasAeroLaunched: vi.fn(() => false) }));
 
 const dashboardPayload = {
   generatedAt: 1_700_000_000_000,
@@ -1764,6 +1768,26 @@ describe("Dashboard — highlighted token pools", () => {
     renderDashboard();
     await screen.findAllByText("CL200-BNKR/WETH");
     expect(screen.queryByText("BNKR")).not.toBeInTheDocument();
+  });
+});
+
+describe("Dashboard after the Aero launch", () => {
+  afterEach(() => vi.mocked(hasAeroLaunched).mockReturnValue(false));
+
+  it("asks where to allocate sAERO and drops the weekly vote clock and snapshot chips", async () => {
+    vi.mocked(hasAeroLaunched).mockReturnValue(true);
+    renderDashboard();
+    expect(await screen.findByRole("heading", { level: 1, name: /Where to allocate your sAERO/ })).toBeInTheDocument();
+    await waitForPoolsLoaded();
+    await waitFor(() => expect(screen.queryByText(/Where to vote your/)).not.toBeInTheDocument());
+    expect(screen.getByText(/Where to allocate your sAERO: gauges ranked/)).toBeInTheDocument();
+    expect(screen.queryByText(/votes close in|voting closed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/snapshot \d+\w* ago/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the weekly-vote header before launch", async () => {
+    renderDashboard();
+    expect(await screen.findByRole("heading", { level: 1, name: /Where to vote your veAERO this week/ })).toBeInTheDocument();
   });
 });
 
