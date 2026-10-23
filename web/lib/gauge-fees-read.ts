@@ -1,6 +1,7 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
 import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
 import { getPrices } from "aero-allocator/prices";
+import { AERO_TOKEN } from "./saero";
 import { BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
 import { client, getGauges, registryAbi } from "./gauges";
@@ -56,6 +57,15 @@ export interface GaugeFees {
   windowHours: number;
   /** Gauges with a pace that could be measured; the rest are unknown, not zero. */
   fees: GaugeFee[];
+  /** AERO's price in USD (the token a sAERO position is made of), for turning $/day into an APR; null when it can't be priced. */
+  aeroUsd?: number | null;
+}
+
+/** AERO's USD price from the engine's price source (DefiLlama with retry and a stale fallback); null if unavailable. */
+async function aeroPriceUsd(): Promise<number | null> {
+  const m = await getPrices([AERO_TOKEN]).catch(() => null);
+  const p = m?.get(AERO_TOKEN) ?? m?.get(AERO_TOKEN.toLowerCase());
+  return p && p.priceUsd > 0 ? p.priceUsd : null;
 }
 
 function feeChain(chainId: number): AeroChain {
@@ -130,7 +140,7 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
     const pace = feePace(eventsWithin(ledger, rewards[i], head, undefined, cfg.blockSec), pend.get(g) ?? [], head, price, cfg.blockSec);
     if (pace) fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600 });
   });
-  return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, cfg.blockSec), fees };
+  return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, cfg.blockSec), fees, aeroUsd: await aeroPriceUsd() };
 }
 
 // Share one result per chain for a few minutes; the work is the multicalls and pricing, the history comes from the record.

@@ -82,6 +82,27 @@ describe("GaugeTable", () => {
     expect(links[0]).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
   });
 
+  it("shows an estimated APR from the AERO price, and a dash (not a made-up number) without one", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const withFees = (aeroUsd?: number) =>
+      vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }], ...(aeroUsd ? { aeroUsd } : {}) } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) }));
+    vi.stubGlobal("fetch", withFees(0.75));
+    const { unmount } = render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    // $19.72/day on 10,000 AERO at $0.75: 19.72 x 365 / 7,500 = 96%
+    expect(screen.getByRole("columnheader", { name: "Est. APR" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("96%");
+    expect(screen.getByText(/about 96% APR/)).toBeInTheDocument();
+    expect(screen.getByText(/AERO.s price \(\$0\.75\)/)).toBeInTheDocument();
+    unmount();
+
+    vi.stubGlobal("fetch", withFees());
+    render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    expect(screen.queryByRole("columnheader", { name: "Est. APR" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/APR/)).not.toBeInTheDocument();
+  });
+
   it("sorts by the column you click", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
