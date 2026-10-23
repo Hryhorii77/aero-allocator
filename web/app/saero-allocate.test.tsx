@@ -58,12 +58,13 @@ describe("SaeroAllocate", () => {
     mockFetch();
   });
 
-  it("prefills the best three gauges at 100% total and sends allocate after a clean simulation", async () => {
+  it("prefills the best split at 100% total and sends allocate after a clean simulation", async () => {
     sim.simulateContract.mockResolvedValue({});
     render(<SaeroAllocate position={position} cooldownReady />);
     fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
     expect(await screen.findByText(/Shares add up to 100%/)).toBeInTheDocument();
-    expect(screen.getByLabelText("share of P1")).toHaveValue("33.33");
+    // 1,000 power against 1,000,000 of weight barely dilutes anything, so the whole amount goes to the best gauge.
+    expect(screen.getByLabelText("share of P1")).toHaveValue("100");
     fireEvent.click(screen.getByRole("button", { name: "allocate" }));
     await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
     const call = write.writeContract.mock.calls[0][0];

@@ -8,6 +8,7 @@ import type { Address } from "viem";
 import type { GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
+import { bestSplit } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, MAX_GAUGES, planAllocation } from "@/lib/allocate";
 import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
 import { btn, chip, LINK } from "./ui";
@@ -77,7 +78,10 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
       .then(([g, f]) => {
         if (cancelled) return;
         const all = rankByUsdPerDay(g.gauges, f.fees, position.staked);
-        const ranked = all.slice(0, CHOICES);
+        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), position.staked);
+        const splitGauges = new Set((split?.parts ?? []).map((p) => p.gauge.toLowerCase()));
+        const top = all.slice(0, CHOICES);
+        const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
         const symbolOf = (a: string) => g.gauges.find((x) => x.gauge.toLowerCase() === a.toLowerCase())?.symbol ?? `${a.slice(0, 6)}…`;
         setFeesNote(f.windowHours);
         readCurrent(position.tokenId, symbolOf)
@@ -88,11 +92,14 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
             // Keep your current gauges selectable even when they're outside the top picks.
             const extra = cur
               .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
-              .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0 });
+              .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 0, windowHours: 0 });
             setRows([...ranked, ...extra]);
           });
-        const top = equalShares(Math.min(3, ranked.length));
-        setPct(Object.fromEntries(ranked.slice(0, top.length).map((r, i) => [r.gauge, String(top[i])])));
+        if (split) setPct(Object.fromEntries(split.parts.map((p) => [p.gauge, String(p.pct)])));
+        else {
+          const eq = equalShares(Math.min(3, ranked.length));
+          setPct(Object.fromEntries(ranked.slice(0, eq.length).map((r, i) => [r.gauge, String(eq[i])])));
+        }
       })
       .catch(() => !cancelled && setFailed(true));
     return () => {

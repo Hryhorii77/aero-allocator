@@ -15,6 +15,15 @@ export interface YieldRow {
   usdPerDay: number;
   /** Your share of the gauge's weight once you add `amount`, 0-100. */
   sharePct: number;
+  /** Power already in the gauge, whole tokens. */
+  weight: number;
+  /** How many hours of fee history the pace rests on. */
+  windowHours: number;
+}
+
+/** How much to trust a fee pace: a few hours of fee releases can swing a lot, a day or more is steadier. */
+export function paceConfidence(windowHours: number): "thin" | "fair" | "solid" {
+  return windowHours >= 24 ? "solid" : windowHours >= 6 ? "fair" : "thin";
 }
 
 /**
@@ -28,11 +37,12 @@ export function rankByUsdPerDay(
   minWeight: number = MIN_RANK_WEIGHT,
 ): YieldRow[] {
   if (!(amount > 0)) return [];
-  const feeOf = new Map(fees.map((f) => [f.gauge.toLowerCase(), f.feesUsdPerDay]));
+  const feeOf = new Map(fees.map((f) => [f.gauge.toLowerCase(), f]));
   const rows: YieldRow[] = [];
   for (const g of gauges) {
-    const f = feeOf.get(g.gauge.toLowerCase());
-    if (f === undefined || g.weight < minWeight || !g.activated) continue;
+    const fee = feeOf.get(g.gauge.toLowerCase());
+    const f = fee?.feesUsdPerDay;
+    if (f === undefined || fee === undefined || g.weight < minWeight || !g.activated) continue;
     const incentivesUsdPerDay = g.incentivesUsdPerWeek / 7;
     const share = amount / (g.weight + amount);
     rows.push({
@@ -42,6 +52,8 @@ export function rankByUsdPerDay(
       incentivesUsdPerDay,
       usdPerDay: (f + incentivesUsdPerDay) * share,
       sharePct: share * 100,
+      weight: g.weight,
+      windowHours: fee.windowHours,
     });
   }
   return rows.sort((a, b) => b.usdPerDay - a.usdPerDay);

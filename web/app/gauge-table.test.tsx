@@ -47,7 +47,9 @@ describe("GaugeTable", () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
     render(<GaugeTable />);
-    expect(await screen.findByText(/\/day$/)).toBeInTheDocument();
+    expect(await screen.findByText(/per day, best split of your amount/)).toBeInTheDocument();
+    expect(screen.getByText(/over the 47 h lock/)).toBeInTheDocument();
+    expect(screen.getByText("thin")).toBeInTheDocument();
     expect(screen.getByText(/fees \$1,000 \+ incentives \$0 per day/)).toBeInTheDocument();
     expect(screen.getByText(/pace of the last ~5 hours/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("sAERO amount"), { target: { value: "0" } });
