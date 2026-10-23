@@ -82,3 +82,28 @@ export function bestSplit(
     .sort((a, b) => b.pct - a.pct);
   return { parts, usdPerDay: parts.reduce((s, p) => s + p.usdPerDay, 0), bestSingleUsdPerDay: bestSingle };
 }
+
+/**
+ * What a position earns per day where it sits now. `rows` must already have the position's own power taken out of each gauge's
+ * weight (it is part of the weight today), so its share is `own / (weight + own)`. A current gauge with no fee estimate can't be
+ * priced: it is listed in `unmeasured` and the total then only covers the measured ones.
+ */
+export function currentUsdPerDay(
+  rows: Array<Pick<YieldRow, "gauge" | "symbol" | "feesUsdPerDay" | "incentivesUsdPerDay" | "weight">>,
+  current: Array<{ gauge: string; symbol: string; pct: number }>,
+  power: number,
+): { usd: number; unmeasured: string[] } {
+  const byGauge = new Map(rows.map((r) => [r.gauge.toLowerCase(), r]));
+  let usd = 0;
+  const unmeasured: string[] = [];
+  for (const c of current) {
+    const r = byGauge.get(c.gauge.toLowerCase());
+    const own = (c.pct / 100) * power;
+    if (!r) {
+      unmeasured.push(c.symbol);
+      continue;
+    }
+    usd += ((r.feesUsdPerDay + r.incentivesUsdPerDay) * own) / (r.weight + own);
+  }
+  return { usd, unmeasured };
+}

@@ -84,6 +84,24 @@ describe("SaeroAllocate", () => {
     expect(screen.getByLabelText(`include ${outside.slice(0, 6)}…`)).toBeInTheDocument();
   });
 
+  it("compares what the position earns where it is now with the best split, using its own power", async () => {
+    sim.readContract.mockResolvedValue([g(4)]);
+    sim.readContracts.mockResolvedValue([1000n * 10n ** 18n]);
+    render(<SaeroAllocate position={{ ...position, parkedRaw: 0n, onBaseRaw: 1000n * 10n ** 18n }} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    // 900 power in a gauge paying $700/day with 1,000,000 power in it (its own 900 included): 700 x 900 / 1,000,000 = $0.63.
+    expect(await screen.findByText(/That earns about/)).toHaveTextContent("$0.63");
+    expect(screen.getByText(/The best split would earn about/)).toHaveTextContent("$0.90 a day (+43%)");
+  });
+
+  it("says there is nothing to gain when the current gauge already is the best", async () => {
+    sim.readContract.mockResolvedValue([g(1)]);
+    sim.readContracts.mockResolvedValue([1000n * 10n ** 18n]);
+    render(<SaeroAllocate position={{ ...position, parkedRaw: 0n, onBaseRaw: 1000n * 10n ** 18n }} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/nothing to gain by moving/)).toBeInTheDocument();
+  });
+
   it("says so when nothing is allocated yet", async () => {
     render(<SaeroAllocate position={position} cooldownReady />);
     fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
