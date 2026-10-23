@@ -133,7 +133,7 @@ export function GaugeTable() {
         <p className="mt-3 text-sm text-amber-500">
           {hasFees
             ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. Allocating is Base only for now (Arc isn’t read yet).`
-            : `On ${chainName} you can see weights, caps and incentives. Fee estimates and the ranking aren’t measured here (public nodes keep too little log history for its block time), and allocating is Base only for now.`}
+            : `On ${chainName} you can see weights, caps and incentives. Fee estimates aren’t measured here yet, and allocating is Base only for now.`}
         </p>
       )}
       {hasFees && (

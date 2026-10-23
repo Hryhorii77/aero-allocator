@@ -157,17 +157,21 @@ describe("GaugeTable", () => {
     expect(screen.getByLabelText("sAERO amount")).toBeInTheDocument();
   });
 
-  it("shows no ranking and no fee request on a chain where fee pace isn't measured", async () => {
-    const f = vi.fn(async (url: string) => ({
-      ok: true,
-      json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [] } : { chainId: 42161, generatedAt: 0, totalWeight: 1, gauges: [] }),
-    }));
-    vi.stubGlobal("fetch", f);
-    render(<GaugeTable />);
-    fireEvent.click(await screen.findByRole("button", { name: "Arbitrum" }));
-    await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === "/api/gauges?chain=42161")).toBe(true));
-    expect(f.mock.calls.some(([u]) => String(u).includes("gauge-fees?chain=42161"))).toBe(false);
-    expect(screen.getByText(/aren.t measured here/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("sAERO amount")).not.toBeInTheDocument();
+  it("asks for fee estimates on every chain now, and says plainly when one chain's fee read fails", async () => {
+    for (const [name, id] of [["Arbitrum", 42161], ["Ink", 57073], ["Robinhood Chain", 4663]] as const) {
+      const f = vi.fn(async (url: string) =>
+        url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: id, generatedAt: 0, totalWeight: 1, gauges }) },
+      );
+      vi.stubGlobal("fetch", f);
+      const { unmount } = render(<GaugeTable />);
+      fireEvent.click(await screen.findByRole("button", { name }));
+      await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === `/api/gauges?chain=${id}`)).toBe(true));
+      expect(f.mock.calls.some(([u]) => String(u).includes(`gauge-fees?chain=${id}`))).toBe(true);
+      expect(await screen.findByText(/Fee estimates are unavailable right now/)).toBeInTheDocument();
+      // The gauges still list, by weight, with the amount box ready.
+      expect(await screen.findByText("T0/USDC")).toBeInTheDocument();
+      expect(screen.getByLabelText("sAERO amount")).toBeInTheDocument();
+      unmount();
+    }
   });
 });

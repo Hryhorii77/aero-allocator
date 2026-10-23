@@ -64,3 +64,30 @@ describe("feePace", () => {
     expect(out.windowSec).toBe(600 * 12);
   });
 });
+
+describe("readFeeEvents limits", () => {
+  const addr = (n: number) => `0x${n.toString(16).padStart(40, "0")}` as `0x${string}`;
+  const reader = () => {
+    const calls: Array<{ n: number; span: bigint }> = [];
+    return { calls, getLogs: async (a: { address: `0x${string}`[]; fromBlock: bigint; toBlock: bigint }) => (calls.push({ n: a.address.length, span: a.toBlock - a.fromBlock + 1n }), []) };
+  };
+
+  it("splits addresses and block ranges by the limits it is given", async () => {
+    const { readFeeEvents } = await import("./gauge-fees");
+    const r = reader();
+    await readFeeEvents(r as never, Array.from({ length: 40 }, (_, i) => addr(i + 1)), 0n, 99_999n, 4, { span: 50_000, addresses: 20 });
+    // 40 addresses / 20 = 2 batches, 100,000 blocks / 50,000 = 2 ranges
+    expect(r.calls).toHaveLength(4);
+    expect(Math.max(...r.calls.map((c) => c.n))).toBe(20);
+    expect(Math.max(...r.calls.map((c) => Number(c.span)))).toBe(50_000);
+  });
+
+  it("keeps the old 5-address, 10,000-block defaults", async () => {
+    const { readFeeEvents } = await import("./gauge-fees");
+    const r = reader();
+    await readFeeEvents(r as never, Array.from({ length: 11 }, (_, i) => addr(i + 1)), 0n, 19_999n);
+    expect(r.calls).toHaveLength(6);
+    expect(Math.max(...r.calls.map((c) => c.n))).toBe(5);
+    expect(Math.max(...r.calls.map((c) => Number(c.span)))).toBe(10_000);
+  });
+});

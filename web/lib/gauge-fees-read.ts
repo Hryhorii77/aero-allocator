@@ -2,11 +2,11 @@ import { createPublicClient, fallback, http, parseAbi, type Address } from "viem
 import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
 import { getPrices } from "aero-allocator/prices";
 import { AERO_TOKEN } from "./saero";
-import { BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
+import { BASE_CHAIN, chainById, lookbackBlocks, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
 import { client, getGauges, registryAbi } from "./gauges";
 import { feePace, readFeeEvents, type LogReader } from "./gauge-fees";
-import { appendEvents, coverageHours, eventsWithin, planRange, type Ledger } from "./fee-ledger";
+import { appendEvents, coverageHours, eventsWithin, MAX_LOOKBACK_BLOCKS, planRange, type Ledger } from "./fee-ledger";
 import { loadLedger, saveLedger } from "./fee-ledger-store";
 
 const gaugeAbi = parseAbi(["function pendingFees() view returns (uint256, uint256)"]);
@@ -30,7 +30,7 @@ export const MIN_INGEST_GAP_MS = 20 * 60_000;
  * tried first and the configured ones only after it. Other chains use their own public nodes.
  */
 export function logRpcUrls(cfg: AeroChain = BASE_CHAIN): string[] {
-  const urls = cfg.id === BASE_CHAIN.id ? [PRESET.defaultRpcUrl, RPC_URL, RPC_URL_FALLBACK] : cfg.rpcs;
+  const urls = cfg.id === BASE_CHAIN.id ? [PRESET.defaultRpcUrl, RPC_URL, RPC_URL_FALLBACK] : (cfg.logRpcs ?? cfg.rpcs);
   return [...new Set(urls.filter((u): u is string => !!u))];
 }
 
@@ -90,8 +90,8 @@ export async function updateFeeLedger(chainId = BASE_CHAIN.id, force = false): P
     allowFailure: false,
     contracts: gauges.map((g) => ({ address: cfg.registry, abi: registryAbi, functionName: "gaugeToRewards", args: [g] }) as const),
   });
-  const range = planRange(ledger, head);
-  const events = range.from <= head ? await readFeeEvents(lc as unknown as LogReader, rewards, range.from, head, 4) : [];
+  const range = planRange(ledger, head, lookbackBlocks(cfg, MAX_LOOKBACK_BLOCKS));
+  const events = range.from <= head ? await readFeeEvents(lc as unknown as LogReader, rewards, range.from, head, 4, { span: cfg.logSpan, addresses: cfg.logAddresses }) : [];
   ledger = appendEvents(ledger, events, { from: range.from, to: head, reset: range.reset }, Date.now(), cfg.blockSec);
   memo.set(chainId, ledger);
   await saveLedger(ledger, chainId);

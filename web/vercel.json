@@ -1,7 +1,28 @@
 {
   "crons": [
-    { "path": "/api/gauge-fees/ingest?chain=8453", "schedule": "*/30 * * * *" },
-    { "path": "/api/gauge-fees/ingest?chain=1", "schedule": "5,35 * * * *" },
-    { "path": "/api/gauge-fees/ingest?chain=10", "schedule": "10,40 * * * *" }
+    {
+      "path": "/api/gauge-fees/ingest?chain=8453",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/gauge-fees/ingest?chain=1",
+      "schedule": "5,35 * * * *"
+    },
+    {
+      "path": "/api/gauge-fees/ingest?chain=10",
+      "schedule": "10,40 * * * *"
+    },
+    {
+      "path": "/api/gauge-fees/ingest?chain=42161",
+      "schedule": "15,45 * * * *"
+    },
+    {
+      "path": "/api/gauge-fees/ingest?chain=57073",
+      "schedule": "20,50 * * * *"
+    },
+    {
+      "path": "/api/gauge-fees/ingest?chain=4663",
+      "schedule": "25,55 * * * *"
+    }
   ]
 }

@@ -19,4 +19,9 @@ describe("logRpcUrls", () => {
     const { chainById } = await import("./aero-chains");
     expect(logRpcUrls(chainById(1)!)).toEqual(chainById(1)!.rpcs);
   });
+  it("prefers a chain's dedicated log nodes over its general ones", async () => {
+    const { chainById } = await import("./aero-chains");
+    expect(logRpcUrls(chainById(42161)!)).toEqual(["https://arb1.arbitrum.io/rpc"]);
+    expect(logRpcUrls(chainById(57073)!)).toEqual(["https://rpc-qnd.inkonchain.com"]);
+  });
 });

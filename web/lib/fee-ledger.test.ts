@@ -9,6 +9,13 @@ describe("planRange", () => {
   it("starts a new record at the lookback floor", () => {
     expect(planRange(null, 100_000n)).toEqual({ from: 100_000n - MAX_LOOKBACK_BLOCKS, reset: true });
   });
+  it("reaches as far back as the chain's own lookback allows", () => {
+    expect(planRange(null, 1_000_000n, 86_400n)).toEqual({ from: 913_600n, reset: true });
+    const l = { version: 1, coverageFrom: 1, lastBlock: 950_000, updatedAt: 0, events: [] } as Ledger;
+    // 50,000 blocks behind: a gap the default lookback can't cover but a day on a 1 s chain can.
+    expect(planRange(l, 1_000_000n).reset).toBe(true);
+    expect(planRange(l, 1_000_000n, 86_400n)).toEqual({ from: 950_001n, reset: false });
+  });
   it("continues from the block after the last one read", () => {
     const l = { version: 1, coverageFrom: 1, lastBlock: 99_000, updatedAt: 0, events: [] } as Ledger;
     expect(planRange(l, 100_000n)).toEqual({ from: 99_001n, reset: false });

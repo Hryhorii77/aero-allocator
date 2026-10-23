@@ -36,8 +36,8 @@ export interface Ledger {
 }
 
 /** Where the next catch-up should read from. A gap longer than the lookback can't be filled, so it starts the record over. */
-export function planRange(ledger: Ledger | null, head: bigint): { from: bigint; reset: boolean } {
-  const floor = head - MAX_LOOKBACK_BLOCKS;
+export function planRange(ledger: Ledger | null, head: bigint, lookback: bigint = MAX_LOOKBACK_BLOCKS): { from: bigint; reset: boolean } {
+  const floor = head - lookback;
   if (!ledger) return { from: floor, reset: true };
   const next = BigInt(ledger.lastBlock) + 1n;
   if (next < floor) return { from: floor, reset: true };
