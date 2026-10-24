@@ -38,11 +38,39 @@ Optional env: `BASE_RPC_URL` (defaults to the public Base RPC; a dedicated RPC m
 - All forecasts are EWMA + trend extrapolations of onchain epoch history with explicit confidence scores — not financial advice.
 - Voting notes: one vote per veNFT per epoch; voting is blocked in the final hour before the Thursday 00:00 UTC epoch flip.
 
-## Hosted access (retired)
+## Hosted access (pay per call, x402)
 
-The pay-per-call x402 endpoints (`/api/v1/position`, `/api/v1/forecast`, `/api/v1/bribe-target`) were removed on 2026-10-24: they
-priced the weekly veAERO vote, which Aero replaced with continuous sAERO allocation on 2026-10-22, and Velodrome merged into Aero.
-Use the MCP server below (clone and register it), or see https://aeroallocator.app for the sAERO gauge allocator.
+Two paid endpoints for sAERO (Aero's continuous allocation, which replaced weekly veAERO voting on 2026-10-22), at
+`https://aeroallocator.app`. Pay per call in USDC on Base via the [x402 protocol](https://www.x402.org/): no account, no API key, no
+wallet connects to this project, and a call that is rejected (400/404/422) is never charged. They are also discoverable in Coinbase's
+x402 Bazaar / agentic.market and described at https://aeroallocator.app/llms.txt. (The old weekly-vote endpoints were removed 2026-10-24.)
+
+**`GET /api/v1/position?tokenId=<id>` or `?address=0x…` ($0.05) — where does this sAERO position stand?**
+Power, lock, idle vs allocated power, when it can next be re-allocated (47-hour cooldown), what it earns per day now versus the best
+split of Base gauges for its own size (fees plus incentives, after its own dilution), and a `stay` / `switch` / `allocate` /
+`unknown` recommendation. A switch is only recommended when it beats staying by 5% and $0.05/day and rests on at least 6 hours of fee
+history.
+
+**`GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` ($0.10) — the transaction to do it.**
+The unsigned `allocate()` call (`transaction.to/data/value`, chain 8453) for the best split of Base gauges, already simulated as the
+owner (`simulation.ok` or the plain reason it would be rejected), with `cooldown`, expected USD/day versus now, and `warnings`. Sign
+and send it from `sendFrom`; this project never signs or sends. Base only.
+
+Both are estimates: fee figures are a recent pace (see `feeHistoryHours`, `confidence`), and every allocation restarts a 47-hour wait.
+
+```ts
+import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm";
+import { privateKeyToAccount } from "viem/accounts";
+
+const account = privateKeyToAccount("0xYourPrivateKey");
+const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
+  schemes: [{ network: "eip155:8453", client: new ExactEvmScheme(account) }],
+});
+
+const res = await fetchWithPayment("https://aeroallocator.app/api/v1/position?tokenId=15308");
+const data = await res.json();
+```
 
 ## Predictive Allocation
 

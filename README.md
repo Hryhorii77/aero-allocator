@@ -5,7 +5,8 @@
 > **Status (2026-10-24):** Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22, and Velodrome merged
 > into Aero. The hosted site, https://aeroallocator.app, is now the **sAERO allocator** (`web/`): which Aero gauges pay the most per
 > day for your amount, your positions, and allocate / return-to-idle from your wallet. The weekly-vote dashboard, its free and paid
-> (x402) APIs, and the vote-alert / epoch-reminder schedules were removed. The MCP server and engine described below are the
+> (x402) APIs, and the vote-alert / epoch-reminder schedules were removed; two new paid sAERO endpoints replace the old ones (see
+> [Paid API (x402)](#paid-api-x402)). The MCP server and engine described below are the
 > weekly-vote toolset, kept as they were for anyone who still wants them; they no longer power the website beyond its config and prices.
 
 MCP server that forecasts **next-epoch demand** for Aerodrome (Base) or Velodrome (Optimism) pools and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes. Aerodrome is the default; see [Multi-protocol](#multi-protocol-aerodrome--velodrome) to switch.
@@ -215,6 +216,29 @@ This is a standard MCP server, not Claude-specific — the same config (in whate
 Example agent flow:
 
 > "Predict demand for the top Aerodrome pools, recommend a voter_roi allocation across 8 pools, then prepare the vote calldata for my veAERO #12345 and submit it with my Base wallet."
+
+## Paid API (x402)
+
+Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
+Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
+They are indexed in Coinbase's x402 Bazaar (and so agentic.market) after their first paid call, and described for agents at `/llms.txt`.
+
+| Endpoint | Price | What it answers |
+|---|---|---|
+| `GET /api/v1/position?tokenId=<id>` or `?address=0x…` | $0.05 | Where does this sAERO position stand: power, lock, idle vs allocated, the 47-hour re-allocation wait, what it earns per day now vs the best split of Base gauges for its own size, and a stay / switch / allocate / unknown recommendation. |
+| `GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` | $0.10 | The unsigned, already-simulated `allocate()` transaction for that best split (to, data, value, chain 8453), with cooldown and warnings. Never signs or sends. Base only. |
+
+These answer something the free `/api/gauges` and `/api/gauge-fees` reads can't: a chain read keyed to one position, and calldata that
+satisfies the Voter's rules (full overwrite per chain, exact total, ascending addresses). The old weekly-vote `/api/v1/forecast` earned
+almost nothing because the free site served the same payload; keep new paid routes on the "free can't do this" side.
+
+Requires three env vars to activate; without all three each paid route serves a clean `501` rather than accepting payment:
+
+| Var | | |
+|---|---|---|
+| `X402_PAYTO_ADDRESS` | Base address you control | Where payments land: never generated or held by this codebase |
+| `CDP_API_KEY_ID` | From [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/) | Coinbase Developer Platform API key |
+| `CDP_API_KEY_SECRET` | Same place | Paired secret |
 
 ## How the forecast works
 
