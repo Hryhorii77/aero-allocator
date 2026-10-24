@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { formatEther } from "viem";
+import type { CrossChainFee } from "@/lib/allocate-fee";
 import type { GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
@@ -23,12 +25,37 @@ function Card({ value, label, tone }: { value: string; label: string; tone?: "go
   );
 }
 
+/** Per-chain cost of allocating off Base, read live from Aero's own message adapter. Information only: nothing here sends. */
+function CrossChainNote({ chainId, gauges, chainName }: { chainId: number; gauges: number; chainName: string }) {
+  const [fee, setFee] = useState<CrossChainFee | null | "failed">(null);
+  useEffect(() => {
+    let live = true;
+    setFee(null);
+    fetch(`/api/allocation-fee?chain=${chainId}&gauges=${gauges}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((j: CrossChainFee) => live && setFee(j))
+      .catch(() => live && setFee("failed"));
+    return () => {
+      live = false;
+    };
+  }, [chainId, gauges]);
+  if (fee === "failed") return null;
+  const eth = (wei: string) => Number(formatEther(BigInt(wei))).toPrecision(2);
+  return (
+    <p className={`mt-3 ${NOTE}`}>
+      {fee === null
+        ? `Checking what ${chainName} costs to send power to…`
+        : `Sending power to ${chainName} costs about ${eth(fee.total)} ETH, paid on Base (a cross-chain message). Moving it back later can carry a further ${eth(fee.returnCost)} ETH charge.`}
+    </p>
+  );
+}
+
 /**
  * What an amount of sAERO earns per day on one chain: the best way to split it across gauges (each gauge you join dilutes
  * the next, so the best answer is usually several), how that compares with going all-in on the top gauge, what it adds up
  * to over the 47-hour lock, and how much history each estimate rests on.
  */
-export function AllocationDesk({ gauges, fees, amount }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number }) {
+export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; chainName?: string }) {
   const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount), [gauges, fees, amount]);
   const split = useMemo(
@@ -63,6 +90,7 @@ export function AllocationDesk({ gauges, fees, amount }: { gauges: GaugeRow[]; f
           </span>
         ))}
       </p>
+      {fees.chainId !== 8453 && chainName && <CrossChainNote chainId={fees.chainId} gauges={split.parts.length} chainName={chainName} />}
     </div>
   );
 }
