@@ -132,7 +132,7 @@ export function GaugeTable() {
       {!onBase && (
         <p className="mt-3 text-sm text-amber-500">
           {hasFees
-            ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. Allocating is Base only for now (Arc isn’t read yet).`
+            ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. Allocating is Base only for now (Arc isn’t read yet); the cost line under the best split is what Aero charges to send power here.`
             : `On ${chainName} you can see weights, caps and incentives. Fee estimates aren’t measured here yet, and allocating is Base only for now.`}
         </p>
       )}
@@ -159,7 +159,7 @@ export function GaugeTable() {
           )}
           {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
-          {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} />}
+          {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} />}
         </div>
       )}
       {failed && <p className="mt-3 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
