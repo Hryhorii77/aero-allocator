@@ -8,6 +8,7 @@ import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { bestSplit } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
+import { ago } from "@/lib/ago";
 import { NOTE, NUM } from "./ui";
 
 const LOCK_HOURS = 47;
@@ -90,6 +91,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: Ga
           </span>
         ))}
       </p>
+      {fees.generatedAt > 0 && <p className={`mt-1 ${NOTE}`}>Fee figures read {ago(fees.generatedAt)}.</p>}
       {fees.chainId !== 8453 && chainName && <CrossChainNote chainId={fees.chainId} gauges={split.parts.length} chainName={chainName} />}
     </div>
   );

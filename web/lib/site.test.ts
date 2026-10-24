@@ -16,6 +16,8 @@ describe("siteMetadata", () => {
     expect(String(m.metadataBase)).toBe("https://aeroallocator.app/");
     expect(m.openGraph?.images).toEqual([expect.objectContaining({ url: "/api/share?v=2", width: 1200, height: 630 })]);
     expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share?v=2"] });
+    expect(m.alternates?.canonical).toBe("/");
+    expect(m.openGraph?.url).toBe("/");
   });
 
   it("describes sAERO allocation on the hosted Aerodrome site, not the retired weekly vote", async () => {

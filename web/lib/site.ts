@@ -40,7 +40,9 @@ export function siteMetadata(): Metadata {
     description: DESCRIPTION,
     ...(SITE_URL && {
       metadataBase: new URL(SITE_URL),
+      alternates: { canonical: "/" },
       openGraph: {
+        url: "/",
         title: TITLE,
         description: DESCRIPTION,
         siteName: DISPLAY_PRESET.appName,
