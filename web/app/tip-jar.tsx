@@ -129,7 +129,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
               Connect a wallet (top right) to send in one tap.
             </p>
           )}
-          {/* Sending needs Base configured in wagmi; the Velodrome build only has Optimism. */}
+          {/* Sending needs Base configured in wagmi. */}
           {isConnected && DISPLAY_PRESET.chain.id === base.id && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
               {onBase ? (

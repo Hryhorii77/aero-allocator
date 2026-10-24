@@ -9,14 +9,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@coinbase/x402": "^2.1.0",
+    "@base-org/account": "^2.5.13",
     "@tanstack/react-query": "^5.101.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.0",
     "@walletconnect/ethereum-provider": "^2.26.0",
-    "@x402/core": "^2.24.0",
-    "@x402/evm": "^2.24.0",
-    "@x402/next": "^2.24.0",
     "aero-allocator": "file:..",
     "next": "16.4.2",
     "ox": "^1.7.4",

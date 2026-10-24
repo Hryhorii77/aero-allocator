@@ -2,6 +2,12 @@
 
 [![CI](https://github.com/Hryhorii77/aero-allocator/actions/workflows/ci.yml/badge.svg)](https://github.com/Hryhorii77/aero-allocator/actions/workflows/ci.yml)
 
+> **Status (2026-10-24):** Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22, and Velodrome merged
+> into Aero. The hosted site, https://aeroallocator.app, is now the **sAERO allocator** (`web/`): which Aero gauges pay the most per
+> day for your amount, your positions, and allocate / return-to-idle from your wallet. The weekly-vote dashboard, its free and paid
+> (x402) APIs, and the vote-alert / epoch-reminder schedules were removed. The MCP server and engine described below are the
+> weekly-vote toolset, kept as they were for anyone who still wants them; they no longer power the website beyond its config and prices.
+
 MCP server that forecasts **next-epoch demand** for Aerodrome (Base) or Velodrome (Optimism) pools and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes. Aerodrome is the default; see [Multi-protocol](#multi-protocol-aerodrome--velodrome) to switch.
 
 Any MCP-capable agent (Claude Code, Claude Desktop, Bankr-hosted agents) can use it to answer:
@@ -97,7 +103,7 @@ headline, then the pool split that earns it, sized for that amount.
 - **Address lookup** reads `VeSugar.byAccount` straight from the browser over the public RPC — the address
   never reaches our server — sums that address's veNFTs, fills the amount, and shows how its current
   votes compare with the recommendation. No wallet connection needed; a failed or empty lookup keeps the
-  amount you typed. (The same comparison, callable by agents, is the paid `/api/v1/position`.)
+  amount you typed.
 - **Connect wallet** is only needed to *cast*. There is one connect button, in the header; the line
   beside the cast controls points at it. It opens a "Connect a Wallet" dialog (installed wallets first,
   with icons, then popular ones, last-used tagged Recent), and once connected the address opens an
@@ -210,46 +216,6 @@ Example agent flow:
 
 > "Predict demand for the top Aerodrome pools, recommend a voter_roi allocation across 8 pools, then prepare the vote calldata for my veAERO #12345 and submit it with my Base wallet."
 
-## Paid API (x402)
-
-Three pay-per-call endpoints on the dashboard deployment — **$0.05/call** for `position` and `forecast`, **$0.10/call** for `bribe-target` — in USDC on Base mainnet via
-the [x402 protocol](https://www.x402.org/). The free dashboard and MCP server are unaffected — these are
-additional ways to get at the data, not a paywall on the existing ones.
-
-| Endpoint | What it answers |
-|---|---|
-| `GET /api/v1/position?address=0x…` | **What is *this wallet's* current vote worth versus the recommendation?** Reads every veNFT the address holds, blends them into one portfolio-wide split, sizes the recommendation for that combined voting power, and returns the dollar difference between staying and switching. |
-| `GET /api/v1/forecast` | The whole market: predicted hot pools, all three allocation objectives, LP staking yield, vote-swing signals. |
-| `GET /api/v1/bribe-target?pool=0x…&targetSharePct=N` | **For protocols paying bribes: what is the least that could move this pool to N% of all votes?** The bribe simulator run backwards — a bisection over the same model — returning the floor, the votes it represents, a cost curve at 25/50/75/100% of the way there, and what's already posted on the pool. **A floor, not a quote:** the simulator is a theoretical ceiling on vote pull, so the real bribe needed is at least this. It says so in `basis`, and reports `feasible: false` (with why) for targets past the 35% concentration cap. |
-
-`/api/v1/position` is the one that isn't obtainable free, and that distinction is deliberate. The free
-`/api/dashboard` is address-agnostic — it publishes the map. `position` reads a specific caller's on-chain
-stance off that map and tells them where they're standing, which needs a chain read keyed to their
-address. It's also the shape an agent can act on without a human in the loop: one number, signed sense,
-plus `comparable` so a caller knows when the two sides aren't priced on the same basis.
-
-`/api/v1/bribe-target` is aimed at a different buyer — a protocol or treasury budgeting a bribe, not a voter — and is
-priced accordingly. The free dashboard's bribe simulator still answers "what does $X buy"; this answers the inverse,
-which is the question a budget owner actually starts from.
-
-`/api/v1/forecast` serves the same payload as the free `/api/dashboard` (same engine, same numbers), for
-callers who want it metered and versioned rather than scraped off the site's own endpoint.
-
-Standard x402 flow: a request without an `X-PAYMENT` header gets `402` with the price; a request with a
-valid one is verified by Coinbase's CDP facilitator before the handler runs, and settled on-chain only
-after a successful response — a failed request is never charged. [`SKILL.md`](SKILL.md#instant-access-hosted-no-setup--x402)
-has a copy-pasteable client example (`@x402/fetch`) for calling this directly from an agent — no clone,
-no RPC key, no MCP registration.
-
-Requires three env vars to activate; without all three every paid route serves a clean `501` rather than
-accepting misrouted or unverifiable payments:
-
-| Var | | |
-|---|---|---|
-| `X402_PAYTO_ADDRESS` | Base address you control | Where payments land — never generated or held by this codebase |
-| `CDP_API_KEY_ID` | From [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/) | Coinbase Developer Platform API key |
-| `CDP_API_KEY_SECRET` | Same place | Paired secret |
-
 ## How the forecast works
 
 For each candidate pool (top N by staked TVL above a TVL floor):
@@ -345,7 +311,7 @@ Circle's Arc mainnet (chain ID `5042`, EVM-compatible, gas paid in USDC) launche
 | `AERO_VOTING_POWER` | unset | Your veAERO amount — if set, the epoch-reminder Discord post includes your personal `voter_roi` split, not just the market-wide reference — see [One-click voting from the alert](#one-click-voting-from-the-alert) |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | unset | Free [Reown Cloud](https://cloud.reown.com) project id (public; the domain must be on its allowlist). Enables WalletConnect: on a phone's normal browser the connect dialog offers Coinbase Wallet and "Other wallets" (WalletConnect's wallet window), and desktop gets a QR option. Without it the connector is left out (its relay socket would hang the tab) and phones only get Coinbase Wallet |
 | `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` on Aerodrome, unset otherwise | Public address of a `web/` deployment, for the link-preview image (`og:image`). Unset on a non-Aerodrome deployment means no preview image |
-| `AERO_DASHBOARD_URL` | unset | Your dashboard deployment's URL. **Required by `npm run vote-alerts`**, which reads its `/api/dashboard`. For the epoch reminder it's optional: if also set, the Discord post links straight into it with that allocation pre-loaded |
+| `AERO_DASHBOARD_URL` | unset | Optional, `npm run epoch-reminder` only: the Discord post links to this URL with the allocation pre-loaded. The weekly-vote dashboard it pointed at was removed on 2026-10-24, so it has no use now |
 
 ## Epoch reminders
 
@@ -395,22 +361,6 @@ include yours.
 
 ### Vote alerts
 
-`npm run vote-alerts` (`scripts/vote-alerts.ts`) is the mid-week counterpart to the reminder: it reads
-your `voter_roi` split from the deployed dashboard's `/api/dashboard` (served from the shared snapshot
-cache, so it needs no RPC key), compares it with its last reading, and posts to Discord **only** when a
-pool in that split took at least 2x its votes (and at least 10,000 veAERO more), or its edge flipped
-sign past a ±0.05pp deadband. The first run of an epoch has nothing to compare with and never alerts.
-Without `AERO_DISCORD_WEBHOOK_URL` it just prints what it would have sent.
-
-`.github/workflows/vote-alerts.yml` runs it hourly, keeping the last reading in the Actions cache. It's
-off until you set the repo variable `AERO_ALERTS_ENABLED=true` (plus `AERO_DASHBOARD_URL` and the
-`AERO_DISCORD_WEBHOOK_URL` / `AERO_VOTING_POWER` secrets the reminder already uses). `AERO_ALERT_MIN_VOTES`
-raises the smallest vote growth that can alert; `AERO_ALERT_STATE_PATH` moves the state file.
-
-To check the Discord connection without waiting for a real event, run the workflow by hand with
-**send_test** ticked (or `AERO_ALERT_TEST=true npm run vote-alerts`): it posts one "connected" line and
-fails loudly if the webhook isn't set. A test run leaves the saved reading alone.
-
 ## Contracts used
 
 Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
@@ -428,7 +378,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
 - [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
 - [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
-- [x] x402-monetized hosted endpoints — `/api/v1/position` (per-wallet vote delta), `/api/v1/forecast`, and `/api/v1/bribe-target` (minimum-bribe floor for a target vote share), pay-per-call in USDC on Base, see [Paid API (x402)](#paid-api-x402)
+- [x] ~~x402-monetized hosted endpoints~~ — built, then removed 2026-10-24 with the weekly-vote dashboard
 - [x] "Predicted hot pools" dashboard (`web/`)
 - [x] Wallet connection + one-click vote from the dashboard (wagmi)
 - [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
@@ -447,7 +397,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 - [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
 - [x] Light and dark themes (header toggle, OS default), a wallet dialog and account panel, one shared button/link style, and a footer in the [afterbook.app](https://afterbook.app) layout
 - [x] Optional tip button (USDC on Base, copy address or send from a connected wallet) and cookie-free Vercel Web Analytics, to judge usage before building any paid dashboard features
-- [x] Vote alerts: hourly check of your split for a pool that took 2x its votes or whose edge flipped, to Discord (opt-in workflow) — see [Vote alerts](#vote-alerts)
+- [x] ~~Vote alerts~~ — built, then removed 2026-10-24 (weekly voting ended)
 - [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
 - [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
 
