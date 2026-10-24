@@ -48,6 +48,14 @@ describe("AllocationDesk", () => {
     expect(screen.getByText(/further 0\.00015 ETH charge/)).toBeInTheDocument();
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/allocation-fee\?chain=10&gauges=/);
   });
+  it("says how old the fee figures are, and stays quiet when the time is unknown", () => {
+    const gs = [g(1, 200_000), g(2, 200_000)];
+    const { unmount } = render(<AllocationDesk gauges={gs} fees={{ chainId: 8453, generatedAt: Date.now() - 12 * 60_000, windowHours: 30, fees: [fee(1, 1000, 30), fee(2, 900, 30)] }} amount={1_000_000} />);
+    expect(screen.getByText(/Fee figures read 12 min ago/)).toBeInTheDocument();
+    unmount();
+    render(<AllocationDesk gauges={gs} fees={{ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [fee(1, 1000, 30), fee(2, 900, 30)] }} amount={1_000_000} />);
+    expect(screen.queryByText(/Fee figures read/)).toBeNull();
+  });
   it("shows no cost line on Base", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
