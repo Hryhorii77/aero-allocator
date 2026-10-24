@@ -15,7 +15,7 @@ import { LEAD } from "./ui";
 
 /**
  * The page after Aero's launch (Aerodrome build): where an amount of sAERO earns the most, your own positions, and the allocate
- * button. The weekly-vote dashboard it replaced lives on for Velodrome and for the days before launch (page.tsx).
+ * button. The weekly-vote dashboard it replaced has been removed.
  */
 export function SaeroPage() {
   // Same mounted-state rule as the checklist itself, so the link only exists while the section does.

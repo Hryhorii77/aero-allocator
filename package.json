@@ -29,8 +29,7 @@
     "realized-performance": "tsx scripts/realized-performance.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
     "test": "vitest run",
-    "lockers": "tsx scripts/lockers.ts",
-    "vote-alerts": "tsx scripts/vote-alerts.ts"
+    "lockers": "tsx scripts/lockers.ts"
   },
   "keywords": [
     "aerodrome",

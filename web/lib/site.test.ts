@@ -32,12 +32,4 @@ describe("siteMetadata", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://votes.example.org");
     expect(String((await load()).metadataBase)).toBe("https://votes.example.org/");
   });
-
-  it("gives a Velodrome deployment with no site URL a plain title, not our card on someone else's domain", async () => {
-    vi.stubEnv("NEXT_PUBLIC_AERO_PROTOCOL", "velodrome");
-    const m = await load();
-    expect(m.openGraph).toBeUndefined();
-    expect(m.twitter).toBeUndefined();
-    expect(m.title).toMatch(/Velodrome Allocator/);
-  });
 });

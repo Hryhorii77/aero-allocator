@@ -15,7 +15,6 @@ describe("upgradeChecklistVisible", () => {
     expect(upgradeChecklistVisible(UPGRADE_CHECKLIST_FROM_MS, "aerodrome")).toBe(true);
     expect(upgradeChecklistVisible(Date.UTC(2026, 9, 22, 0, 30), "aerodrome")).toBe(true);
     expect(upgradeChecklistVisible(UPGRADE_CHECKLIST_UNTIL_MS, "aerodrome")).toBe(false);
-    expect(upgradeChecklistVisible(Date.UTC(2026, 9, 21), "velodrome")).toBe(false);
   });
 });
 
