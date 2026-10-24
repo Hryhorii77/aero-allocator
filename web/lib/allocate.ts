@@ -1,4 +1,4 @@
-import { encodeFunctionData, getAddress, isAddress, type Address } from "viem";
+import { encodeFunctionData, getAddress, isAddress, keccak256, toBytes, type Address } from "viem";
 import { SAERO, SAERO_CHAIN_ID } from "./saero";
 
 // Builds Voter.allocate(...) for a position on Base (Aero's root chain), from Dromos-Labs/metadex-public V3/src
@@ -53,7 +53,45 @@ export const allocateAbi = [
     ],
     outputs: [],
   },
+  // The reasons the Voter rejects an allocation, so a failed simulation says which one (selectors checked against the contracts'
+  // declared errors; CooldownActive() is 0xaa9a98df, seen on a fork of Base).
+  { type: "error", name: "CooldownActive", inputs: [] },
+  { type: "error", name: "ChainAllocationMismatch", inputs: [{ name: "_chainId", type: "uint256" }] },
+  { type: "error", name: "GaugesNotStrictlyAscending", inputs: [] },
+  { type: "error", name: "ZeroAllocation", inputs: [] },
+  { type: "error", name: "InsufficientChain0Allocation", inputs: [] },
+  { type: "error", name: "StakeExpired", inputs: [] },
+  { type: "error", name: "StakeWithdrawn", inputs: [] },
+  { type: "error", name: "StaleShape", inputs: [] },
+  { type: "error", name: "UnexpectedValue", inputs: [] },
+  { type: "error", name: "NotAuthorized", inputs: [] },
+  { type: "error", name: "SunsetDeallocOnly", inputs: [] },
 ] as const;
+
+const ERROR_TEXT: Record<string, string> = {
+  CooldownActive: "this position was allocated less than 47 hours ago",
+  ChainAllocationMismatch: "the shares don't add up to this position's whole Base amount (it may have changed; reload and try again)",
+  GaugesNotStrictlyAscending: "the gauge list was out of order",
+  ZeroAllocation: "a gauge was given zero power",
+  InsufficientChain0Allocation: "not enough of this position's power is idle",
+  StakeExpired: "this lock has expired",
+  StakeWithdrawn: "this position has been withdrawn",
+  StaleShape: "the position's lock changed since it was last allocated",
+  UnexpectedValue: "the call carried the wrong amount of ETH",
+  NotAuthorized: "this wallet isn't allowed to allocate this position",
+  SunsetDeallocOnly: "this chain only accepts returning power now",
+};
+
+/** A plain-words reason from a failed simulation, or null when the revert isn't one of the Voter's known errors. */
+export function explainAllocateError(e: unknown): string | null {
+  let c = e as { data?: { errorName?: string }; cause?: unknown } | undefined;
+  for (let i = 0; c && i < 8; i++) {
+    const name = c.data?.errorName;
+    if (name && ERROR_TEXT[name]) return ERROR_TEXT[name];
+    c = c.cause as typeof c;
+  }
+  return null;
+}
 
 export interface GaugePick {
   gauge: Address;
@@ -72,6 +110,12 @@ export interface AllocatePlan {
   /** Idle power kept on Base without a gauge (ZERO_GAUGE entry), base units. */
   idle: bigint;
 }
+
+/**
+ * The Voter's return-to-idle marker (ProtocolConstants.sol): `address(uint160(uint256(keccak256("DROMOS_DEALLOC_GAUGE"))))`, the
+ * low 20 bytes of the hash. Power listed against it leaves the chain's gauges and parks idle on CHAIN0 again.
+ */
+export const DEALLOC_GAUGE: Address = getAddress(`0x${keccak256(toBytes("DROMOS_DEALLOC_GAUGE")).slice(-40)}`);
 
 export class AllocateError extends Error {}
 
@@ -114,6 +158,16 @@ export function planAllocation(args: { tokenId: bigint; parked: bigint; onBase: 
   const gauges = idle > 0n ? [{ gauge: ZERO_GAUGE, allocated: idle }, ...sorted] : sorted;
   if (gauges.length > MAX_GAUGES) throw new AllocateError(`At most ${MAX_GAUGES} entries including idle power.`);
   return { tokenId, delta: parked, chainTotal, gauges, idle };
+}
+
+/**
+ * Takes everything the position has on Base's gauges back to idle. The gauge list must still add up to the position's whole Base
+ * budget, so it is the single marker entry for all of it, which the Voter treats as a plain return (no new placement). On the
+ * root chain the return costs nothing (`deallocationReturnCost(8453)` is 0), so no ETH goes with it.
+ */
+export function planReturnAll(args: { tokenId: bigint; onBase: bigint }): AllocatePlan {
+  if (args.onBase <= 0n) throw new AllocateError("Nothing of this position is on Base gauges.");
+  return { tokenId: args.tokenId, delta: 0n, chainTotal: args.onBase, gauges: [{ gauge: DEALLOC_GAUGE, allocated: args.onBase }], idle: 0n };
 }
 
 /** The `allocate` arguments for a plan, Base only (no ETH). */

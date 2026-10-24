@@ -9,7 +9,7 @@ import { gaugeLabel, type GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
 import { bestSplit, currentUsdPerDay, type Split } from "@/lib/split";
-import { AllocateError, allocateAbi, allocateArgs, MAX_GAUGES, planAllocation } from "@/lib/allocate";
+import { AllocateError, allocateAbi, allocateArgs, explainAllocateError, MAX_GAUGES, planAllocation } from "@/lib/allocate";
 import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
@@ -161,7 +161,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
       await simulateContract(wagmiConfig, { address: SAERO.voter, abi: allocateAbi, functionName: "allocate", args, chainId: base.id, account: address } as unknown as Parameters<typeof simulateContract>[1]);
     } catch (e) {
       setChecking(false);
-      setProblem(`Aero's contract would reject this: ${(e as { shortMessage?: string }).shortMessage ?? "simulation failed"}. Nothing was sent.`);
+      setProblem(`Aero's contract would reject this: ${explainAllocateError(e) ?? (e as { shortMessage?: string }).shortMessage ?? "simulation failed"}. Nothing was sent.`);
       return;
     }
     setChecking(false);
