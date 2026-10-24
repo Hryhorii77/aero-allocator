@@ -14,8 +14,8 @@ describe("siteMetadata", () => {
   it("points the link preview at the share card, as a large summary card, on the hosted domain", async () => {
     const m = await load();
     expect(String(m.metadataBase)).toBe("https://aeroallocator.app/");
-    expect(m.openGraph?.images).toEqual([expect.objectContaining({ url: "/api/share", width: 1200, height: 630 })]);
-    expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share"] });
+    expect(m.openGraph?.images).toEqual([expect.objectContaining({ url: "/api/share?v=2", width: 1200, height: 630 })]);
+    expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share?v=2"] });
   });
 
   it("describes sAERO allocation on the hosted Aerodrome site, not the retired weekly vote", async () => {

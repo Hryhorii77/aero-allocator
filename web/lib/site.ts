@@ -22,6 +22,13 @@ const DESCRIPTION = AERO
 const IMAGE_ALT = AERO ? "What your sAERO earns per day in the best split of Aero gauges" : "Expected voter $ next epoch";
 
 /**
+ * Bump this whenever the share card's look or text changes. X and other link previews keep an image by its address, so a
+ * new number is what makes them fetch the new card (posts that already unfurled keep what they showed).
+ */
+export const SHARE_CARD_VERSION = 2;
+const SHARE_IMAGE = `/api/share?v=${SHARE_CARD_VERSION}`;
+
+/**
  * Pasting the site's address into a post unfurls the share card
  * (app/api/share) at the default amount — the number a stranger would see
  * first. The image is the page's own answer, not a static banner, so it
@@ -38,9 +45,9 @@ export function siteMetadata(): Metadata {
         description: DESCRIPTION,
         siteName: DISPLAY_PRESET.appName,
         type: "website",
-        images: [{ url: "/api/share", width: 1200, height: 630, alt: IMAGE_ALT }],
+        images: [{ url: SHARE_IMAGE, width: 1200, height: 630, alt: IMAGE_ALT }],
       },
-      twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/api/share"] },
+      twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [SHARE_IMAGE] },
     }),
   };
 }
