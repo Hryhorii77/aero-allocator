@@ -366,7 +366,8 @@ export function GaugeTable() {
                 shows a dash. {fees.fees.length} of {data.gauges.length} gauges have a measurable pace.
                 {fees.aeroUsd ? (
                   <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). Aero&rsquo;s own APR uses its own method and can differ.</>
-                ) : null}
+                ) : null}{" "}
+                Aero advises judging allocation over a long horizon, because results over a window as short as 47 hours are noisy.
               </>
             ) : (
               <>Weight is each gauge&rsquo;s share of the allocation weight on {chainName}. Incentives are what projects are streaming to it now.</>

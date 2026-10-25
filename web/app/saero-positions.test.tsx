@@ -117,6 +117,26 @@ describe("SaeroPositions", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("says there is nothing to allocate in a position with no AERO staked (e.g. an Autopilot withdrawal key) and offers no allocate buttons", async () => {
+    read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) => (functionName === "balanceOf" ? 1n : 169_200));
+    read.readContracts
+      .mockResolvedValueOnce([2794n])
+      .mockResolvedValueOnce([
+        { amount: 0n, end: 1918425600, isPermanent: false },
+        0n,
+        [0n, 0, 0, false],
+        ["0x0000000000000000000000000000000000000000", 0, false, 0n],
+        0n,
+        0n,
+      ]);
+    account.address = OWNER;
+    render(<SaeroPositions />);
+    fireEvent.click(await screen.findByRole("button", { name: "use my wallet" }));
+    expect(await screen.findByText("#2794")).toBeInTheDocument();
+    expect(screen.getByText(/No AERO is staked in this position/)).toHaveTextContent(/Autopilot/);
+    expect(screen.queryByRole("button", { name: /allocate|return/i })).not.toBeInTheDocument();
+  });
+
   it("explains that each position has its own wait, and that an existing one can't be split", async () => {
     render(<SaeroPositions />);
     expect(await screen.findByText(/Want to move more often than every 47 hours/)).toBeInTheDocument();

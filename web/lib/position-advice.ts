@@ -98,7 +98,7 @@ export function analysePosition(args: {
   const total = position.parkedRaw + position.onBaseRaw;
   let advice: Advice;
   if (total <= 0n || !(power > 0)) {
-    advice = { action: "none", reason: "This position has no power to allocate.", canActNow: false, readyAtSec: null };
+    advice = { action: "none", reason: "This position has no power to allocate. If it was deposited into an Aero Autopilot, the NFT is only the key to withdraw it; manage it on Aero.", canActNow: false, readyAtSec: null };
   } else if (!best) {
     advice = { action: "unknown", reason: "No gauge on Base has a measurable fee pace yet, so there is nothing to rank.", canActNow, readyAtSec };
   } else if (position.onBaseRaw === 0n) {

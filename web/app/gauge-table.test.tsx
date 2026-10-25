@@ -56,6 +56,7 @@ describe("GaugeTable", () => {
     // 1,000 fees x 10,000 power / (497,000 already there + 10,000) = $19.72
     expect(rows[1]).toHaveTextContent("$19.72");
     expect(rows[1]).toHaveTextContent("thin pace");
+    expect(screen.getByText(/judging allocation over a long horizon/)).toBeInTheDocument();
     expect(rows[2]).toHaveTextContent("–");
     expect(screen.getByRole("columnheader", { name: /You earn \/ day/ })).toHaveAttribute("aria-sort", "descending");
     expect(screen.getByText(/pace of the last ~5 hours/)).toBeInTheDocument();
