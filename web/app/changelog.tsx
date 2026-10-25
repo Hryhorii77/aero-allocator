@@ -13,19 +13,14 @@ import { LINK } from "./ui";
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-25",
+    title:
+      "The gauge table now shows where power is moving: a \"power flow\" column and a line above the table naming the gauges gaining and losing the most share of the allocation weight over the last day. It compares shares, so the slow drop from expiring locks doesn't count. The page now takes a snapshot of every gauge's weight every 30 minutes, so the figures appear once there are two hours of history and get better each day. A gauge that is filling up earns less per unit of power; the column shows where power went, not where it will go.",
+  },
+  {
     date: "2026-10-24",
     title:
       "The old weekly-vote pages and APIs are gone, and Velodrome with them (it merged into Aero), so the site and its code are only about sAERO. For AI agents there are now two pay-per-call endpoints (USDC on Base, x402): the position check ($0.05: a position's power, lock, cooldown, what it earns now against the best split for its size, and a stay / switch / allocate verdict) and the allocation plan ($0.10: the unsigned allocate transaction for that split, already simulated as the owner; it never signs or sends). Nothing is charged for a bad request, and no switch is advised on under 6 hours of fee history. A plain-text /llms.txt describes the free and paid endpoints for agents. Allocating to another chain now first shows a read-only quote of the ETH it needs (the transaction itself is still Base only). Shared links now carry a version number and a canonical address, so X shows the current sAERO card instead of an old one, and the fee figures say how fresh they are.",
-  },
-  {
-    date: "2026-10-23",
-    title:
-      "The gauge list is now one aligned table (what your amount earns per day, fees, incentives, power in the gauge and how steady the fee pace is; sortable), built phone-first: two columns on a phone, the rest under the pool name. The amount and address boxes now say what is wrong as you type, and text is larger and consistent across the page. Each pool now shows its kind (CL10, CL100, stable, volatile…) and current fee, and its name links to the pool contract, so same-named pools can be told apart. A sticky bar at the top jumps between the gauge table, your positions and the upgrade guide. Each gauge and the best split now also show an estimated APR (what the figure comes to over a year against your amount at AERO's price). Light mode is easier to read: warning, green, blue and red text and the edges of boxes and buttons were too pale and are now darker. Fee estimates, $/day and APR now also cover Arbitrum, Ink and Robinhood Chain (with a day of history from the start); only gauges that released fees more than once are measurable, so many still show a dash. A position with power on Base gauges now has a \"return to idle…\" button that takes it all back to idle in one transaction (needed before withdrawing an expired lock), and a rejected allocation now says why in plain words, for example that the 47-hour wait isn't over. Picking another chain now also shows what Aero charges to send power there, in ETH on Base, read live from Aero's own contract.",
-  },
-  {
-    date: "2026-10-23",
-    title:
-      "The page is now only about sAERO. The retired weekly-vote sections are gone (the vote split, the pool forecast tables, bribes, the vote clock and the snapshot chip), so there is no $0 forecast to puzzle over. The gauge ranking comes first, then your positions and the allocate button.",
   },
 ];
 
