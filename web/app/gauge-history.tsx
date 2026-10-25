@@ -8,7 +8,12 @@ import { NOTE, NUM } from "./ui";
 const W = 320;
 const H = 84;
 const usd = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-const day = (t: number) => new Date(t * 1000).toLocaleString("en-US", { weekday: "short", hour: "2-digit", hour12: false, timeZone: "UTC" });
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "Sat 18:00": the weekday and hour in UTC. */
+const day = (t: number) => {
+  const d = new Date(t * 1000);
+  return `${WEEKDAYS[d.getUTCDay()]} ${String(d.getUTCHours()).padStart(2, "0")}:00`;
+};
 
 /** Fees released per 6 hours as bars and, once the snapshots exist, the gauge's power as a line, for one gauge. */
 export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: string }) {
@@ -60,7 +65,9 @@ export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: 
         </svg>
         <div className="flex justify-between text-xs text-neutral-500">
           <span>{Number.isFinite(t0) ? `${day(t0)} UTC` : ""}</span>
-          <span>now</span>
+          <span>
+            tallest bar ${usd(max)} · now
+          </span>
         </div>
       </div>
       <div className="text-sm leading-relaxed text-neutral-400">

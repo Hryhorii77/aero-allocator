@@ -18,6 +18,8 @@ import {
   type SaeroPosition,
 } from "@/lib/saero";
 import { AERO_LAUNCH_AT_MS } from "./launch";
+import { reminderIcs } from "@/lib/ics";
+import { SITE_URL } from "@/lib/site";
 import { SaeroAllocate } from "./saero-allocate";
 import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
@@ -93,6 +95,26 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
 }
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+/** Saves a calendar event for the moment a position's wait ends. Built here from numbers already on the page; nothing is sent anywhere. */
+function ReminderButton({ tokenId, readyAtSec }: { tokenId: bigint; readyAtSec: number }) {
+  const save = () => {
+    const ics = reminderIcs({ tokenId: tokenId.toString(), readyAtSec, url: `${SITE_URL}/#positions`, nowSec: Math.floor(Date.now() / 1000) });
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `saero-${tokenId}-reallocate.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <button type="button" onClick={save} className="text-amber-500 underline underline-offset-2 hover:text-amber-400" title="Saves a calendar event for when this position can be re-allocated">
+      remind me
+    </button>
+  );
+}
 
 /** Read-only view of your sAERO positions after the Aero launch: size, lock end, how much is allocated and when each can be re-allocated. */
 export function SaeroPositions() {
@@ -202,6 +224,12 @@ export function SaeroPositions() {
                   </span>
                   <span className={cd.ready ? "text-emerald-400" : "text-amber-500"}>
                     {cd.ready ? "ready to allocate" : `next allocation in ${formatDuration(cd.secondsLeft)}`}
+                    {!cd.ready && (
+                      <>
+                        {" · "}
+                        <ReminderButton tokenId={p.tokenId} readyAtSec={cd.readyAtSec} />
+                      </>
+                    )}
                   </span>
                 </div>
                 {connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
