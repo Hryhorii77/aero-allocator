@@ -13,14 +13,14 @@ import { LINK } from "./ui";
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-26",
+    title:
+      "The positions panel now explains how to move more often than every 47 hours, from a check on Base: the wait belongs to each position, not to your wallet, and a position that has never been allocated has none, so holding AERO as several separate positions lets you move one while the others wait. An existing position can't be split (Aero's escrow has no split function), and every allocation is its own transaction with its own gas.",
+  },
+  {
     date: "2026-10-25",
     title:
       "The gauge table now shows where power is moving: a \"power flow\" column and a line above the table naming the gauges gaining and losing the most share of the allocation weight over the last day. It compares shares, so the slow drop from expiring locks doesn't count. The page now takes a snapshot of every gauge's weight every 30 minutes, so the figures appear once there are two hours of history and get better each day. A gauge that is filling up earns less per unit of power; the column shows where power went, not where it will go. Each gauge row now has a \"history\" link that opens a small chart of the fees it released every 6 hours (and its power, as snapshots build up), and a new \"Steady\" column says in how many of the last half-days it paid at least half its average, so you can sort for the steadiest gauges instead of only the top earners (a gauge paid mostly by incentives, which stream at a fixed rate, says \"incentives\" instead). Gauges whose incentives have just appeared are now flagged with the amount per week and how recently, since the first to allocate get the best rate before power joins. A position that is still waiting out its 47 hours now has a \"remind me\" link that saves a calendar event for the moment it can be re-allocated (made in your browser, nothing is sent anywhere), and the history chart shows its tallest bar and a clearer start time.",
-  },
-  {
-    date: "2026-10-24",
-    title:
-      "The old weekly-vote pages and APIs are gone, and Velodrome with them (it merged into Aero), so the site and its code are only about sAERO. For AI agents there are now two pay-per-call endpoints (USDC on Base, x402): the position check ($0.05: a position's power, lock, cooldown, what it earns now against the best split for its size, and a stay / switch / allocate verdict) and the allocation plan ($0.10: the unsigned allocate transaction for that split, already simulated as the owner; it never signs or sends). Nothing is charged for a bad request, and no switch is advised on under 6 hours of fee history. A plain-text /llms.txt describes the free and paid endpoints for agents. Allocating to another chain now first shows a read-only quote of the ETH it needs (the transaction itself is still Base only). Shared links now carry a version number and a canonical address, so X shows the current sAERO card instead of an old one, and the fee figures say how fresh they are.",
   },
 ];
 
