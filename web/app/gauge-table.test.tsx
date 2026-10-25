@@ -174,4 +174,26 @@ describe("GaugeTable", () => {
       unmount();
     }
   });
+
+  it("shows where power is moving once the snapshots cover enough hours, and nothing before", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const flows = { chainId: 8453, spanHours: 12, flows: [
+      { gauge: "0x1", sharePctChange: 34, powerChange: 80_000, weight: 480_000 },
+      { gauge: "0x2", sharePctChange: -21, powerChange: -50_000, weight: 470_000 },
+    ] };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => (url.includes("gauge-flows") ? flows : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    render(<GaugeTable />);
+    const line = (await screen.findByText(/Power moving, last 12 h/)).closest("p");
+    expect(line).toHaveTextContent("gaining T1/USDC +34%; losing T2/USDC −21%");
+    expect(screen.getByRole("columnheader", { name: "Power flow" })).toBeInTheDocument();
+  });
+
+  it("shows no flow column when there is no flow history yet", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => (url.includes("gauge-flows") ? { chainId: 8453, spanHours: 0, flows: [] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    render(<GaugeTable />);
+    expect(await screen.findByText("T0/USDC")).toBeInTheDocument();
+    expect(screen.queryByText(/Power moving/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Power flow" })).not.toBeInTheDocument();
+  });
 });

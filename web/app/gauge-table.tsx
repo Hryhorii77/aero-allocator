@@ -5,6 +5,7 @@ import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
+import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
@@ -58,6 +59,7 @@ export function GaugeTable() {
   const [all, setAll] = useState(false);
   const [fees, setFees] = useState<GaugeFees | null>(null);
   const [feesFailed, setFeesFailed] = useState(false);
+  const [flows, setFlows] = useState<Flows | null>(null);
   const [amountText, setAmountText] = useState("10000");
   const [sortKey, setSortKey] = useState<SortKey>("you");
 
@@ -101,6 +103,24 @@ export function GaugeTable() {
       cancelled = true;
     };
   }, [live, chainId, hasFees]);
+
+  // Where power is moving comes from stored snapshots; it is empty for the first hours after they start, and the page works without it.
+  useEffect(() => {
+    if (!live) return;
+    let cancelled = false;
+    setFlows(null);
+    fetch(`/api/gauge-flows?chain=${chainId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: Flows) => !cancelled && Array.isArray(d.flows) && d.flows.length > 0 && setFlows(d))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [live, chainId]);
+
+  const flowByGauge = useMemo(() => new Map((flows?.flows ?? []).map((f) => [f.gauge, f])), [flows]);
+  const movers = useMemo(() => (flows ? topMovers(flows.flows) : null), [flows]);
+  const nameOf = (gauge: string) => data?.gauges.find((g) => g.gauge.toLowerCase() === gauge)?.symbol ?? gauge.slice(0, 8);
 
   const parsed = parseAmount(amountText);
   const amount = parsed.ok ? parsed.value : 0;
@@ -166,6 +186,35 @@ export function GaugeTable() {
       {!data && !failed && <p className={`mt-3 ${NOTE}`}>Loading gauges…</p>}
       {data && (
         <>
+          {flows && movers && (movers.gaining.length > 0 || movers.losing.length > 0) && (
+            <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+              <span className="text-neutral-500">Power moving, last {Math.round(flows.spanHours)} h: </span>
+              {movers.gaining.length > 0 && (
+                <>
+                  gaining{" "}
+                  {movers.gaining.map((f, i) => (
+                    <span key={f.gauge}>
+                      {i > 0 ? ", " : ""}
+                      <span className="text-neutral-200">{nameOf(f.gauge)}</span> <span className={`text-sky-400 ${NUM}`}>{formatFlow(f.sharePctChange)}</span>
+                    </span>
+                  ))}
+                </>
+              )}
+              {movers.gaining.length > 0 && movers.losing.length > 0 ? "; " : ""}
+              {movers.losing.length > 0 && (
+                <>
+                  losing{" "}
+                  {movers.losing.map((f, i) => (
+                    <span key={f.gauge}>
+                      {i > 0 ? ", " : ""}
+                      <span className="text-neutral-200">{nameOf(f.gauge)}</span> <span className={NUM}>{formatFlow(f.sharePctChange)}</span>
+                    </span>
+                  ))}
+                </>
+              )}
+              .
+            </p>
+          )}
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-0 border-collapse text-sm">
               <caption className="sr-only">Aero gauges on {chainName}</caption>
@@ -189,6 +238,7 @@ export function GaugeTable() {
                   </Th>
                   {estimating && <Th className="hidden text-right sm:table-cell">Share of weight</Th>}
                   {estimating && <Th className="hidden text-right sm:table-cell">Pace</Th>}
+                  {flows && <Th className="hidden text-right sm:table-cell">Power flow</Th>}
                 </tr>
               </thead>
               <tbody>
@@ -196,6 +246,7 @@ export function GaugeTable() {
                   const conf = y ? paceConfidence(y.windowHours) : null;
                   const incPerDay = g.incentivesUsdPerWeek / 7;
                   const apr = y ? aprPct(y.usdPerDay, amount, fees?.aeroUsd) : null;
+                  const flow: Flow | undefined = flowByGauge.get(g.gauge.toLowerCase());
                   return (
                     <tr key={g.gauge} className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
@@ -220,6 +271,7 @@ export function GaugeTable() {
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
                           {fmt(g.weight)} power
                           {conf ? <> · <span className={PACE_TONE[conf]}>{conf} pace</span></> : ""}
+                          {flow ? <> · <span className={flow.sharePctChange >= 0.5 ? "text-sky-400" : ""}>{formatFlow(flow.sharePctChange)} power</span></> : ""}
                         </div>
                       </td>
                       <td className={`px-2 py-2.5 text-right ${NUM}`}>
@@ -241,6 +293,11 @@ export function GaugeTable() {
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{fmt(g.weight)}</td>
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-400 sm:table-cell ${NUM}`}>{g.sharePct.toFixed(2)}%</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${conf ? PACE_TONE[conf] : "text-neutral-600"}`}>{conf ?? "–"}</td>}
+                      {flows && (
+                        <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${flow && flow.sharePctChange >= 0.5 ? "text-sky-400" : "text-neutral-400"}`} title={flow ? `${flow.powerChange >= 0 ? "+" : "−"}${fmt(Math.abs(flow.powerChange))} power in ${Math.round(flows.spanHours)} h` : "Too new or too thin to compare"}>
+                          {flow ? formatFlow(flow.sharePctChange) : "–"}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -266,6 +323,12 @@ export function GaugeTable() {
               <>Weight is each gauge&rsquo;s share of the allocation weight on {chainName}. Incentives are what projects are streaming to it now.</>
             )}
           </p>
+          {flows && (
+            <p className={`mt-2 ${NOTE}`}>
+              Power flow is the change in a gauge&rsquo;s share of all allocation weight on {chainName} over the last {Math.round(flows.spanHours)} hours, so the slow
+              drop from expiring locks doesn&rsquo;t count. A gauge that is filling up earns less per unit of power. It shows where power went, not where it will go.
+            </p>
+          )}
         </>
       )}
     </section>
