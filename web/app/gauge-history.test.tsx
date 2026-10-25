@@ -13,6 +13,8 @@ describe("GaugeHistoryPanel", () => {
     render(<GaugeHistoryPanel chainId={8453} gauge="0xabc" />);
     expect(await screen.findByRole("img", { name: /Fees released per 6 hours.*\$30/ })).toBeInTheDocument();
     expect(screen.getByText(/3 of 4/)).toBeInTheDocument();
+    expect(screen.getByText(/tallest bar \$30/)).toBeInTheDocument();
+    expect(screen.getByText(/Mon 13:00 UTC/)).toBeInTheDocument();
     expect(screen.getByText(/power line appears once weight snapshots/)).toBeInTheDocument();
   });
 

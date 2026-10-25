@@ -83,6 +83,40 @@ describe("SaeroPositions", () => {
     expect(screen.getByText(/next allocation in 46h 00m/)).toBeInTheDocument();
   });
 
+  it("offers a calendar reminder for when the wait ends, built in the browser", async () => {
+    read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) => (functionName === "balanceOf" ? 1n : 169_200));
+    read.readContracts
+      .mockResolvedValueOnce([7n])
+      .mockResolvedValueOnce([
+        { amount: e18(100), end: 1918425600, isPermanent: false },
+        e18(98),
+        [e18(100), 1918425600, NOW - 3600, false],
+        ["0x0000000000000000000000000000000000000000", NOW - 3600, false, e18(50)],
+        e18(50),
+        e18(50),
+      ]);
+    let saved: Blob | null = null;
+    const create = vi.fn((b: Blob) => ((saved = b), "blob:x"));
+    Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<SaeroPositions />);
+    fireEvent.change(await screen.findByLabelText(/address to read/i), { target: { value: OWNER } });
+    fireEvent.click(screen.getByRole("button", { name: "read" }));
+    fireEvent.click(await screen.findByRole("button", { name: "remind me" }));
+    expect(create).toHaveBeenCalledTimes(1);
+    const text = await new Promise<string>((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.readAsText(saved as unknown as Blob);
+    });
+    // ready at last allocation (NOW - 3600) + cooldown 169,200
+    const readyAt = NOW - 3600 + 169_200;
+    expect(text).toContain(`DTSTART:${new Date(readyAt * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`);
+    expect(text).toContain("sAERO #7 can be re-allocated");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("says so when the address has no positions", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) =>
       functionName === "balanceOf" ? 0n : 169_200,
