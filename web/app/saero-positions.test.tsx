@@ -117,6 +117,12 @@ describe("SaeroPositions", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("explains that each position has its own wait, and that an existing one can't be split", async () => {
+    render(<SaeroPositions />);
+    expect(await screen.findByText(/Want to move more often than every 47 hours/)).toBeInTheDocument();
+    expect(screen.getByText(/The wait belongs to each position, not to your wallet/)).toHaveTextContent(/no way to split an existing position/);
+  });
+
   it("says so when the address has no positions", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) =>
       functionName === "balanceOf" ? 0n : 169_200,

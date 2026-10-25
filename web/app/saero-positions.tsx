@@ -156,6 +156,15 @@ export function SaeroPositions() {
         Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated 47 hours after its last
         allocation.
       </p>
+      <details className="mt-1">
+        <summary className={`cursor-pointer select-none ${NOTE}`}>Want to move more often than every 47 hours?</summary>
+        <p className={`mt-1 ${NOTE}`}>
+          The wait belongs to each position, not to your wallet, and a position that has never been allocated has no wait (checked on Base: its
+          first allocation simulates cleanly). So holding your AERO as several separate positions lets you move one while the others wait. There
+          is no way to split an existing position (Aero&rsquo;s escrow has no split function), so this means staking in separate positions from
+          the start, and every allocation is its own transaction with its own gas.
+        </p>
+      </details>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {connected && (
           <button type="button" className={btn("primary", "sm")} onClick={() => load(connected)} disabled={state === "loading"}>
