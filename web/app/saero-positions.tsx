@@ -20,6 +20,7 @@ import {
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { reminderIcs } from "@/lib/ics";
 import { SITE_URL } from "@/lib/site";
+import { EarnedFees } from "./earned-fees";
 import { SaeroAllocate } from "./saero-allocate";
 import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
@@ -89,6 +90,7 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
       parkedRaw,
       onBaseRaw,
       lastAllocatedSec: Number(leaf[1]),
+      ...(!/^0x0+$/.test(leaf[0]) ? { operator: leaf[0] } : {}),
     };
   });
   return { positions, cooldownSec };
@@ -245,6 +247,13 @@ export function SaeroPositions() {
                   <p className="mt-2 text-amber-500">
                     No AERO is staked in this position, so there is nothing to allocate here. If you deposited it into an Aero Autopilot, this NFT is only
                     the key to withdraw it, and Aero manages the allocation (to allocate by hand, turn Autopilot off on Aero first).
+                  </p>
+                )}
+                {p.staked > 0 && <EarnedFees tokenId={p.tokenId} />}
+                {p.operator && (
+                  <p className="mt-2 text-amber-500">
+                    An operator ({p.operator.slice(0, 6)}…{p.operator.slice(-4)}) is set on this position and can change its gauge allocation on Base. If it is an Aero
+                    Autopilot, manage the position on Aero.
                   </p>
                 )}
                 {p.staked > 0 && connected && owner && connected.toLowerCase() === owner.toLowerCase() && (

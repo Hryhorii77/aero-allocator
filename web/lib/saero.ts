@@ -98,6 +98,8 @@ export interface SaeroPosition {
   onBaseRaw: bigint;
   /** Unix seconds of the last gauge allocation on Base (the leaf's cooldown anchor), 0 if never. */
   lastAllocatedSec: number;
+  /** Address registered as the position's operator (it can run the local gauge allocation); absent when none is set. */
+  operator?: string;
 }
 
 export type CooldownState = { ready: true } | { ready: false; secondsLeft: number; readyAtSec: number };
