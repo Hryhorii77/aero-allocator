@@ -196,4 +196,26 @@ describe("GaugeTable", () => {
     expect(screen.queryByText(/Power moving/)).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Power flow" })).not.toBeInTheDocument();
   });
+
+  it("sorts by steadiness on request and opens a gauge's history", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const feeList = [
+      { gauge: "0x3", feesUsdPerDay: 1000, windowHours: 30, steady: { buckets: 4, paying: 2 } },
+      { gauge: "0x5", feesUsdPerDay: 100, windowHours: 30, steady: { buckets: 4, paying: 4 } },
+    ];
+    const f = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 30, fees: feeList } : url.includes("gauge-history") ? { chainId: 8453, gauge: "0x3", generatedAt: 0, fees: [], weights: [], flow: null, steady: null } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }),
+    }));
+    vi.stubGlobal("fetch", f);
+    render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("T3/USDC");
+    fireEvent.click(screen.getByRole("button", { name: "Steady" }));
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("T5/USDC");
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("4/4");
+    fireEvent.click(screen.getAllByRole("button", { name: "history" })[0]);
+    expect(await screen.findByText(/Not enough history yet/)).toBeInTheDocument();
+    expect(f).toHaveBeenCalledWith(expect.stringContaining("/api/gauge-history?chain=8453&gauge=0x5"));
+  });
 });

@@ -15,7 +15,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-25",
     title:
-      "The gauge table now shows where power is moving: a \"power flow\" column and a line above the table naming the gauges gaining and losing the most share of the allocation weight over the last day. It compares shares, so the slow drop from expiring locks doesn't count. The page now takes a snapshot of every gauge's weight every 30 minutes, so the figures appear once there are two hours of history and get better each day. A gauge that is filling up earns less per unit of power; the column shows where power went, not where it will go.",
+      "The gauge table now shows where power is moving: a \"power flow\" column and a line above the table naming the gauges gaining and losing the most share of the allocation weight over the last day. It compares shares, so the slow drop from expiring locks doesn't count. The page now takes a snapshot of every gauge's weight every 30 minutes, so the figures appear once there are two hours of history and get better each day. A gauge that is filling up earns less per unit of power; the column shows where power went, not where it will go. Each gauge row now has a \"history\" link that opens a small chart of the fees it released every 6 hours (and its power, as snapshots build up), and a new \"Steady\" column says in how many of the last half-days it paid at least half its average, so you can sort for the steadiest gauges instead of only the top earners.",
   },
   {
     date: "2026-10-24",
