@@ -4,14 +4,13 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
 import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
-import { steadyScore } from "@/lib/fee-history";
 import { btn, chip, H2, input, NOTE, NUM } from "./ui";
 
 const SHOWN = 10;
@@ -29,7 +28,7 @@ interface Line {
 function sortValue(l: Line, key: SortKey): number {
   if (key === "power") return l.g.weight;
   if (!l.y) return -1;
-  if (key === "steady") return steadyScore(l.y.steady) * 1e9 + l.y.usdPerDay;
+  if (key === "steady") return steadySortScore(l.y) * 1e9 + l.y.usdPerDay;
   if (key === "you") return l.y.usdPerDay;
   if (key === "fees") return l.y.feesUsdPerDay;
   return l.y.incentivesUsdPerDay;
@@ -116,7 +115,7 @@ export function GaugeTable() {
     setFlows(null);
     fetch(`/api/gauge-flows?chain=${chainId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: Flows) => !cancelled && Array.isArray(d.flows) && d.flows.length > 0 && setFlows(d))
+      .then((d: Flows) => !cancelled && Array.isArray(d.flows) && (d.flows.length > 0 || (d.newIncentives?.length ?? 0) > 0) && setFlows({ ...d, newIncentives: d.newIncentives ?? [] }))
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -124,6 +123,7 @@ export function GaugeTable() {
   }, [live, chainId]);
 
   const flowByGauge = useMemo(() => new Map((flows?.flows ?? []).map((f) => [f.gauge, f])), [flows]);
+  const newByGauge = useMemo(() => new Map((flows?.newIncentives ?? []).map((n) => [n.gauge, n])), [flows]);
   const movers = useMemo(() => (flows ? topMovers(flows.flows) : null), [flows]);
   const nameOf = (gauge: string) => data?.gauges.find((g) => g.gauge.toLowerCase() === gauge)?.symbol ?? gauge.slice(0, 8);
 
@@ -191,6 +191,18 @@ export function GaugeTable() {
       {!data && !failed && <p className={`mt-3 ${NOTE}`}>Loading gauges…</p>}
       {data && (
         <>
+          {flows && flows.newIncentives.length > 0 && (
+            <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+              <span className="text-neutral-500">New incentives, last day: </span>
+              {flows.newIncentives.slice(0, 4).map((n, i) => (
+                <span key={n.gauge}>
+                  {i > 0 ? ", " : ""}
+                  <span className="text-neutral-200">{nameOf(n.gauge)}</span> <span className={`text-sky-400 ${NUM}`}>${fmt(n.usdPerWeek)}/week</span>
+                </span>
+              ))}
+              . The first to allocate get the best rate; it falls as power joins.
+            </p>
+          )}
           {flows && movers && (movers.gaining.length > 0 || movers.losing.length > 0) && (
             <p className="mt-3 text-sm leading-relaxed text-neutral-400">
               <span className="text-neutral-500">Power moving, last {Math.round(flows.spanHours)} h: </span>
@@ -254,6 +266,8 @@ export function GaugeTable() {
               <tbody>
                 {shown.map(({ g, y }) => {
                   const conf = y ? paceConfidence(y.windowHours) : null;
+                  const steady = y ? steadyLabel(y) : null;
+                  const fresh = newByGauge.get(g.gauge.toLowerCase());
                   const incPerDay = g.incentivesUsdPerWeek / 7;
                   const apr = y ? aprPct(y.usdPerDay, amount, fees?.aeroUsd) : null;
                   const flow: Flow | undefined = flowByGauge.get(g.gauge.toLowerCase());
@@ -276,6 +290,11 @@ export function GaugeTable() {
                             </span>
                           )}
                         </div>
+                        {fresh && (
+                          <div className="mt-0.5 text-xs text-sky-400" title={`The last snapshot with no incentives was ${Math.max(1, Math.round(fresh.withinHours))} h ago`}>
+                            new incentives · ${fmt(fresh.usdPerWeek)}/week, appeared within {Math.max(1, Math.round(fresh.withinHours))} h
+                          </div>
+                        )}
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
                         {hasFees && (
                           <button type="button" aria-expanded={openGauge === g.gauge} onClick={() => setOpenGauge(openGauge === g.gauge ? null : g.gauge)} className="mt-0.5 text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
@@ -287,7 +306,7 @@ export function GaugeTable() {
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
                           {fmt(g.weight)} power
                           {conf ? <> · <span className={PACE_TONE[conf]}>{conf} pace</span></> : ""}
-                          {y?.steady ? ` · steady ${y.steady.paying}/${y.steady.buckets}` : ""}
+                          {steady ? ` · ${steady.kind === "incentives" ? "paid by incentives" : `steady ${steady.paying}/${steady.buckets}`}` : ""}
                           {flow ? <> · <span className={flow.sharePctChange >= 0.5 ? "text-sky-400" : ""}>{formatFlow(flow.sharePctChange)} power</span></> : ""}
                         </div>
                       </td>
@@ -311,8 +330,8 @@ export function GaugeTable() {
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-400 sm:table-cell ${NUM}`}>{g.sharePct.toFixed(2)}%</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${conf ? PACE_TONE[conf] : "text-neutral-600"}`}>{conf ?? "–"}</td>}
                       {estimating && (
-                        <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${y?.steady && y.steady.paying === y.steady.buckets ? "text-neutral-200" : "text-neutral-400"}`} title="Complete half-days in which the gauge paid at least half its average">
-                          {y?.steady ? `${y.steady.paying}/${y.steady.buckets}` : "–"}
+                        <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${steady && (steady.kind === "incentives" || steady.paying === steady.buckets) ? "text-neutral-200" : "text-neutral-400"}`} title={steady?.kind === "incentives" ? "Paid mostly by incentives, which stream at a fixed rate until their program ends" : "Complete half-days in which the gauge paid at least half its average in fees"}>
+                          {steady ? (steady.kind === "incentives" ? "incentives" : `${steady.paying}/${steady.buckets}`) : "–"}
                         </td>
                       )}
                       {flows && (

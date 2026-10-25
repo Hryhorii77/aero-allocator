@@ -20,6 +20,8 @@ export interface WeightSnapshot {
   t: number;
   /** Whole-token weight per gauge, aligned with WeightHistory.gauges. */
   w: number[];
+  /** Incentives streaming to each gauge, whole USD per week, aligned the same way. Absent on snapshots taken before it was recorded. */
+  i?: number[];
 }
 
 export interface WeightHistory {
@@ -40,18 +42,32 @@ export interface Flow {
   weight: number;
 }
 
+/** A gauge whose incentives went from none to some inside the window. */
+export interface NewIncentive {
+  gauge: string;
+  /** Streaming now, USD per week. */
+  usdPerWeek: number;
+  /** The last snapshot that showed none was this many hours ago, so they appeared within that time. */
+  withinHours: number;
+}
+
+/** Below this a new incentive is dust, not news. */
+export const MIN_NEW_INCENTIVE_USD_PER_WEEK = 50;
+
 export interface Flows {
   chainId: number;
   /** Hours between the snapshot compared against and the latest one; 0 when there isn't enough history. */
   spanHours: number;
   flows: Flow[];
+  /** Gauges that started receiving incentives inside the window; only gauges with an earlier snapshot that recorded incentives can show here. */
+  newIncentives: NewIncentive[];
 }
 
 /** Adds a snapshot of the current weights (or starts the record), dropping old ones. Returns the same record untouched when the last snapshot is too recent. */
 export function recordSnapshot(
   history: WeightHistory | null,
   chainId: number,
-  rows: Array<{ gauge: string; weight: number }>,
+  rows: Array<{ gauge: string; weight: number; incentivesUsdPerWeek?: number }>,
   nowSec: number,
 ): WeightHistory {
   const base: WeightHistory = history && history.chainId === chainId ? history : { version: 1, chainId, gauges: [], points: [] };
@@ -67,8 +83,13 @@ export function recordSnapshot(
     }
   }
   const w = new Array<number>(gauges.length).fill(0);
-  for (const r of rows) w[index.get(r.gauge.toLowerCase())!] = Math.max(0, Math.round(r.weight));
-  const points = [...base.points, { t: nowSec, w }].filter((p) => nowSec - p.t <= RETAIN_SEC);
+  const i = new Array<number>(gauges.length).fill(0);
+  for (const r of rows) {
+    const k = index.get(r.gauge.toLowerCase())!;
+    w[k] = Math.max(0, Math.round(r.weight));
+    i[k] = Math.max(0, Math.round(r.incentivesUsdPerWeek ?? 0));
+  }
+  const points = [...base.points, { t: nowSec, w, i }].filter((p) => nowSec - p.t <= RETAIN_SEC);
   return { version: 1, chainId, gauges, points };
 }
 
@@ -80,7 +101,7 @@ const sum = (w: number[]) => w.reduce((a, b) => a + b, 0);
  * judge, or didn't exist yet, are left out.
  */
 export function computeFlows(history: WeightHistory | null, nowSec: number, windowHours: number = FLOW_WINDOW_HOURS): Flows {
-  const none = (chainId: number): Flows => ({ chainId, spanHours: 0, flows: [] });
+  const none = (chainId: number): Flows => ({ chainId, spanHours: 0, flows: [], newIncentives: [] });
   if (!history || history.points.length < 2) return none(history?.chainId ?? 0);
   const latest = history.points[history.points.length - 1];
   const from = history.points.find((p) => nowSec - p.t <= windowHours * 3600 && p !== latest);
@@ -99,7 +120,28 @@ export function computeFlows(history: WeightHistory | null, nowSec: number, wind
     const shareThen = then / totalThen;
     flows.push({ gauge, sharePctChange: (shareNow / shareThen - 1) * 100, powerChange: now - then, weight: now });
   });
-  return { chainId: history.chainId, spanHours, flows };
+  return { chainId: history.chainId, spanHours, flows, newIncentives: newIncentives(history, nowSec, windowHours) };
+}
+
+/**
+ * Gauges with no incentives at the start of the window (as recorded) and some now. Snapshots without incentive data say nothing, so
+ * a gauge only counts when its earliest recorded snapshot in the window showed none.
+ */
+export function newIncentives(history: WeightHistory, nowSec: number, windowHours: number = FLOW_WINDOW_HOURS): NewIncentive[] {
+  const pts = history.points.filter((p) => p.i && nowSec - p.t <= windowHours * 3600);
+  if (pts.length < 2) return [];
+  const latest = pts[pts.length - 1];
+  const out: NewIncentive[] = [];
+  history.gauges.forEach((gauge, k) => {
+    const now = latest.i?.[k] ?? 0;
+    if (now < MIN_NEW_INCENTIVE_USD_PER_WEEK) return;
+    if ((pts[0].i?.[k] ?? 0) > 0) return;
+    // Last snapshot that showed none: the incentives appeared after it.
+    let lastNone = pts[0];
+    for (const p of pts) if ((p.i?.[k] ?? 0) === 0) lastNone = p;
+    out.push({ gauge, usdPerWeek: now, withinHours: Math.max(0, (nowSec - lastNone.t) / 3600) });
+  });
+  return out.sort((a, b) => b.usdPerWeek - a.usdPerWeek);
 }
 
 /** The biggest risers and fallers among gauges with enough power to matter (the same bar as the ranking). */

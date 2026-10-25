@@ -218,4 +218,19 @@ describe("GaugeTable", () => {
     expect(await screen.findByText(/Not enough history yet/)).toBeInTheDocument();
     expect(f).toHaveBeenCalledWith(expect.stringContaining("/api/gauge-history?chain=8453&gauge=0x5"));
   });
+
+  it("flags a gauge whose incentives just appeared, and labels incentive-paid gauges instead of showing a fee count", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const flows = { chainId: 8453, spanHours: 12, flows: [], newIncentives: [{ gauge: "0x3", usdPerWeek: 428, withinHours: 3 }] };
+    const g = gauges.map((x, i) => (i === 3 ? { ...x, incentivesUsdPerWeek: 700 } : x));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.includes("gauge-flows") ? flows : url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 30, fees: [{ gauge: "0x3", feesUsdPerDay: 20, windowHours: 30, steady: { buckets: 4, paying: 1 } }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges: g }),
+    })));
+    render(<GaugeTable />);
+    expect((await screen.findByText(/New incentives, last day/)).closest("p")).toHaveTextContent("T3/USDC $428/week");
+    expect(screen.getByText(/new incentives · \$428\/week, appeared within 3 h/)).toBeInTheDocument();
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("incentives");
+    expect(screen.getAllByRole("row")[1]).not.toHaveTextContent("1/4");
+  });
 });

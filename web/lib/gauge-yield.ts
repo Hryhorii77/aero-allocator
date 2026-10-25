@@ -70,3 +70,25 @@ export function rankByUsdPerDay(
   }
   return rows.sort((a, b) => b.usdPerDay - a.usdPerDay);
 }
+
+/** When incentives are at least this share of what a gauge pays, fee steadiness no longer describes its income. */
+export const INCENTIVE_DOMINATED_SHARE = 0.5;
+
+export type SteadyLabel = { kind: "incentives" } | { kind: "fees"; paying: number; buckets: number };
+
+/**
+ * What the Steady column says for a gauge. Fee releases are lumpy, but incentives stream at a fixed rate until their program ends, so a
+ * gauge paid mostly by incentives is steady by construction and its fee record would only mislead. Otherwise it is the fee record's
+ * count of paying half-days, or nothing yet.
+ */
+export function steadyLabel(y: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "steady">): SteadyLabel | null {
+  const total = y.feesUsdPerDay + y.incentivesUsdPerDay;
+  if (total > 0 && y.incentivesUsdPerDay / total >= INCENTIVE_DOMINATED_SHARE) return { kind: "incentives" };
+  return y.steady ? { kind: "fees", ...y.steady } : null;
+}
+
+/** 0-1 for sorting: incentive-paid gauges count as fully steady, the rest by their share of paying half-days, none last. */
+export function steadySortScore(y: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "steady">): number {
+  const l = steadyLabel(y);
+  return !l ? -1 : l.kind === "incentives" ? 1 : l.paying / l.buckets;
+}

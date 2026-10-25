@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeFlows, formatFlow, MIN_SNAPSHOT_GAP_SEC, RETAIN_SEC, recordSnapshot, topMovers, type Flow } from "./weight-history";
+import { computeFlows, formatFlow, newIncentives, MIN_SNAPSHOT_GAP_SEC, RETAIN_SEC, recordSnapshot, topMovers, type Flow } from "./weight-history";
 
 const A = "0xAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const B = "0xBbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -10,7 +10,7 @@ describe("recordSnapshot", () => {
   it("starts a record with lowercase addresses and whole-token weights", () => {
     const h = recordSnapshot(null, 8453, [{ gauge: A, weight: 1000.6 }, { gauge: B, weight: 5 }], 1000);
     expect(h.gauges).toEqual([A.toLowerCase(), B.toLowerCase()]);
-    expect(h.points).toEqual([{ t: 1000, w: [1001, 5] }]);
+    expect(h.points).toEqual([{ t: 1000, w: [1001, 5], i: [0, 0] }]);
   });
   it("skips a snapshot that is too soon after the last one", () => {
     const h = recordSnapshot(null, 8453, [{ gauge: A, weight: 1 }], 1000);
@@ -78,5 +78,30 @@ describe("topMovers and formatFlow", () => {
     expect(formatFlow(-3.26)).toBe("−3.3%");
     expect(formatFlow(0.2)).toBe("flat");
     expect(formatFlow(250)).toBe("+250%");
+  });
+});
+
+describe("newIncentives", () => {
+  const snap = (rows: Array<[string, number, number]>, t: number, h: ReturnType<typeof recordSnapshot> | null = null) =>
+    recordSnapshot(h, 8453, rows.map(([gauge, weight, incentivesUsdPerWeek]) => ({ gauge, weight, incentivesUsdPerWeek })), t);
+  it("flags a gauge whose incentives went from none to some, with when the last empty snapshot was", () => {
+    let h = snap([[A, 1e6, 0], [B, 1e6, 400]], 0);
+    h = snap([[A, 1e6, 0], [B, 1e6, 400]], 4 * H, h);
+    h = snap([[A, 1e6, 900], [B, 1e6, 400]], 8 * H, h);
+    const n = newIncentives(h, 8 * H);
+    expect(n).toEqual([{ gauge: A.toLowerCase(), usdPerWeek: 900, withinHours: 4 }]);
+  });
+  it("ignores dust, gauges that already had incentives, and snapshots that recorded none", () => {
+    let h = snap([[A, 1e6, 0], [B, 1e6, 0]], 0);
+    h = snap([[A, 1e6, 10], [B, 1e6, 300]], 5 * H, h);
+    expect(newIncentives(h, 5 * H).map((x) => x.gauge)).toEqual([B.toLowerCase()]);
+    // An older record with no incentive data can't tell a new program from an old one.
+    const old = { version: 1 as const, chainId: 8453, gauges: [A.toLowerCase()], points: [{ t: 0, w: [1e6] }, { t: 5 * H, w: [1e6] }] };
+    expect(newIncentives(old, 5 * H)).toEqual([]);
+  });
+  it("comes through computeFlows next to the flows", () => {
+    let h = snap([[A, 1e6, 0], [B, 1e6, 0]], 0);
+    h = snap([[A, 1e6, 700], [B, 1e6, 0]], 6 * H, h);
+    expect(computeFlows(h, 6 * H).newIncentives.map((x) => x.gauge)).toEqual([A.toLowerCase()]);
   });
 });

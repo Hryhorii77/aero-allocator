@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aprPct, MIN_RANK_WEIGHT, rankByUsdPerDay } from "./gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, rankByUsdPerDay, steadyLabel, steadySortScore } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 
 const row = (gauge: string, weight: number, inc = 0, activated = true): GaugeRow => ({
@@ -50,5 +50,19 @@ describe("aprPct", () => {
     expect(aprPct(10, 10_000, undefined)).toBeNull();
     expect(aprPct(10, 10_000, 0)).toBeNull();
     expect(aprPct(10, 0, 0.75)).toBeNull();
+  });
+});
+
+describe("steadyLabel", () => {
+  const y = (fees: number, inc: number, steady?: { buckets: number; paying: number }) => ({ feesUsdPerDay: fees, incentivesUsdPerDay: inc, steady });
+  it("calls a gauge paid mostly by incentives steady by construction, whatever its fee record says", () => {
+    expect(steadyLabel(y(20, 61, { buckets: 4, paying: 1 }))).toEqual({ kind: "incentives" });
+    expect(steadySortScore(y(20, 61, { buckets: 4, paying: 1 }))).toBe(1);
+  });
+  it("otherwise reports the fee record's paying half-days, or nothing", () => {
+    expect(steadyLabel(y(100, 10, { buckets: 4, paying: 3 }))).toEqual({ kind: "fees", buckets: 4, paying: 3 });
+    expect(steadySortScore(y(100, 10, { buckets: 4, paying: 3 }))).toBe(0.75);
+    expect(steadyLabel(y(100, 10))).toBeNull();
+    expect(steadySortScore(y(100, 10))).toBe(-1);
   });
 });
