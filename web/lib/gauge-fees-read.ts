@@ -6,8 +6,11 @@ import { BASE_CHAIN, chainById, lookbackBlocks, type AeroChain } from "./aero-ch
 import { getChainPrices } from "./chain-prices";
 import { client, getGauges, registryAbi } from "./gauges";
 import { feePace, readFeeEvents, type LogReader } from "./gauge-fees";
-import { appendEvents, coverageHours, eventsWithin, MAX_LOOKBACK_BLOCKS, planRange, type Ledger } from "./fee-ledger";
+import { appendEvents, coverageHours, eventsWithin, MAX_LOOKBACK_BLOCKS, planRange, RETAIN_DAYS, type Ledger } from "./fee-ledger";
 import { loadLedger, saveLedger } from "./fee-ledger-store";
+import { CHART_BUCKET_HOURS, feeBuckets, STEADY_BUCKET_HOURS, steadiness, type FeeBucket, type Steadiness } from "./fee-history";
+import { computeFlows, type Flow } from "./weight-history";
+import { loadWeightHistory } from "./weight-history-store";
 
 const gaugeAbi = parseAbi(["function pendingFees() view returns (uint256, uint256)"]);
 const rewardsAbi = parseAbi([
@@ -49,6 +52,8 @@ export interface GaugeFee {
   /** Fees to voters, USD per day, averaged over `windowHours`. */
   feesUsdPerDay: number;
   windowHours: number;
+  /** How many complete half-days paid at least half the average one; absent until there are three of them. */
+  steady?: Steadiness;
 }
 
 export interface GaugeFees {
@@ -137,8 +142,12 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
 
   const fees: GaugeFee[] = [];
   gauges.forEach((g, i) => {
-    const pace = feePace(eventsWithin(ledger, rewards[i], head, undefined, cfg.blockSec), pend.get(g) ?? [], head, price, cfg.blockSec);
-    if (pace) fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600 });
+    const events = eventsWithin(ledger, rewards[i], head, undefined, cfg.blockSec);
+    const pace = feePace(events, pend.get(g) ?? [], head, price, cfg.blockSec);
+    if (!pace) return;
+    // Steadiness looks back over everything the record keeps, not just the 2-day pace window: three half-days need more than 48 h.
+    const steady = steadiness(feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, cfg.blockSec), head, price, cfg.blockSec, nowSec, STEADY_BUCKET_HOURS));
+    fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600, ...(steady ? { steady } : {}) });
   });
   return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, cfg.blockSec), fees, aeroUsd: await aeroPriceUsd() };
 }
@@ -159,5 +168,57 @@ export async function getGaugeFees(chainId = BASE_CHAIN.id): Promise<GaugeFees> 
   }
   const value = await p;
   cache.set(chainId, { at: Date.now(), value });
+  return value;
+}
+
+export interface GaugeHistory {
+  chainId: number;
+  gauge: string;
+  generatedAt: number;
+  /** Fees released per 6 hours, oldest first, complete stretches only. */
+  fees: FeeBucket[];
+  /** The gauge's weight at each stored snapshot (whole tokens); empty until snapshots exist. */
+  weights: Array<{ t: number; weight: number }>;
+  /** Share-of-weight change over the snapshot window, when there is one. */
+  flow: Flow | null;
+  steady: Steadiness | null;
+}
+
+/** One gauge's release history and weight history, for the chart under its row. */
+export async function readGaugeHistory(chainId: number, gauge: string, nowSec = Math.floor(Date.now() / 1000)): Promise<GaugeHistory | null> {
+  const cfg = feeChain(chainId);
+  const list = await getGauges(chainId);
+  const row = list.gauges.find((g) => g.gauge.toLowerCase() === gauge.toLowerCase());
+  if (!row) return null;
+  const [ledger, wh] = await Promise.all([loadLedger(chainId).then((l) => l ?? memo.get(chainId) ?? null), loadWeightHistory(chainId)]);
+  let fees: FeeBucket[] = [];
+  let steady: Steadiness | null = null;
+  if (ledger) {
+    const head = BigInt(ledger.lastBlock);
+    const rewards = await client(cfg).readContract({ address: cfg.registry, abi: registryAbi, functionName: "gaugeToRewards", args: [row.gauge] });
+    const events = eventsWithin(ledger, rewards, head, RETAIN_DAYS, cfg.blockSec);
+    const tokens = [...new Set(events.map((e) => e.token))];
+    const prices = await loadPrices(cfg, tokens);
+    const price = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
+    const at = Math.floor(ledger.updatedAt / 1000);
+    fees = feeBuckets(events, head, price, cfg.blockSec, at, CHART_BUCKET_HOURS);
+    steady = steadiness(feeBuckets(events, head, price, cfg.blockSec, at, STEADY_BUCKET_HOURS));
+  }
+  const idx = wh ? wh.gauges.indexOf(row.gauge.toLowerCase()) : -1;
+  const weights = wh && idx >= 0 ? wh.points.map((p) => ({ t: p.t, weight: p.w[idx] ?? 0 })) : [];
+  const flow = computeFlows(wh, nowSec).flows.find((f) => f.gauge === row.gauge.toLowerCase()) ?? null;
+  return { chainId, gauge: row.gauge, generatedAt: nowSec * 1000, fees, weights, flow, steady };
+}
+
+const HISTORY_TTL_MS = 5 * 60_000;
+const historyCache = new Map<string, { at: number; value: GaugeHistory | null }>();
+
+export async function getGaugeHistory(chainId: number, gauge: string): Promise<GaugeHistory | null> {
+  const key = `${chainId}:${gauge.toLowerCase()}`;
+  const hit = historyCache.get(key);
+  if (hit && Date.now() - hit.at <= HISTORY_TTL_MS) return hit.value;
+  const value = await readGaugeHistory(chainId, gauge);
+  if (historyCache.size > 500) historyCache.clear();
+  historyCache.set(key, { at: Date.now(), value });
   return value;
 }

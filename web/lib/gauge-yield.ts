@@ -21,6 +21,8 @@ export interface YieldRow {
   poolType?: string;
   /** How many hours of fee history the pace rests on. */
   windowHours: number;
+  /** How many complete half-days paid at least half the average one; absent until there are three. */
+  steady?: { buckets: number; paying: number };
 }
 
 /** Yearly return in percent for earning `usdPerDay` on `amount` AERO at `aeroUsd` each; null when the price or amount is missing. */
@@ -63,6 +65,7 @@ export function rankByUsdPerDay(
       weight: g.weight,
       poolType: g.poolType,
       windowHours: fee.windowHours,
+      ...(fee.steady ? { steady: fee.steady } : {}),
     });
   }
   return rows.sort((a, b) => b.usdPerDay - a.usdPerDay);

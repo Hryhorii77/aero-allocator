@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
@@ -10,6 +10,8 @@ import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
+import { GaugeHistoryPanel } from "./gauge-history";
+import { steadyScore } from "@/lib/fee-history";
 import { btn, chip, H2, input, NOTE, NUM } from "./ui";
 
 const SHOWN = 10;
@@ -17,7 +19,7 @@ const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const PACE_TONE = { thin: "text-amber-500", fair: "text-neutral-400", solid: "text-emerald-400" } as const;
 
-type SortKey = "you" | "fees" | "incentives" | "power";
+type SortKey = "you" | "fees" | "incentives" | "power" | "steady";
 interface Line {
   g: GaugeRow;
   y: YieldRow | undefined;
@@ -27,6 +29,7 @@ interface Line {
 function sortValue(l: Line, key: SortKey): number {
   if (key === "power") return l.g.weight;
   if (!l.y) return -1;
+  if (key === "steady") return steadyScore(l.y.steady) * 1e9 + l.y.usdPerDay;
   if (key === "you") return l.y.usdPerDay;
   if (key === "fees") return l.y.feesUsdPerDay;
   return l.y.incentivesUsdPerDay;
@@ -59,6 +62,7 @@ export function GaugeTable() {
   const [all, setAll] = useState(false);
   const [fees, setFees] = useState<GaugeFees | null>(null);
   const [feesFailed, setFeesFailed] = useState(false);
+  const [openGauge, setOpenGauge] = useState<string | null>(null);
   const [flows, setFlows] = useState<Flows | null>(null);
   const [amountText, setAmountText] = useState("10000");
   const [sortKey, setSortKey] = useState<SortKey>("you");
@@ -80,6 +84,7 @@ export function GaugeTable() {
     setData(null);
     setFailed(false);
     setAll(false);
+    setOpenGauge(null);
     fetch(`/api/gauges?chain=${chainId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: GaugeList) => !cancelled && setData(d))
@@ -238,6 +243,11 @@ export function GaugeTable() {
                   </Th>
                   {estimating && <Th className="hidden text-right sm:table-cell">Share of weight</Th>}
                   {estimating && <Th className="hidden text-right sm:table-cell">Pace</Th>}
+                  {estimating && (
+                    <Th className="hidden text-right sm:table-cell" sortKey="steady" active={sortKey === "steady"} onSort={setSortKey}>
+                      Steady
+                    </Th>
+                  )}
                   {flows && <Th className="hidden text-right sm:table-cell">Power flow</Th>}
                 </tr>
               </thead>
@@ -248,7 +258,8 @@ export function GaugeTable() {
                   const apr = y ? aprPct(y.usdPerDay, amount, fees?.aeroUsd) : null;
                   const flow: Flow | undefined = flowByGauge.get(g.gauge.toLowerCase());
                   return (
-                    <tr key={g.gauge} className="border-b border-neutral-800/60 align-top last:border-0">
+                    <Fragment key={g.gauge}>
+                    <tr className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           {explorer ? (
@@ -266,11 +277,17 @@ export function GaugeTable() {
                           )}
                         </div>
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
+                        {hasFees && (
+                          <button type="button" aria-expanded={openGauge === g.gauge} onClick={() => setOpenGauge(openGauge === g.gauge ? null : g.gauge)} className="mt-0.5 text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
+                            {openGauge === g.gauge ? "hide history" : "history"}
+                          </button>
+                        )}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
                           {apr !== null ? `${fmtApr(apr)} APR · ` : ""}
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
                           {fmt(g.weight)} power
                           {conf ? <> · <span className={PACE_TONE[conf]}>{conf} pace</span></> : ""}
+                          {y?.steady ? ` · steady ${y.steady.paying}/${y.steady.buckets}` : ""}
                           {flow ? <> · <span className={flow.sharePctChange >= 0.5 ? "text-sky-400" : ""}>{formatFlow(flow.sharePctChange)} power</span></> : ""}
                         </div>
                       </td>
@@ -293,12 +310,25 @@ export function GaugeTable() {
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{fmt(g.weight)}</td>
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-400 sm:table-cell ${NUM}`}>{g.sharePct.toFixed(2)}%</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${conf ? PACE_TONE[conf] : "text-neutral-600"}`}>{conf ?? "–"}</td>}
+                      {estimating && (
+                        <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${y?.steady && y.steady.paying === y.steady.buckets ? "text-neutral-200" : "text-neutral-400"}`} title="Complete half-days in which the gauge paid at least half its average">
+                          {y?.steady ? `${y.steady.paying}/${y.steady.buckets}` : "–"}
+                        </td>
+                      )}
                       {flows && (
                         <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${flow && flow.sharePctChange >= 0.5 ? "text-sky-400" : "text-neutral-400"}`} title={flow ? `${flow.powerChange >= 0 ? "+" : "−"}${fmt(Math.abs(flow.powerChange))} power in ${Math.round(flows.spanHours)} h` : "Too new or too thin to compare"}>
                           {flow ? formatFlow(flow.sharePctChange) : "–"}
                         </td>
                       )}
                     </tr>
+                    {openGauge === g.gauge && (
+                      <tr className="border-b border-neutral-800/60 last:border-0">
+                        <td colSpan={10} className="px-2 pb-3 pt-0">
+                          <GaugeHistoryPanel chainId={chainId} gauge={g.gauge} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
