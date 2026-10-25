@@ -15,7 +15,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-26",
     title:
-      "The positions panel now explains how to move more often than every 47 hours, from a check on Base: the wait belongs to each position, not to your wallet, and a position that has never been allocated has none, so holding AERO as several separate positions lets you move one while the others wait. An existing position can't be split (Aero's escrow has no split function), and every allocation is its own transaction with its own gas.",
+      "The positions panel now explains how to move more often than every 47 hours, from a check on Base: the wait belongs to each position, not to your wallet, and a position that has never been allocated has none, so holding AERO as several separate positions lets you move one while the others wait. An existing position can't be split (Aero's escrow has no split function), and every allocation is its own transaction with its own gas. A position with no AERO staked (for example the key left behind after depositing into an Aero Autopilot) now says there is nothing to allocate instead of offering the allocate button, and the gauge table repeats Aero's advice to judge allocation over a long horizon, since 47-hour results are noisy.",
   },
   {
     date: "2026-10-25",

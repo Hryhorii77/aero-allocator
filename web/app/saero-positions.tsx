@@ -241,7 +241,13 @@ export function SaeroPositions() {
                     )}
                   </span>
                 </div>
-                {connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
+                {p.staked === 0 && (
+                  <p className="mt-2 text-amber-500">
+                    No AERO is staked in this position, so there is nothing to allocate here. If you deposited it into an Aero Autopilot, this NFT is only
+                    the key to withdraw it, and Aero manages the allocation (to allocate by hand, turn Autopilot off on Aero first).
+                  </p>
+                )}
+                {p.staked > 0 && connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
                   <>
                     <SaeroAllocate position={p} cooldownReady={cd.ready} />
                     <SaeroReturn position={p} cooldownReady={cd.ready} />
