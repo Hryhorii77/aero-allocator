@@ -14,8 +14,8 @@ describe("siteMetadata", () => {
   it("points the link preview at the share card, as a large summary card, on the hosted domain", async () => {
     const m = await load();
     expect(String(m.metadataBase)).toBe("https://aeroallocator.app/");
-    expect(m.openGraph?.images).toEqual([expect.objectContaining({ url: "/api/share?v=3", width: 1200, height: 630 })]);
-    expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share?v=3"] });
+    expect(m.openGraph?.images).toEqual([expect.objectContaining({ url: "/api/share?v=4", width: 1200, height: 630 })]);
+    expect(m.twitter).toMatchObject({ card: "summary_large_image", images: ["/api/share?v=4"] });
     expect(m.alternates?.canonical).toBe("/");
     expect(m.openGraph?.url).toBe("/");
   });
