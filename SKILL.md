@@ -10,7 +10,7 @@ metadata:
 
 # Aero Allocator
 
-Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22. This project answers one question for a person or an agent: **which Aero gauges pay the most per day for a given amount of sAERO, and what should this position do?** Site: https://aeroallocator.app. Machine-readable description: https://aeroallocator.app/llms.txt.
+Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22. This project answers one question for a person or an agent: **which Aero gauges pay the most per day for a given amount of sAERO, and what should this position do?** Site: https://aeroallocator.app. Machine-readable descriptions: https://aeroallocator.app/llms.txt (plain text) and https://aeroallocator.app/openapi.json (OpenAPI 3.1, including the 402 behaviour of the paid routes).
 
 Everything is read-only or unsigned. The site and APIs never hold keys, sign or send a transaction; the allocate flow signs in the user's own wallet, and the paid `allocate-plan` call returns calldata for the owner to sign. Amounts are sAERO **voting power**, as Aero shows them, and APR is per unit of power (so it is lower on staked AERO for a lock shorter than the maximum).
 

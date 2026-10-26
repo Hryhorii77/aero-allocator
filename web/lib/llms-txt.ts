@@ -32,6 +32,8 @@ A request with no payment gets HTTP 402 with the price and our payout address. P
 - Every allocation restarts a 47-hour wait before the next change.
 - Sending power to other chains is not built.
 
+OpenAPI description of all of the above: ${siteUrl}/openapi.json
+
 Source: https://github.com/Hryhorii77/aero-allocator
 `;
 }
