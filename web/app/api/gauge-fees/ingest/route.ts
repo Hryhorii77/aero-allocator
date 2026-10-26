@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
 import { updateFeeLedger } from "@/lib/gauge-fees-read";
 import { snapshotWeights } from "@/lib/weight-history-read";
+import { recordDailyHistory } from "@/lib/daily-history-read";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -26,5 +27,10 @@ export const GET = withApiErrorHandling("gauge-fees-ingest", async (req: Request
     console.error(JSON.stringify({ level: "error", route: "gauge-fees-ingest", step: "weights", message: e instanceof Error ? e.message : String(e) }));
     return null;
   });
-  return NextResponse.json({ chainId, lastBlock: ledger.lastBlock, coverageFrom: ledger.coverageFrom, events: ledger.events.length, updatedAt: ledger.updatedAt, weightSnapshots: snapshots });
+  // The daily record rolls up what the two above hold once a day finishes; it too must not fail the fee record.
+  const dailyDays = await recordDailyHistory(chainId, ledger).catch((e) => {
+    console.error(JSON.stringify({ level: "error", route: "gauge-fees-ingest", step: "daily", message: e instanceof Error ? e.message : String(e) }));
+    return null;
+  });
+  return NextResponse.json({ chainId, lastBlock: ledger.lastBlock, coverageFrom: ledger.coverageFrom, events: ledger.events.length, updatedAt: ledger.updatedAt, weightSnapshots: snapshots, dailyDays });
 });

@@ -11,6 +11,8 @@ import { loadLedger, saveLedger } from "./fee-ledger-store";
 import { CHART_BUCKET_HOURS, feeBuckets, STEADY_BUCKET_HOURS, steadiness, type FeeBucket, type Steadiness } from "./fee-history";
 import { computeFlows, type Flow } from "./weight-history";
 import { loadWeightHistory } from "./weight-history-store";
+import { dailyForGauge, type DailyGaugePoint } from "./daily-history";
+import { loadDailyHistory } from "./daily-history-store";
 
 const gaugeAbi = parseAbi(["function pendingFees() view returns (uint256, uint256)"]);
 const rewardsAbi = parseAbi([
@@ -42,7 +44,7 @@ function logClient(cfg: AeroChain) {
 }
 
 /** Base prices come from the engine (with its retry and stale fallback); other chains from the chain-aware helper. */
-async function loadPrices(cfg: AeroChain, tokens: Address[]) {
+export async function loadPrices(cfg: AeroChain, tokens: Address[]) {
   if (tokens.length === 0) return new Map();
   return cfg.id === BASE_CHAIN.id ? getPrices(tokens).catch(() => new Map()) : getChainPrices(cfg.llama, tokens);
 }
@@ -73,7 +75,7 @@ async function aeroPriceUsd(): Promise<number | null> {
   return p && p.priceUsd > 0 ? p.priceUsd : null;
 }
 
-function feeChain(chainId: number): AeroChain {
+export function feeChain(chainId: number): AeroChain {
   const cfg = chainById(chainId);
   if (!cfg || !cfg.feeLogs) throw new Error(`Fee pace is not measured on chain ${chainId}`);
   return cfg;
@@ -182,6 +184,8 @@ export interface GaugeHistory {
   /** Share-of-weight change over the snapshot window, when there is one. */
   flow: Flow | null;
   steady: Steadiness | null;
+  /** One point per finished UTC day for up to 90 days, oldest first; starts when the daily record did. */
+  daily: DailyGaugePoint[];
 }
 
 /** One gauge's release history and weight history, for the chart under its row. */
@@ -190,7 +194,7 @@ export async function readGaugeHistory(chainId: number, gauge: string, nowSec = 
   const list = await getGauges(chainId);
   const row = list.gauges.find((g) => g.gauge.toLowerCase() === gauge.toLowerCase());
   if (!row) return null;
-  const [ledger, wh] = await Promise.all([loadLedger(chainId).then((l) => l ?? memo.get(chainId) ?? null), loadWeightHistory(chainId)]);
+  const [ledger, wh, dh] = await Promise.all([loadLedger(chainId).then((l) => l ?? memo.get(chainId) ?? null), loadWeightHistory(chainId), loadDailyHistory(chainId)]);
   let fees: FeeBucket[] = [];
   let steady: Steadiness | null = null;
   if (ledger) {
@@ -207,7 +211,7 @@ export async function readGaugeHistory(chainId: number, gauge: string, nowSec = 
   const idx = wh ? wh.gauges.indexOf(row.gauge.toLowerCase()) : -1;
   const weights = wh && idx >= 0 ? wh.points.map((p) => ({ t: p.t, weight: p.w[idx] ?? 0 })) : [];
   const flow = computeFlows(wh, nowSec).flows.find((f) => f.gauge === row.gauge.toLowerCase()) ?? null;
-  return { chainId, gauge: row.gauge, generatedAt: nowSec * 1000, fees, weights, flow, steady };
+  return { chainId, gauge: row.gauge, generatedAt: nowSec * 1000, fees, weights, flow, steady, daily: dailyForGauge(dh, row.gauge) };
 }
 
 const HISTORY_TTL_MS = 5 * 60_000;

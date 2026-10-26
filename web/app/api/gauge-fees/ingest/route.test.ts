@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/gauge-fees-read", () => ({ updateFeeLedger: vi.fn(async () => ({ lastBlock: 1, coverageFrom: 0, events: [], updatedAt: 0 })) }));
+vi.mock("@/lib/daily-history-read", () => ({ recordDailyHistory: vi.fn(async () => 2) }));
 vi.mock("@/lib/weight-history-read", () => ({ snapshotWeights: vi.fn(async () => 1) }));
 
 import { GET } from "./route";

@@ -31,7 +31,7 @@ export interface Steadiness {
   paying: number;
 }
 
-const usdOf = (e: Ev, price: (t: Address) => TokenPrice) => {
+export const usdOf = (e: Ev, price: (t: Address) => TokenPrice) => {
   const p = price(e.token);
   return p ? (Number(e.amount) / 10 ** p.decimals) * p.priceUsd : 0;
 };
