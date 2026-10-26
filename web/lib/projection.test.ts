@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { YieldRow } from "./gauge-yield";
-import { projectRange } from "./projection";
+import { currentLowUsdPerDay, lowFeeFactor, projectRange } from "./projection";
 import type { Split } from "./split";
 
 const row = (o: Partial<YieldRow> & { gauge: string }): YieldRow => ({ symbol: "A/B", feesUsdPerDay: 100, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 1000, windowHours: 48, ...o }) as YieldRow;
@@ -33,5 +33,19 @@ describe("projectRange", () => {
     );
     expect(r.lowUsdPerDay).toBeCloseTo(27.5, 6);
     expect(r.lowUsdPerDay).toBeLessThanOrEqual(r.paceUsdPerDay);
+  });
+});
+
+describe("lowFeeFactor / currentLowUsdPerDay", () => {
+  it("is half with no record, the paying share otherwise, never under half", () => {
+    expect(lowFeeFactor(undefined)).toBe(0.5);
+    expect(lowFeeFactor({ buckets: 8, paying: 2 })).toBe(0.5);
+    expect(lowFeeFactor({ buckets: 8, paying: 6 })).toBe(0.75);
+  });
+  it("prices where a position sits with fees cut, incentives kept, own power in the weight", () => {
+    // own 1000 into a gauge already holding 1000 (includes own): share 0.5; (100*0.5 + 40) * 0.5 = 45
+    const low = currentLowUsdPerDay([{ gauge: "0xa", feesUsdPerDay: 100, incentivesUsdPerDay: 40, weight: 1000 }], [{ gauge: "0xa", pct: 100 }], 1000);
+    expect(low).toBeCloseTo(45, 6);
+    expect(currentLowUsdPerDay([], [{ gauge: "0xa", pct: 100 }], 1000)).toBe(0);
   });
 });

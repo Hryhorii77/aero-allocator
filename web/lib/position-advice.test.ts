@@ -88,4 +88,15 @@ describe("analysePosition", () => {
     expect(a.windowHours).toBe(3);
     expect(a.confidence).toBe("thin");
   });
+
+  it("gives a low-case gain that is never above the gain, and never negative", () => {
+    const g = list([row(1, 1_000_000), row(2, 300_000)]);
+    const a = analysePosition({ ...base, position: pos(), current: [{ gauge: addr(1), symbol: "P1", pct: 100 }], gauges: g, fees: fees([[1, 100, 30], [2, 5000, 30]]) });
+    expect(a.gainLowUsdPerDay).not.toBeNull();
+    expect(a.gainLowUsdPerDay).toBeGreaterThanOrEqual(0);
+    expect(a.gainLowUsdPerDay).toBeLessThanOrEqual(a.gainUsdPerDay ?? Infinity);
+    expect(a.bestLowUsdPerDay).toBeLessThan(a.best?.usdPerDay ?? 0);
+    const stay = analysePosition({ ...base, position: pos(), current: [{ gauge: addr(2), symbol: "P2", pct: 100 }], gauges: g, fees: fees([[1, 100, 30], [2, 5000, 30]]) });
+    expect(stay.gainLowUsdPerDay ?? 0).toBeLessThanOrEqual(Math.max(0, stay.gainUsdPerDay ?? 0));
+  });
 });

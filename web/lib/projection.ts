@@ -4,6 +4,11 @@ import type { Split } from "./split";
 /** Fees never count for less than this share of their recent pace in the low case: a gauge that pays at all keeps paying something. */
 export const LOW_FEE_FLOOR = 0.5;
 
+/** The share of a gauge's recent fee pace the low case counts: its share of paying half-days, never under half; half when the record is too short. */
+export function lowFeeFactor(steady: YieldRow["steady"]): number {
+  return steady && steady.buckets > 0 ? Math.max(LOW_FEE_FLOOR, steady.paying / steady.buckets) : LOW_FEE_FLOOR;
+}
+
 export interface Range {
   /** USD/day with each gauge's fees cut to its share of paying half-days (at least half), incentives unchanged. */
   lowUsdPerDay: number;
@@ -26,8 +31,25 @@ export function projectRange(ranked: YieldRow[], split: Split): Range {
       low += part.usdPerDay;
       continue;
     }
-    const factor = row.steady && row.steady.buckets > 0 ? Math.max(LOW_FEE_FLOOR, row.steady.paying / row.steady.buckets) : LOW_FEE_FLOOR;
+    const factor = lowFeeFactor(row.steady);
     low += ((row.feesUsdPerDay * factor + row.incentivesUsdPerDay) * part.amount) / (row.weight + part.amount);
   }
   return { lowUsdPerDay: Math.min(low, split.usdPerDay), paceUsdPerDay: split.usdPerDay };
+}
+
+/** The low case for where a position sits now: the same pricing as `currentUsdPerDay`, with each gauge's fees cut by `lowFeeFactor`. */
+export function currentLowUsdPerDay(
+  rows: Array<Pick<YieldRow, "gauge" | "feesUsdPerDay" | "incentivesUsdPerDay" | "weight" | "steady">>,
+  current: Array<{ gauge: string; pct: number }>,
+  power: number,
+): number {
+  const byGauge = new Map(rows.map((r) => [r.gauge.toLowerCase(), r]));
+  let usd = 0;
+  for (const c of current) {
+    const r = byGauge.get(c.gauge.toLowerCase());
+    if (!r) continue;
+    const own = (c.pct / 100) * power;
+    usd += ((r.feesUsdPerDay * lowFeeFactor(r.steady) + r.incentivesUsdPerDay) * own) / (r.weight + own);
+  }
+  return usd;
 }

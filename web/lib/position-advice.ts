@@ -3,6 +3,7 @@ import { gaugeLabel } from "./gauges";
 import type { GaugeFees } from "./gauge-fees-read";
 import { paceConfidence, rankByUsdPerDay, type YieldRow } from "./gauge-yield";
 import { cooldownState, type CooldownState, type SaeroPosition } from "./saero";
+import { currentLowUsdPerDay, projectRange } from "./projection";
 import { bestSplit, currentUsdPerDay, type Split } from "./split";
 
 /** Where a position sits on Base now: a gauge and its share (0-100) of the amount booked on Base. */
@@ -42,6 +43,13 @@ export interface Analysis {
   /** Best split minus staying, USD/day; null when either side is missing. */
   gainUsdPerDay: number | null;
   advice: Advice;
+  /**
+   * The gain in the low case (fees at their paying share, incentives unchanged), USD/day, never below 0. For idle power it is the best
+   * split's low figure. Null when `gainUsdPerDay` is.
+   */
+  gainLowUsdPerDay: number | null;
+  /** The best split's own low case, USD/day (what idle power would earn at the least); null with no best split. */
+  bestLowUsdPerDay: number | null;
   /** Hours of fee history behind the weakest gauge the best split uses (0 when there is none). */
   windowHours: number;
   confidence: "thin" | "fair" | "solid" | null;
@@ -83,6 +91,7 @@ export function analysePosition(args: {
   );
 
   let nowUsd: number | null = null;
+  let nowLowUsd = 0;
   let unmeasured: string[] = [];
   if (current.length > 0) {
     // A gauge you're on can fall under the ranking's minimum weight once you leave it; price it from its raw row instead.
@@ -90,8 +99,11 @@ export function analysePosition(args: {
     const now = currentUsdPerDay(priced, current, power);
     unmeasured = now.unmeasured;
     nowUsd = now.unmeasured.length === current.length ? null : now.usd;
+    nowLowUsd = currentLowUsdPerDay(priced, current, power);
   }
   const gain = best && nowUsd !== null ? best.usdPerDay - nowUsd : null;
+  const bestLow = best ? projectRange(ranked, best).lowUsdPerDay : null;
+  const gainLow = best && gain !== null ? Math.min(gain, Math.max(0, projectRange(ranked, best).lowUsdPerDay - nowLowUsd)) : null;
 
   const byGauge = new Map(ranked.map((r) => [r.gauge.toLowerCase(), r]));
   const weakest = best ? best.parts.reduce((h, p) => Math.min(h, byGauge.get(p.gauge.toLowerCase())?.windowHours ?? 0), Infinity) : 0;
@@ -120,5 +132,5 @@ export function analysePosition(args: {
     advice = { action: "stay", reason: "Moving would not earn enough more to be worth the 47-hour wait that follows an allocation.", canActNow, readyAtSec };
   }
 
-  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, ranked, gainUsdPerDay: gain, advice, windowHours, confidence: best ? paceConfidence(windowHours) : null };
+  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, ranked, gainUsdPerDay: gain, gainLowUsdPerDay: gainLow, bestLowUsdPerDay: bestLow, advice, windowHours, confidence: best ? paceConfidence(windowHours) : null };
 }

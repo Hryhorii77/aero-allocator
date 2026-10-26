@@ -31,9 +31,11 @@ describe("PositionAdviceLine", () => {
     stubFetch();
     const onCost = vi.fn();
     render(<PositionAdviceLine position={position} onCost={onCost} />);
-    expect(await screen.findByText(/staying costs about \$\d/)).toBeInTheDocument();
-    expect(onCost).toHaveBeenCalledWith(7n, expect.any(Number));
-    expect(onCost.mock.calls[0][1]).toBeGreaterThan(0);
+    expect(await screen.findByText(/staying costs \$\d.* to \$\d.* a day, depending on how the fees run/)).toBeInTheDocument();
+    expect(onCost).toHaveBeenCalledWith(7n, { costUsdPerDay: expect.any(Number), costLowUsdPerDay: expect.any(Number) });
+    const cost = onCost.mock.calls[0][1];
+    expect(cost.costUsdPerDay).toBeGreaterThan(0);
+    expect(cost.costLowUsdPerDay).toBeLessThan(cost.costUsdPerDay);
   });
 
   it("shows nothing, and reports nothing, when the gauge read fails", async () => {
