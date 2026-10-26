@@ -36,12 +36,12 @@ or two on the pools compared.
 
 ### APIs
 
-Free, rate limited, no key (also described for agents at `/llms.txt`):
+Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and `/openapi.json` (OpenAPI 3.1, including the paid routes' 402 behaviour):
 
 | Endpoint | |
 |---|---|
-| `GET /api/gauges?chain=8453` | Every gauge on a chain with weight, caps and incentives (Base 8453, Ethereum 1, OP 10, Arbitrum 42161, Ink 57073, Robinhood 4663) |
-| `GET /api/gauge-fees?chain=8453` | Estimated fees per day per gauge, the hours of history behind each figure, and a steadiness figure |
+| `GET /api/gauges?chain=8453` | Every gauge on a chain with weight, caps and incentives; the Base list also carries `cooldownSec`, the live wait between allocations of one position (Base 8453, Ethereum 1, OP 10, Arbitrum 42161, Ink 57073, Robinhood 4663) |
+| `GET /api/gauge-fees?chain=8453` | Estimated fees per day per gauge, the hours of history behind each figure, a steadiness figure, and a `spike` marker when the recent pace is at least 3x the gauge's usual level (a burst, not a trend) |
 | `GET /api/gauge-history?chain=8453&gauge=0x…` | One gauge's fees per 6 hours, weight snapshots, steadiness, and per-day points from the 90-day record |
 | `GET /api/gauge-flows?chain=8453` | How each gauge's share of the allocation weight moved over the last day, and gauges whose incentives just appeared |
 | `GET /api/allocation-fee?chain=10&gauges=2` | ETH cost on Base of sending power to another chain |
@@ -58,7 +58,7 @@ cd web && npm install && npm run dev
 ```
 
 Open http://localhost:3000. `web/` imports the engine as compiled `dist/`, so rebuild the root after changing `src/`. Checks: `npm run
-typecheck`, `npm test` and `npm run build` in the root and in `web/` (CI runs all of them). Node 22 or newer.
+typecheck`, `npm test` and `npm run build` in the root and in `web/`, plus `npx tsx scripts/audit-gate.ts .` and `... web` (CI runs all of them; the audit gate fails on any advisory except the one accepted zod finding it lists). Node 22 or newer.
 
 History is kept by Vercel Cron: six crons (one per chain, `web/vercel.json`) call `/api/gauge-fees/ingest` every 30 minutes, which
 extends the fee record (4 days), takes a weight snapshot (3 days) and, once a UTC day has finished, adds it to the daily record
@@ -101,11 +101,22 @@ production. To make production public while keeping preview deployments protecte
 writing).
 
 
+## Agent skills
+
+Two skills in `skills/`, for agents that act on a sAERO position. Neither signs or sends anything; the owner's wallet layer does.
+
+| Skill | What it does |
+|---|---|
+| [`skills/saero-allocator-automator`](skills/saero-allocator-automator/SKILL.md) | Once the wait is over, checks a position and re-allocates it only for a real, steady gain (never a one-off fee burst), checks the unsigned `allocate()` before handing it to the owner's wallet. `scripts/decide.mjs` holds the rules; `scripts/run.mjs` runs one pass. |
+| [`skills/veaero-to-saero-upgrade`](skills/veaero-to-saero-upgrade/SKILL.md) | Checks a wallet's old veAERO locks against Aero's migration contract (what each becomes, what blocks it) and, only after the owner confirms each lock, prepares the unsigned `approve` and `depositVeNFT`. An expired lock becomes liquid AERO, not a sAERO position; the upgrade is irreversible. |
+
+The root [`SKILL.md`](SKILL.md) is the overview of the APIs for agents.
+
 ## Paid API (x402)
 
 Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
 Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
-They are indexed in Coinbase's x402 Bazaar (and so agentic.market) after their first paid call, and described for agents at `/llms.txt`.
+Both are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26, and described for agents at `/llms.txt` and `/openapi.json`.
 
 | Endpoint | Price | What it answers |
 |---|---|---|
@@ -342,7 +353,9 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 
 - [x] sAERO allocator: ranked gauges, best split, positions read in the browser, allocate and return-to-idle from your wallet
 - [x] Fee pace measured from on-chain releases, with weight snapshots, power flow, steadiness, new-incentive flags and a 90-day daily record
-- [x] Paid x402 endpoints for agents (`v1/position`, `v1/allocate-plan`) and `/llms.txt`
+- [x] Paid x402 endpoints for agents (`v1/position`, `v1/allocate-plan`), `/llms.txt` and `/openapi.json`, listed in the x402 Bazaar
+- [x] Two agent skills: re-allocate a position only when it is worth it, and check or prepare a veAERO to sAERO upgrade (read-only, irreversible, verified against Aero's contracts)
+- [x] A gauge whose fee pace is a burst is marked spiky and its APR shown as a range
 - [x] Per-position wait explanation, calendar reminder, earned-fees read, Autopilot-key handling, and what staying costs per day
 - [x] Backtest harness (`backtest_summary`) and realized-performance tracking for the weekly-vote engine
 - [ ] Allocating to gauges on other chains (the fee quote is built; the transaction is not)
