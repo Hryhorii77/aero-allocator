@@ -37,4 +37,27 @@ describe("GaugeHistoryPanel", () => {
     render(<GaugeHistoryPanel chainId={8453} gauge="0xabc" />);
     expect(await screen.findByText(/Couldn.t load this gauge/)).toBeInTheDocument();
   });
+
+  it("adds a per-day chart once the daily record has two days", async () => {
+    const fees = [5, 5, 5].map((usd, i) => ({ t: 1_000_000 + i * 21_600, usd }));
+    const daily = [{ t: 86_400 * 10, feesUsd: 40, weight: null, incentivesUsdPerWeek: null }, { t: 86_400 * 11, feesUsd: 20, weight: 5, incentivesUsdPerWeek: 0 }];
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ...base, fees, weights: [], flow: null, steady: null, daily }) })));
+    render(<GaugeHistoryPanel chainId={8453} gauge="0xabc" />);
+    expect(await screen.findByRole("img", { name: /per day over 2 days, up to \$40/ })).toBeInTheDocument();
+    expect(screen.getByText(/\$30/)).toBeInTheDocument();
+    expect(screen.getByText(/tallest day \$40/)).toBeInTheDocument();
+  });
+
+  it("shows no per-day chart with one day, or from an older response that has none", async () => {
+    const fees = [5, 5, 5].map((usd, i) => ({ t: 1_000_000 + i * 21_600, usd }));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ...base, fees, weights: [], flow: null, steady: null, daily: [{ t: 864_000, feesUsd: 1, weight: null, incentivesUsdPerWeek: null }] }) })));
+    const a = render(<GaugeHistoryPanel chainId={8453} gauge="0xabc" />);
+    await screen.findByRole("img", { name: /per 6 hours/ });
+    expect(screen.queryByRole("img", { name: /per day/ })).toBeNull();
+    a.unmount();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ...base, fees, weights: [], flow: null, steady: null }) })));
+    render(<GaugeHistoryPanel chainId={8453} gauge="0xabc" />);
+    await screen.findByRole("img", { name: /per 6 hours/ });
+    expect(screen.queryByRole("img", { name: /per day/ })).toBeNull();
+  });
 });

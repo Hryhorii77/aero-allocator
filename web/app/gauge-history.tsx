@@ -40,6 +40,7 @@ export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: 
   if (state === "error" || !data) return <p className="text-sm text-rose-400">Couldn&rsquo;t load this gauge&rsquo;s history. Try again in a moment.</p>;
 
   const { fees, weights, steady, flow } = data;
+  const daily = data.daily ?? [];
   if (fees.length === 0 && weights.length < 2) {
     return <p className={NOTE}>Not enough history yet: it needs a few releases after the first one the record saw, or a couple of weight snapshots.</p>;
   }
@@ -54,6 +55,7 @@ export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: 
   const label = `Fees released per 6 hours, from $${usd(Math.min(...fees.map((b) => b.usd), 0))} to $${usd(max)}${line ? "; power in the gauge as a line" : ""}`;
 
   return (
+    <>
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[minmax(0,320px)_minmax(0,1fr)] sm:gap-4">
       <div>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={label}>
@@ -89,5 +91,43 @@ export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: 
         </p>
       </div>
     </div>
+    {daily.length >= 2 && <DailyBars daily={daily} />}
+    </>
   );
 }
+
+const dayLabel = (t: number) => {
+  const d = new Date(t * 1000);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+};
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Fees released per finished UTC day, kept for up to 90 days (the 6-hour chart above only reaches back 4). */
+function DailyBars({ daily }: { daily: NonNullable<GaugeHistory["daily"]> }) {
+  const max = Math.max(1, ...daily.map((p) => p.feesUsd));
+  const avg = daily.reduce((a, p) => a + p.feesUsd, 0) / daily.length;
+  const bw = W / daily.length;
+  return (
+    <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[minmax(0,320px)_minmax(0,1fr)] sm:gap-4">
+      <div>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Fees released per day over ${daily.length} days, up to $${usd(max)}`}>
+          {daily.map((p, i) => {
+            const h = (p.feesUsd / max) * (H - 8);
+            return <rect key={p.t} x={i * bw + 1} y={H - 4 - h} width={Math.max(1, bw - 2)} height={Math.max(h, p.feesUsd > 0 ? 1 : 0)} className="fill-emerald-500/60" />;
+          })}
+        </svg>
+        <div className="flex justify-between text-xs text-neutral-500">
+          <span>{dayLabel(daily[0].t)}</span>
+          <span>tallest day ${usd(max)} · {dayLabel(daily[daily.length - 1].t)}</span>
+        </div>
+      </div>
+      <div className="text-sm leading-relaxed text-neutral-400">
+        <p>
+          Over the last <span className={`text-neutral-200 ${NUM}`}>{daily.length}</span> days it released <span className={`text-neutral-200 ${NUM}`}>${usd(avg)}</span> a day on average.
+        </p>
+        <p className={NOTE}>Whole UTC days at today&rsquo;s prices. The record started on {dayLabel(daily[0].t)} and grows by a day each day, up to 90.</p>
+      </div>
+    </div>
+  );
+}
+
