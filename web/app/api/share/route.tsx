@@ -47,8 +47,12 @@ async function saeroCard(c: Palette, amount: number) {
   const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
   const sAero = `${amount.toLocaleString("en-US")} sAERO`;
   if (!split) return noNumberCard(c, 300);
-  // Two named gauges at most: the pool kind ("CL100") makes each name longer, and the footer line must not run into the site name.
-  const where = split.parts.slice(0, 2).map((p) => `${p.symbol} ${Math.round(p.pct)}%`).join(" · ");
+  // The footer line shares its row with the site name and fits about 38 characters: as many gauges as fit, then "+N more".
+  const parts = split.parts.map((p) => `${p.symbol} ${Math.round(p.pct)}%`);
+  const line = (n: number) => parts.slice(0, n).join(" · ") + (parts.length > n ? ` · +${parts.length - n} more` : "");
+  let shown = Math.min(parts.length, 3);
+  while (shown > 1 && line(shown).length > 38) shown -= 1;
+  const where = line(shown);
   return card(c, usd(split.usdPerDay), `per day, best split of ${sAero} on Base`, where, 300);
 }
 
