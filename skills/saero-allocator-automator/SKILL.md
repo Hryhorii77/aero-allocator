@@ -1,6 +1,6 @@
 ---
 name: saero-allocator-automator
-description: Keep a sAERO position on the Aero gauges that pay the most, without churning it. Once the 47-hour wait is over, check the position, decide with fixed rules (switch only for a real, steady gain, never for a one-off fee burst), fetch the unsigned allocate() transaction, check it, and hand it to the owner's wallet. Uses aeroallocator.app (two pay-per-call x402 endpoints, USDC on Base). Never signs or sends anything itself. Estimates, not financial advice.
+description: "Keep a sAERO position on the Aero gauges that pay the most, without churning it. Once the 47-hour wait is over, check the position, decide with fixed rules (switch only for a real, steady gain, never for a one-off fee burst), fetch the unsigned allocate() transaction, check it, and hand it to the owner's wallet. Uses aeroallocator.app (two pay-per-call x402 endpoints, USDC on Base). Never signs or sends anything itself. Estimates, not financial advice."
 metadata:
   emoji: ✈️
   homepage: https://aeroallocator.app
