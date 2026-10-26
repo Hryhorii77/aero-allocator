@@ -6,6 +6,7 @@ import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { aprPct, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
 import { lowUsdPerDayOf } from "@/lib/projection";
+import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
 import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
@@ -372,7 +373,7 @@ export function GaugeTable() {
                 {fees.aeroUsd ? (
                   <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). The amount is voting power; a lock shorter than the maximum holds more AERO than power, so APR on the AERO you staked is lower. Aero&rsquo;s own APR uses its own method and can differ.</>
                 ) : null}{" "}
-                Aero advises judging allocation over a long horizon, because results over a window as short as 47 hours are noisy.
+                Aero advises judging allocation over a long horizon, because results over a window as short as {waitHours(data.cooldownSec ?? DEFAULT_COOLDOWN_SEC)} hours are noisy.
               </>
             ) : (
               <>Weight is each gauge&rsquo;s share of the allocation weight on {chainName}. Incentives are what projects are streaming to it now.</>

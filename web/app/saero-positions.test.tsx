@@ -164,6 +164,16 @@ describe("SaeroPositions", () => {
     expect(screen.getByText(/The wait belongs to each position, not to your wallet/)).toHaveTextContent(/no way to split an existing position/);
   });
 
+  it("takes the wait length it shows from the chain, not a fixed 47 hours", async () => {
+    read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) => (functionName === "balanceOf" ? 0n : 86_400));
+    render(<SaeroPositions />);
+    expect(await screen.findByText(/Want to move more often than every 47 hours/)).toBeInTheDocument();
+    fireEvent.change(await screen.findByLabelText(/address to read/i), { target: { value: OWNER } });
+    fireEvent.click(screen.getByRole("button", { name: "read" }));
+    expect(await screen.findByText(/Want to move more often than every 24 hours/)).toBeInTheDocument();
+    expect(screen.getByText(/can be re-allocated 24 hours after its last/)).toBeInTheDocument();
+  });
+
   it("says so when the address has no positions", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) =>
       functionName === "balanceOf" ? 0n : 169_200,

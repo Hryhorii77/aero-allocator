@@ -42,6 +42,11 @@ jobs:
       - name: Audit (web)
         run: npx tsx scripts/audit-gate.ts web
 
+      # Errors fail the job; the warnings (deliberate setState-in-effect uses) do not. See web/eslint.config.mjs.
+      - name: Lint web
+        working-directory: web
+        run: npm run lint
+
       - name: Typecheck web
         working-directory: web
         run: npx tsc --noEmit

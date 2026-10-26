@@ -11,7 +11,7 @@ export const GET = paidRoute(
     priceUsd: POSITION_PRICE_USD,
     description:
       "Where an Aero sAERO position stands on Base: its voting power and lock, how much is idle or allocated to gauges, when it can next be " +
-      "re-allocated (47-hour cooldown), what it earns per day now versus the best split of gauges for its own size (fees plus incentives, " +
+      "re-allocated (the wait after any allocation, 47 hours at launch), what it earns per day now versus the best split of gauges for its own size (fees plus incentives, " +
       "after its own dilution), and a stay / switch / allocate recommendation. Pass ?tokenId= or ?address=. Read-only.",
     tags: ["aero", "aerodrome", "saero", "defi", "base", "yield", "allocation"],
     discovery: {

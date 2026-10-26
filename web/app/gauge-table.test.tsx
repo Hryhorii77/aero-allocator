@@ -125,6 +125,22 @@ describe("GaugeTable", () => {
     expect(row).not.toHaveTextContent("solid");
   });
 
+  it("words the long-horizon note with the wait the chain reports, 47 hours when the list has none", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    const stub = (cooldownSec?: number) =>
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges, ...(cooldownSec ? { cooldownSec } : {}) }),
+      }));
+    vi.stubGlobal("fetch", stub(86_400));
+    const { unmount } = render(<GaugeTable />);
+    expect(await screen.findByText(/as short as 24 hours are noisy/)).toBeInTheDocument();
+    unmount();
+    vi.stubGlobal("fetch", stub());
+    render(<GaugeTable />);
+    expect(await screen.findByText(/as short as 47 hours are noisy/)).toBeInTheDocument();
+  });
+
   it("sorts by the column you click", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));

@@ -12,7 +12,12 @@ const spec = openApiSpec("https://aeroallocator.app", PAY_TO) as { openapi: stri
 /** Every $ref in the document. */
 function refs(x: unknown, out: string[] = []): string[] {
   if (Array.isArray(x)) x.forEach((v) => refs(v, out));
-  else if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) k === "$ref" ? out.push(String(v)) : refs(v, out);
+  else if (x && typeof x === "object") {
+    for (const [k, v] of Object.entries(x)) {
+      if (k === "$ref") out.push(String(v));
+      else refs(v, out);
+    }
+  }
   return out;
 }
 

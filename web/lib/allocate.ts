@@ -69,7 +69,7 @@ export const allocateAbi = [
 ] as const;
 
 const ERROR_TEXT: Record<string, string> = {
-  CooldownActive: "this position was allocated less than 47 hours ago",
+  CooldownActive: "this position was allocated too recently: the wait after its last allocation has not ended",
   ChainAllocationMismatch: "the shares don't add up to this position's whole Base amount (it may have changed; reload and try again)",
   GaugesNotStrictlyAscending: "the gauge list was out of order",
   ZeroAllocation: "a gauge was given zero power",

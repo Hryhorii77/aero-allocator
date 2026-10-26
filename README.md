@@ -58,7 +58,7 @@ cd web && npm install && npm run dev
 ```
 
 Open http://localhost:3000. `web/` imports the engine as compiled `dist/`, so rebuild the root after changing `src/`. Checks: `npm run
-typecheck`, `npm test` and `npm run build` in the root and in `web/`, plus `npx tsx scripts/audit-gate.ts .` and `... web` (CI runs all of them; the audit gate fails on any advisory except the one accepted zod finding it lists). Node 22 or newer.
+typecheck`, `npm test` and `npm run build` in the root and in `web/` (plus `npm run lint` in `web/`), and `npx tsx scripts/audit-gate.ts .` and `... web` (CI runs all of them; the audit gate fails on any advisory except the one accepted zod finding it lists). Node 22 or newer.
 
 History is kept by Vercel Cron: six crons (one per chain, `web/vercel.json`) call `/api/gauge-fees/ingest` every 30 minutes, which
 extends the fee record (4 days), takes a weight snapshot (3 days) and, once a UTC day has finished, adds it to the daily record

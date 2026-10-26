@@ -5,7 +5,7 @@ import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContr
 import { simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { allocateAbi, allocateArgs, explainAllocateError, planReturnAll } from "@/lib/allocate";
-import { SAERO, type SaeroPosition } from "@/lib/saero";
+import { DEFAULT_COOLDOWN_SEC, SAERO, type SaeroPosition, waitHours } from "@/lib/saero";
 import { BODY, btn, chip, LINK, NOTE } from "./ui";
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -16,7 +16,7 @@ const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 
  * naming new gauges. Same safety as allocating: simulated on-chain first, nothing is sent if the contract would reject it.
  * Checked on a fork of Base with a real position: it respects the 47-hour wait, returns the full amount to idle, and restarts the wait.
  */
-export function SaeroReturn({ position, cooldownReady }: { position: SaeroPosition; cooldownReady: boolean }) {
+export function SaeroReturn({ position, cooldownReady, waitHours: hours = waitHours(DEFAULT_COOLDOWN_SEC) }: { position: SaeroPosition; cooldownReady: boolean; waitHours?: number }) {
   const { chainId, address } = useAccount();
   const { switchChain } = useSwitchChain();
   const { writeContract, data: hash, isPending: signing, error: sendError, reset } = useWriteContract();
@@ -61,7 +61,7 @@ export function SaeroReturn({ position, cooldownReady }: { position: SaeroPositi
     <div className="mt-3 rounded-lg border border-neutral-800 px-3 py-3">
       <p className={BODY}>
         Take all <span className="text-neutral-100">{fmt(amount)}</span> power of this position off its gauges and park it idle. It stops earning fees and
-        incentives, and the 47-hour wait starts again. You need this before withdrawing an expired lock or leaving a permanent stake; after the wait you
+        incentives, and the {hours}-hour wait starts again. You need this before withdrawing an expired lock or leaving a permanent stake; after the wait you
         can place idle power again with &ldquo;allocate…&rdquo;.
       </p>
       <p className={`mt-2 ${NOTE}`}>No ETH is needed on Base. The transaction is checked on-chain before your wallet is asked.</p>
