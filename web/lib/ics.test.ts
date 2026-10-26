@@ -20,6 +20,13 @@ describe("reminderIcs", () => {
     expect(ics).toContain(`UID:saero-15308-${READY}@aeroallocator.app`);
     expect(ics).toContain("DESCRIPTION:The 47-hour wait on sAERO position #15308 is over. Check the gauges and re-allocate: https://aeroallocator.app/#positions");
     expect(reminderIcs({ tokenId: "1", readyAtSec: READY, url: "u", nowSec: 0 })).not.toMatch(/[^\r]\n/);
-    expect(reminderIcs({ tokenId: "a,b;c", readyAtSec: READY, url: "u", nowSec: 0 })).toContain("SUMMARY:sAERO #a\\,b\;c can be");
+    expect(reminderIcs({ tokenId: "a,b;c", readyAtSec: READY, url: "u", nowSec: 0 })).toContain("SUMMARY:sAERO #a\\,b\\;c can be");
+  });
+});
+
+describe("reminderIcs escaping", () => {
+  it("escapes semicolons, commas and backslashes in text values", () => {
+    const ics = reminderIcs({ tokenId: "1", readyAtSec: READY, url: "https://x.test/?a=1;b=2,c\\d", nowSec: READY - 3600 });
+    expect(ics).toContain("a=1\\;b=2\\,c\\\\d");
   });
 });

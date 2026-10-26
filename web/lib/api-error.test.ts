@@ -16,7 +16,7 @@ describe("withApiErrorHandling", () => {
     });
     const res = await handler(new Request("http://localhost/api/test"));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "boom" });
+    expect(await res.json()).toEqual({ error: "internal error" });
   });
 
   it("logs a structured JSON line with route context on error", async () => {
@@ -40,6 +40,6 @@ describe("withApiErrorHandling", () => {
     });
     const res = await handler(new Request("http://localhost/api/test"));
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe("a plain string throw");
+    expect((await res.json()).error).toBe("internal error");
   });
 });

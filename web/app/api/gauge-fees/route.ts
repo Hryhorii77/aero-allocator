@@ -14,5 +14,5 @@ export const GET = withApiErrorHandling("gauge-fees", async (req: Request) => {
   const raw = new URL(req.url).searchParams.get("chain");
   const chainId = raw === null ? BASE_CHAIN.id : Number(raw);
   if (!FEE_CHAIN_IDS.includes(chainId)) return NextResponse.json({ error: "fee pace is not measured on this chain", supported: FEE_CHAIN_IDS }, { status: 400 });
-  return NextResponse.json(await getGaugeFees(chainId));
+  return NextResponse.json(await getGaugeFees(chainId), { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
 });
