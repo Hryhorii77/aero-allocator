@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { usd } from "@/lib/format";
 import { DISPLAY_PRESET } from "@/lib/protocol";
-import { getGauges } from "@/lib/gauges";
+import { gaugeLabel, getGauges } from "@/lib/gauges";
 import { getGaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay } from "@/lib/gauge-yield";
 import { bestSplit } from "@/lib/split";
@@ -44,10 +44,11 @@ function card(c: Palette, big: string, sub: string, foot: string, maxAge: number
 async function saeroCard(c: Palette, amount: number) {
   const [list, fees] = await Promise.all([getGauges(BASE_CHAIN.id), getGaugeFees(BASE_CHAIN.id)]);
   const ranked = rankByUsdPerDay(list.gauges, fees.fees, amount);
-  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
+  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
   const sAero = `${amount.toLocaleString("en-US")} sAERO`;
   if (!split) return noNumberCard(c, 300);
-  const where = split.parts.slice(0, 3).map((p) => `${p.symbol} ${Math.round(p.pct)}%`).join(" · ");
+  // Two named gauges at most: the pool kind ("CL100") makes each name longer, and the footer line must not run into the site name.
+  const where = split.parts.slice(0, 2).map((p) => `${p.symbol} ${Math.round(p.pct)}%`).join(" · ");
   return card(c, usd(split.usdPerDay), `per day, best split of ${sAero} on Base`, where, 300);
 }
 

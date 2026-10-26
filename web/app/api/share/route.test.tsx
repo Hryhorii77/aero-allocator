@@ -5,7 +5,7 @@ const gauges = vi.hoisted(() => ({
   getGauges: vi.fn(async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges: [{ gauge: "0x0000000000000000000000000000000000000001", pool: "0x0000000000000000000000000000000000000002", symbol: "A/B", weight: 200_000, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 }] })),
   getGaugeFees: vi.fn(async () => ({ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [{ gauge: "0x0000000000000000000000000000000000000001", feesUsdPerDay: 1000, windowHours: 30 }] })),
 }));
-vi.mock("@/lib/gauges", () => ({ getGauges: gauges.getGauges }));
+vi.mock("@/lib/gauges", () => ({ getGauges: gauges.getGauges, gaugeLabel: (g: { symbol: string; poolType?: string }) => (g.poolType ? `${g.symbol} · ${g.poolType}` : g.symbol) }));
 vi.mock("@/lib/gauge-fees-read", () => ({ getGaugeFees: gauges.getGaugeFees }));
 
 import { GET } from "./route";

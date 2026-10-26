@@ -45,7 +45,7 @@ export function SaeroPage() {
       <SaeroPositions />
       <UpgradeChecklist />
       <ChangelogPanel />
-      <SiteFooter snapshotAt={Date.now()} />
+      <SiteFooter />
     </main>
   );
 }
