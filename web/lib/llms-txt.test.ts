@@ -9,6 +9,13 @@ describe("llmsTxt", () => {
     expect(t).toContain(`https://aeroallocator.app/api/v1/position?tokenId=<id> or ?address=0x… ($${POSITION_PRICE_USD.toFixed(2)})`);
     expect(t).toContain(`https://aeroallocator.app/api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6> ($${ALLOCATE_PLAN_PRICE_USD.toFixed(2)})`);
   });
+  it("points to the OpenAPI spec and the two skills, and lists the token-prices read", () => {
+    expect(t).toContain("https://aeroallocator.app/openapi.json");
+    expect(t).toMatch(/saero-allocator-automator/);
+    expect(t).toMatch(/veaero-to-saero-upgrade/);
+    expect(t).toMatch(/\/api\/token-prices/);
+    expect(t).toMatch(/cooldownSec/);
+  });
   it("says what is free, that rejected calls are not charged, and that nothing is signed", () => {
     expect(t).toMatch(/\/api\/gauges\?chain=8453/);
     expect(t).toMatch(/never charged/);
