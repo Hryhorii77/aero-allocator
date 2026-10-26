@@ -38,7 +38,7 @@ function sortValue(l: Line, key: SortKey): number {
 
 function Th({ children, sortKey, active, onSort, className = "" }: { children: string; sortKey?: SortKey; active?: boolean; onSort?: (k: SortKey) => void; className?: string }) {
   return (
-    <th scope="col" aria-sort={active ? "descending" : undefined} className={`px-2 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 ${className}`}>
+    <th scope="col" aria-sort={active ? "descending" : undefined} className={`px-2 py-2 text-xs font-medium uppercase tracking-wide text-neutral-400 ${className}`}>
       {sortKey && onSort ? (
         <button type="button" onClick={() => onSort(sortKey)} className={`uppercase tracking-wide hover:text-neutral-200 ${active ? "text-sky-400" : ""}`}>
           {children}
@@ -147,7 +147,7 @@ export function GaugeTable() {
     <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>
         Where your sAERO earns the most on {chainName}
-        {data ? <span className="font-normal text-neutral-500"> · {data.gauges.length} gauges</span> : ""}
+        {data ? <span className="font-normal text-neutral-400"> · {data.gauges.length} gauges</span> : ""}
       </h2>
       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="chain">
         {AERO_CHAINS.map((c) => (
@@ -195,7 +195,7 @@ export function GaugeTable() {
         <>
           {flows && flows.newIncentives.length > 0 && (
             <p className="mt-3 text-sm leading-relaxed text-neutral-400">
-              <span className="text-neutral-500">New incentives, last day: </span>
+              <span className="text-neutral-400">New incentives, last day: </span>
               {flows.newIncentives.slice(0, 4).map((n, i) => (
                 <span key={n.gauge}>
                   {i > 0 ? ", " : ""}
@@ -207,7 +207,7 @@ export function GaugeTable() {
           )}
           {flows && movers && (movers.gaining.length > 0 || movers.losing.length > 0) && (
             <p className="mt-3 text-sm leading-relaxed text-neutral-400">
-              <span className="text-neutral-500">Power moving, last {Math.round(flows.spanHours)} h: </span>
+              <span className="text-neutral-400">Power moving, last {Math.round(flows.spanHours)} h: </span>
               {movers.gaining.length > 0 && (
                 <>
                   gaining{" "}

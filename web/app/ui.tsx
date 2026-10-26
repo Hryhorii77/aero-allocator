@@ -43,7 +43,7 @@ export function btn(variant: Variant = "secondary", size: Size = "md"): string {
 export const H2 = "text-base font-semibold text-neutral-100";
 export const LEAD = "text-base leading-relaxed text-neutral-400";
 export const BODY = "text-sm leading-relaxed text-neutral-300";
-export const NOTE = "text-xs leading-relaxed text-neutral-500";
+export const NOTE = "text-xs leading-relaxed text-neutral-400";
 export const NUM = "font-mono tabular-nums";
 
 /** Text input: 16px on phones (no iOS zoom), 14px from `sm`, red border when `invalid`. */
