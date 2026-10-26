@@ -50,6 +50,8 @@ const res = await fetchWithPayment("https://aeroallocator.app/api/v1/position?to
 const data = await res.json();
 ```
 
+**Automating it:** the companion skill `skills/saero-allocator-automator/` is a playbook and two small scripts for an agent that re-allocates a position when it is worth it: fixed rules (wait over, real and steady gain, never a one-off fee burst), the plan checked before it is handed to the owner's wallet, and no signing in the skill.
+
 ## Example prompts
 
 - "Which Aero gauges pay the most per day for 10,000 sAERO right now, and how steady is each one's fee pace?"
