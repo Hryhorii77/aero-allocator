@@ -35,6 +35,14 @@ describe("UpgradeChecklist", () => {
     expect(screen.getByRole("link", { name: /Upgrade Hub/i })).toHaveAttribute("href", "https://aero.xyz/aero-upgrade/");
   });
 
+  it("carries no launch dates, which have passed", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 26, 12));
+    const { container } = render(<UpgradeChecklist />);
+    await screen.findAllByRole("listitem");
+    expect(container.textContent).not.toMatch(/21 Oct|22 Oct|closes|Opens/);
+    expect(screen.getByText(/reset any votes still on it/)).toBeInTheDocument();
+  });
+
   it("is still there after the launch instant (when people actually upgrade) and gone a week later", async () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 22, 0, 5));
     const { container, unmount } = render(<UpgradeChecklist />);
