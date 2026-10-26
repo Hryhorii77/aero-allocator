@@ -2,7 +2,7 @@ import { createPublicClient, fallback, http, parseAbi, type Address } from "viem
 import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
 import { AERO_CHAINS, BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
-import { SAERO } from "./saero";
+import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi } from "./saero";
 
 // Gauge list for Aero on Base (the new system): FactoryRegistry -> gaugeFactories -> factoryToGauges, so no
 // event scans are needed. Contract semantics are from Dromos-Labs/metadex-public natspec:
@@ -120,6 +120,8 @@ export interface GaugeList {
   generatedAt: number;
   totalWeight: number;
   gauges: GaugeRow[];
+  /** The wait between allocations of one position, seconds, read from Aero's Base leaf voter (Base list only; callers fall back to 47 h). */
+  cooldownSec?: number;
 }
 
 /** Turns raw per-gauge reads into rows, heaviest first, with each gauge's share of the total. */
@@ -238,7 +240,15 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
     };
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);
-  return { chainId: cfg.id, generatedAt: nowSec * 1000, totalWeight, gauges: rows };
+  // The wait belongs to the Base leaf voter; the other chains' lists leave it out.
+  const cooldownSec =
+    cfg.id === BASE_CHAIN.id
+      ? await c
+          .readContract({ address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "allocationCooldown" })
+          .then(Number)
+          .catch(() => DEFAULT_COOLDOWN_SEC)
+      : undefined;
+  return { chainId: cfg.id, generatedAt: nowSec * 1000, totalWeight, gauges: rows, ...(cooldownSec !== undefined ? { cooldownSec } : {}) };
 }
 
 // One read of ~270 gauges costs a few dozen RPC multicalls, so share it across callers for a minute.

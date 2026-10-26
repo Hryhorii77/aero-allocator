@@ -10,9 +10,9 @@ import { projectRange } from "@/lib/projection";
 import { bestSplit } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
 import { ago } from "@/lib/ago";
+import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
 import { NOTE, NUM } from "./ui";
 
-const LOCK_HOURS = 47;
 /** "27%" for ordinary figures, "1.2k%" for the absurd ones a tiny gauge can show. */
 export const fmtApr = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k%` : `${n.toFixed(n < 10 ? 1 : 0)}%`);
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -57,7 +57,8 @@ function CrossChainNote({ chainId, gauges, chainName }: { chainId: number; gauge
  * the next, so the best answer is usually several), how that compares with going all-in on the top gauge, what it adds up
  * to over the 47-hour lock, and how much history each estimate rests on.
  */
-export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; chainName?: string }) {
+export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; chainName?: string; cooldownSec?: number }) {
+  const lockHours = waitHours(cooldownSec ?? DEFAULT_COOLDOWN_SEC);
   const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount), [gauges, fees, amount]);
   const split = useMemo(
@@ -83,7 +84,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: Ga
           value={gain >= 0.5 ? `+${gain.toFixed(1)}%` : "same"}
           label={gain >= 0.5 ? "more than putting it all in the top gauge" : "as putting it all in the top gauge"}
         />
-        <Card value={`$${usd2((split.usdPerDay * LOCK_HOURS) / 24)}`} label={`over the ${LOCK_HOURS} h lock before you can move it`} />
+        <Card value={`$${usd2((split.usdPerDay * lockHours) / 24)}`} label={`over the ${lockHours} h lock before you can move it`} />
         <Card value={conf} label={spiky ? "a gauge in this split is releasing far more fees than usual right now; the range below counts it at its usual level" : `how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
       </div>
       <p className="mt-3 text-sm text-neutral-300">

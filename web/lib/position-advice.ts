@@ -2,7 +2,7 @@ import type { GaugeList } from "./gauges";
 import { gaugeLabel } from "./gauges";
 import type { GaugeFees } from "./gauge-fees-read";
 import { paceConfidence, rankByUsdPerDay, type YieldRow } from "./gauge-yield";
-import { cooldownState, type CooldownState, type SaeroPosition } from "./saero";
+import { cooldownState, waitHours, type CooldownState, type SaeroPosition } from "./saero";
 import { currentLowUsdPerDay, projectRange } from "./projection";
 import { bestSplit, currentUsdPerDay, type Split } from "./split";
 
@@ -50,6 +50,8 @@ export interface Analysis {
   gainLowUsdPerDay: number | null;
   /** The best split's own low case, USD/day (what idle power would earn at the least); null with no best split. */
   bestLowUsdPerDay: number | null;
+  /** The wait after any allocation, in whole hours, as the texts say it. */
+  cooldownHours: number;
   /** Hours of fee history behind the weakest gauge the best split uses (0 when there is none). */
   windowHours: number;
   confidence: "thin" | "fair" | "solid" | null;
@@ -77,6 +79,7 @@ export function analysePosition(args: {
 }): Analysis {
   const { position, current, gauges: list, fees, cooldownSec, nowSec } = args;
   const power = position.votingPower > 0 ? position.votingPower : position.staked;
+  const hours = waitHours(cooldownSec);
   const cooldown = cooldownState(position.lastAllocatedSec, cooldownSec, nowSec);
   const canActNow = cooldown.ready;
   const readyAtSec = cooldown.ready ? null : cooldown.readyAtSec;
@@ -122,15 +125,15 @@ export function analysePosition(args: {
   } else if (worthSwitching(gain, nowUsd) && windowHours < 6) {
     advice = {
       action: "unknown",
-      reason: `The best split looks about $${gain.toFixed(2)}/day better, but it rests on under 6 hours of fee history, too thin to recommend moving (every allocation restarts a 47-hour wait).`,
+      reason: `The best split looks about $${gain.toFixed(2)}/day better, but it rests on under 6 hours of fee history, too thin to recommend moving (every allocation restarts a ${hours}-hour wait).`,
       canActNow,
       readyAtSec,
     };
   } else if (worthSwitching(gain, nowUsd)) {
     advice = { action: "switch", reason: `The best split earns about $${gain.toFixed(2)}/day more than where it sits.`, canActNow, readyAtSec };
   } else {
-    advice = { action: "stay", reason: "Moving would not earn enough more to be worth the 47-hour wait that follows an allocation.", canActNow, readyAtSec };
+    advice = { action: "stay", reason: `Moving would not earn enough more to be worth the ${hours}-hour wait that follows an allocation.`, canActNow, readyAtSec };
   }
 
-  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, ranked, gainUsdPerDay: gain, gainLowUsdPerDay: gainLow, bestLowUsdPerDay: bestLow, advice, windowHours, confidence: best ? paceConfidence(windowHours) : null };
+  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, ranked, gainUsdPerDay: gain, gainLowUsdPerDay: gainLow, bestLowUsdPerDay: bestLow, advice, cooldownHours: hours, windowHours, confidence: best ? paceConfidence(windowHours) : null };
 }

@@ -55,8 +55,8 @@ export async function handleAllocatePlan(req: NextRequest): Promise<NextResponse
 
   const warnings: string[] = [];
   if (!simulation.ok) warnings.push(`Simulation failed: ${simulation.reason}.`);
-  if (!analysis.cooldown.ready) warnings.push(`The 47-hour wait ends ${iso(analysis.cooldown.readyAtSec)}; the call is rejected until then.`);
-  if (analysis.advice.action === "stay") warnings.push("This position already earns about as much as the best split; sending this restarts the 47-hour wait for little gain.");
+  if (!analysis.cooldown.ready) warnings.push(`The ${analysis.cooldownHours}-hour wait ends ${iso(analysis.cooldown.readyAtSec)}; the call is rejected until then.`);
+  if (analysis.advice.action === "stay") warnings.push(`This position already earns about as much as the best split; sending this restarts the ${analysis.cooldownHours}-hour wait for little gain.`);
   if (analysis.confidence === "thin") warnings.push("The fee pace behind this split rests on under 6 hours of history, so it can move a lot.");
 
   const chainTotal = plan.chainTotal;
@@ -88,7 +88,7 @@ export async function handleAllocatePlan(req: NextRequest): Promise<NextResponse
     warnings,
     notes: [
       "Unsigned: sign and send `transaction` from `sendFrom` on Base. Nothing here holds keys or sends anything.",
-      "allocate() replaces the position's whole Base distribution and starts a new 47-hour wait before the next change.",
+      `allocate() replaces the position's whole Base distribution and starts a new ${analysis.cooldownHours}-hour wait before the next change.`,
       "Amounts are in base units (18 decimals); the split is sized for the position's voting power. Estimates, not guarantees.",
       "Base only. Sending power to other chains is not offered.",
     ],
