@@ -115,7 +115,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     return () => {
       cancelled = true;
     };
-  }, [open, rows, position.staked, position.votingPower, position.tokenId]);
+  }, [open, rows, position]);
 
   const picks = useMemo(
     () =>

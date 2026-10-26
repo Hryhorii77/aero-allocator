@@ -8,8 +8,8 @@ const stamp = (sec: number) => new Date(sec * 1000).toISOString().replace(/[-:]/
  * A one-event calendar file: a short slot starting when a position's wait ends, with an alert at that moment. Made in the browser
  * from numbers already on the page, so nothing about the position or the wallet is sent anywhere.
  */
-export function reminderIcs(opts: { tokenId: string; readyAtSec: number; url: string; nowSec: number }): string {
-  const { tokenId, readyAtSec, url, nowSec } = opts;
+export function reminderIcs(opts: { tokenId: string; readyAtSec: number; url: string; nowSec: number; waitHours?: number }): string {
+  const { tokenId, readyAtSec, url, nowSec, waitHours } = opts;
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -22,7 +22,7 @@ export function reminderIcs(opts: { tokenId: string; readyAtSec: number; url: st
     `DTSTART:${stamp(readyAtSec)}`,
     `DTEND:${stamp(readyAtSec + 15 * 60)}`,
     `SUMMARY:${esc(`sAERO #${tokenId} can be re-allocated`)}`,
-    `DESCRIPTION:${esc(`The 47-hour wait on sAERO position #${tokenId} is over. Check the gauges and re-allocate: ${url}`)}`,
+    `DESCRIPTION:${esc(`The ${waitHours ? `${waitHours}-hour wait` : "wait"} on sAERO position #${tokenId} is over. Check the gauges and re-allocate: ${url}`)}`,
     `URL:${url}`,
     "BEGIN:VALARM",
     "ACTION:DISPLAY",

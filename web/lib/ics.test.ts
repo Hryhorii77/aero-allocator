@@ -5,7 +5,7 @@ import { reminderIcs } from "./ics";
 const READY = Date.UTC(2026, 9, 25, 16, 50, 51) / 1000;
 
 describe("reminderIcs", () => {
-  const ics = reminderIcs({ tokenId: "15308", readyAtSec: READY, url: "https://aeroallocator.app/#positions", nowSec: READY - 3600 });
+  const ics = reminderIcs({ tokenId: "15308", readyAtSec: READY, url: "https://aeroallocator.app/#positions", nowSec: READY - 3600, waitHours: 47 });
   it("is a calendar with one event starting when the wait ends, for 15 minutes, with an alert at the start", () => {
     expect(ics.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
@@ -21,6 +21,13 @@ describe("reminderIcs", () => {
     expect(ics).toContain("DESCRIPTION:The 47-hour wait on sAERO position #15308 is over. Check the gauges and re-allocate: https://aeroallocator.app/#positions");
     expect(reminderIcs({ tokenId: "1", readyAtSec: READY, url: "u", nowSec: 0 })).not.toMatch(/[^\r]\n/);
     expect(reminderIcs({ tokenId: "a,b;c", readyAtSec: READY, url: "u", nowSec: 0 })).toContain("SUMMARY:sAERO #a\\,b\\;c can be");
+  });
+});
+
+describe("reminderIcs wait", () => {
+  it("names the wait it is given and says just 'the wait' when it is not", () => {
+    expect(reminderIcs({ tokenId: "1", readyAtSec: READY, url: "u", nowSec: 0, waitHours: 24 })).toContain("DESCRIPTION:The 24-hour wait on sAERO position #1 is over.");
+    expect(reminderIcs({ tokenId: "1", readyAtSec: READY, url: "u", nowSec: 0 })).toContain("DESCRIPTION:The wait on sAERO position #1 is over.");
   });
 });
 

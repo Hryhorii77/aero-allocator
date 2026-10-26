@@ -5,7 +5,7 @@ import { formatEther } from "viem";
 import type { CrossChainFee } from "@/lib/allocate-fee";
 import type { GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
+import { aprPct, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { projectRange } from "@/lib/projection";
 import { bestSplit } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
@@ -15,7 +15,6 @@ import { NOTE, NUM } from "./ui";
 
 /** "27%" for ordinary figures, "1.2k%" for the absurd ones a tiny gauge can show. */
 export const fmtApr = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k%` : `${n.toFixed(n < 10 ? 1 : 0)}%`);
-const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Card({ value, label, tone }: { value: string; label: string; tone?: "good" }) {
@@ -100,7 +99,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }:
         <p className="mt-1 text-sm text-neutral-300">
           Range: <span className={`text-neutral-100 ${NUM}`}>${usd2(range.lowUsdPerDay)}</span> to{" "}
           <span className={`text-neutral-100 ${NUM}`}>${usd2(range.paceUsdPerDay)}</span> a day (about ${usd2(range.lowUsdPerDay * 30)} to ${usd2(range.paceUsdPerDay * 30)} over 30 days).
-          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace (or at a gauge's usual level when its pace is a burst); incentives stay as they are. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
+          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace (or at a gauge&rsquo;s usual level when its pace is a burst); incentives stay as they are. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
         </p>
       )}
       {fees.generatedAt > 0 && <p className={`mt-1 ${NOTE}`}>Fee figures read {ago(fees.generatedAt)}.</p>}

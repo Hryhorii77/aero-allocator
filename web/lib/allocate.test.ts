@@ -52,18 +52,18 @@ describe("encodeAllocate", () => {
     expect(tx.value).toBe(0n);
     const { functionName, args } = decodeFunctionData({ abi: allocateAbi, data: tx.data });
     expect(functionName).toBe("allocate");
-    const [id, chains, gaugesD, refund] = args as readonly [bigint, any[], any[], string];
+    const [id, chains, gaugesD, refund] = args as readonly [bigint, readonly Record<string, bigint>[], readonly { chainId: bigint; gauges: readonly { allocated: bigint }[] }[], string];
     expect(id).toBe(6045n);
     expect(chains).toEqual([{ chainId: 8453n, delta: 62n * E18, gasLimit: 0n, value: 0n }]);
     expect(gaugesD).toHaveLength(1);
     expect(gaugesD[0].chainId).toBe(8453n);
-    expect(gaugesD[0].gauges.reduce((a: bigint, g: any) => a + g.allocated, 0n)).toBe(62n * E18);
+    expect(gaugesD[0].gauges.reduce((a, g) => a + g.allocated, 0n)).toBe(62n * E18);
     expect(refund.toLowerCase()).toBe(OWNER);
   });
   it("sends no chain dispatch when nothing is parked", () => {
     const plan = planAllocation({ tokenId: 1n, parked: 0n, onBase: 50n, picks: [{ gauge: A, pct: 100 }] });
     const { args } = decodeFunctionData({ abi: allocateAbi, data: encodeAllocate(plan, OWNER).data });
-    expect((args as any)[1]).toEqual([]);
+    expect((args as readonly unknown[])[1]).toEqual([]);
   });
 });
 
@@ -95,7 +95,7 @@ describe("return to idle", () => {
 describe("explainAllocateError", () => {
   const wrap = (name: string) => ({ shortMessage: "reverted", cause: { cause: { data: { errorName: name } } } });
   it("names the Voter's known rejections in plain words, found anywhere down the error chain", () => {
-    expect(explainAllocateError(wrap("CooldownActive"))).toMatch(/less than 47 hours ago/);
+    expect(explainAllocateError(wrap("CooldownActive"))).toMatch(/allocated too recently.*wait after its last allocation has not ended/);
     expect(explainAllocateError(wrap("ChainAllocationMismatch"))).toMatch(/don't add up/);
     expect(explainAllocateError(wrap("StakeExpired"))).toMatch(/expired/);
   });

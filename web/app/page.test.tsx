@@ -5,8 +5,6 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "@/lib/wagmi";
 import Page from "./page";
 
-const jsonResponse = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
-
 function renderPage() {
   return render(
     <WagmiProvider config={wagmiConfig}>
@@ -20,7 +18,7 @@ function renderPage() {
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   window.localStorage.clear();
-  fetchMock = vi.fn(async (url: string | URL) => {
+  fetchMock = vi.fn(async (_url: string | URL) => {
     return { ok: false, status: 500 } as Response;
   });
   vi.stubGlobal("fetch", fetchMock);

@@ -19,7 +19,7 @@ npm run dev                        # MCP server over stdio (tsx src/index.ts)
 npm run smoke                      # LIVE end-to-end check against Base mainnet
 ```
 
-`web/` (separate `package.json` and lockfile; run from `web/`): `npm run dev`, `npm test`, `npx tsc --noEmit`, `npm run build`.
+`web/` (separate `package.json` and lockfile; run from `web/`): `npm run dev`, `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`. Lint is ESLint 9 with `eslint-config-next` (flat config in `web/eslint.config.mjs`; Next 16 removed `next lint`); CI fails on errors only, and `react-hooks/set-state-in-effect` is a warning because the page uses the mounted-state pattern on purpose.
 
 Scripts (`scripts/*.ts`, run via `npm run backtest | epoch-reminder | realized-performance | lockers`) hit the live chain.
 

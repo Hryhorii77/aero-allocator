@@ -24,13 +24,13 @@ Chain: Base (8453). Amounts are sAERO voting power.
 
 A request with no payment gets HTTP 402 with the price and our payout address. Pay with any x402 client, then retry. A request that is rejected (400, 404, 422) is never charged. These need something the free reads can't give: a chain read keyed to one position, or ready-made calldata.
 
-- GET ${siteUrl}/api/v1/position?tokenId=<id> or ?address=0x… (${usd(POSITION_PRICE_USD)}) : a position's power, lock, idle vs allocated power, the 47-hour re-allocation wait, what it earns per day now versus the best split of gauges for its own size, and a stay / switch / allocate recommendation. A switch is only recommended on at least 6 hours of fee history.
+- GET ${siteUrl}/api/v1/position?tokenId=<id> or ?address=0x… (${usd(POSITION_PRICE_USD)}) : a position's power, lock, idle vs allocated power, the re-allocation wait (47 hours at launch, read live from the chain), what it earns per day now versus the best split of gauges for its own size, and a stay / switch / allocate recommendation. A switch is only recommended on at least 6 hours of fee history.
 - GET ${siteUrl}/api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6> (${usd(ALLOCATE_PLAN_PRICE_USD)}) : the unsigned allocate() transaction (to, data, value) for the best split of Base gauges, already simulated as the owner, with the cooldown and warnings. Sign and send it from the owner's wallet. Base only.
 
 ## Limits
 
 - Fee figures are a recent pace, not a promise; see feeHistoryHours and confidence in each response.
-- Every allocation restarts a 47-hour wait before the next change.
+- Every allocation restarts a wait before the next change (47 hours at launch; read live from the chain).
 - Sending power to other chains is not built.
 
 OpenAPI description of all of the above: ${siteUrl}/openapi.json

@@ -103,7 +103,9 @@ export function WalletModal({ installed, popular, recentId, onPick, onClose }: P
   // The parent re-renders on every wallet-state change; keeping the latest
   // onClose in a ref lets the effect below run once (focus once, one listener).
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     setMounted(true);

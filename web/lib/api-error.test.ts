@@ -35,7 +35,6 @@ describe("withApiErrorHandling", () => {
 
   it("stringifies a non-Error throw", async () => {
     const handler = withApiErrorHandling("test", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "a plain string throw";
     });
     const res = await handler(new Request("http://localhost/api/test"));

@@ -16,6 +16,7 @@ import {
   saeroLeafAbi,
   saeroVoterAbi,
   type SaeroPosition,
+  waitHours,
 } from "@/lib/saero";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { reminderIcs } from "@/lib/ics";
@@ -101,9 +102,9 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 /** Saves a calendar event for the moment a position's wait ends. Built here from numbers already on the page; nothing is sent anywhere. */
-function ReminderButton({ tokenId, readyAtSec }: { tokenId: bigint; readyAtSec: number }) {
+function ReminderButton({ tokenId, readyAtSec, waitHours: hours }: { tokenId: bigint; readyAtSec: number; waitHours: number }) {
   const save = () => {
-    const ics = reminderIcs({ tokenId: tokenId.toString(), readyAtSec, url: `${SITE_URL}/#positions`, nowSec: Math.floor(Date.now() / 1000) });
+    const ics = reminderIcs({ tokenId: tokenId.toString(), readyAtSec, url: `${SITE_URL}/#positions`, nowSec: Math.floor(Date.now() / 1000), waitHours: hours });
     const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -170,20 +171,21 @@ export function SaeroPositions() {
     autoFor.current = connected;
     setInput("");
     void load(connected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, connected]);
 
+  // The wait is read from the chain with the positions; until they are read, the 47 hours Aero launched with.
+  const lockHours = waitHours(result?.cooldownSec ?? DEFAULT_COOLDOWN_SEC);
   const costText = totalCostText(Object.values(costs));
   if (!live) return null;
   return (
     <section id="positions" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>Your sAERO positions</h2>
       <p className={`mt-1 ${NOTE}`}>
-        Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated 47 hours after its last
+        Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated {lockHours} hours after its last
         allocation.
       </p>
       <details className="mt-1">
-        <summary className={`cursor-pointer select-none ${NOTE}`}>Want to move more often than every 47 hours?</summary>
+        <summary className={`cursor-pointer select-none ${NOTE}`}>Want to move more often than every {lockHours} hours?</summary>
         <p className={`mt-1 ${NOTE}`}>
           The wait belongs to each position, not to your wallet, and a position that has never been allocated has no wait (checked on Base: its
           first allocation simulates cleanly). So holding your AERO as several separate positions lets you move one while the others wait. There
@@ -263,7 +265,7 @@ export function SaeroPositions() {
                     {!cd.ready && (
                       <>
                         {" · "}
-                        <ReminderButton tokenId={p.tokenId} readyAtSec={cd.readyAtSec} />
+                        <ReminderButton tokenId={p.tokenId} readyAtSec={cd.readyAtSec} waitHours={lockHours} />
                       </>
                     )}
                   </span>
@@ -285,7 +287,7 @@ export function SaeroPositions() {
                 {p.staked > 0 && connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
                   <>
                     <SaeroAllocate position={p} cooldownReady={cd.ready} />
-                    <SaeroReturn position={p} cooldownReady={cd.ready} />
+                    <SaeroReturn position={p} cooldownReady={cd.ready} waitHours={lockHours} />
                   </>
                 )}
               </li>
