@@ -2,9 +2,8 @@
 // 2026-10-22; Optimism is now one of its leaf chains, see aero-chains.ts). No "use client" here — these are plain values, safe
 // to import from both server (layout.tsx metadata) and client code.
 //
-// Only display strings and the (public, non-secret) chain object live here. Contract addresses are NOT duplicated — those come
-// from /api/protocol (see useProtocolAddresses in wallet.tsx), which reads the engine's PRESET server-side, so there is exactly
-// one source of truth for anything used in an on-chain transaction.
+// Only display strings and the (public, non-secret) chain object live here. The contract addresses the wallet flow signs against
+// are in saero.ts.
 import { base, type Chain } from "wagmi/chains";
 
 export type Protocol = "aerodrome";

@@ -1,7 +1,6 @@
 // Aero (the merged Aerodrome/Velodrome) went live on 2026-10-22 00:00 UTC. These are the Base contracts
 // Dromos Labs published in github.com/Dromos-Labs/metadex-public (deployment-addresses/root-base.json,
-// leaf-base.json), checked to have code on Base on 2026-10-22. They are the NEW system; the old Voter that
-// /api/protocol returns only serves the retired weekly vote.
+// leaf-base.json), checked to have code on Base on 2026-10-22.
 
 export const SAERO_CHAIN_ID = 8453;
 

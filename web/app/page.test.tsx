@@ -21,7 +21,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   window.localStorage.clear();
   fetchMock = vi.fn(async (url: string | URL) => {
-    if (String(url).includes("/api/protocol")) return jsonResponse({ protocol: "aerodrome", voterAddress: "0xvoter", veSugarAddress: "0xvesugar" });
     return { ok: false, status: 500 } as Response;
   });
   vi.stubGlobal("fetch", fetchMock);

@@ -1,37 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
-import { DISPLAY_PRESET, PROTOCOL, type Protocol } from "@/lib/protocol";
+import { DISPLAY_PRESET } from "@/lib/protocol";
 import { btn } from "./ui";
 import { WalletModal, readRecentConnectorId } from "./wallet-modal";
-
-interface ProtocolAddresses {
-  protocol: Protocol;
-  voterAddress: `0x${string}`;
-  veSugarAddress: `0x${string}`;
-}
-
-/** Fetches the vote/veNFT contract addresses from the server's PRESET (single source of truth). */
-export function useProtocolAddresses() {
-  return useQuery({
-    queryKey: ["protocol-addresses"],
-    queryFn: async (): Promise<ProtocolAddresses> => {
-      const res = await fetch("/api/protocol");
-      if (!res.ok) throw new Error(`/api/protocol: HTTP ${res.status}`);
-      const data: ProtocolAddresses = await res.json();
-      if (data.protocol !== PROTOCOL) {
-        console.warn(
-          `NEXT_PUBLIC_AERO_PROTOCOL (${PROTOCOL}) doesn't match the server's AERO_PROTOCOL (${data.protocol}) — ` +
-            "set both to the same value for this deployment.",
-        );
-      }
-      return data;
-    },
-    staleTime: Infinity,
-  });
-}
 
 // wagmi's injected() connector announces every EIP-6963 provider the browser
 // exposes, including wallets for other chains (Cosmos, ICP, Tron, Tezos, …)

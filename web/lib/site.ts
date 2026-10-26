@@ -14,7 +14,7 @@ const IMAGE_ALT = "What your sAERO earns per day in the best split of Aero gauge
  * Bump this whenever the share card's look or text changes. X and other link previews keep an image by its address, so a
  * new number is what makes them fetch the new card (posts that already unfurled keep what they showed).
  */
-export const SHARE_CARD_VERSION = 2;
+export const SHARE_CARD_VERSION = 3;
 const SHARE_IMAGE = `/api/share?v=${SHARE_CARD_VERSION}`;
 
 /**

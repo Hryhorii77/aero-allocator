@@ -365,7 +365,7 @@ export function GaugeTable() {
                 are the pace of the last ~{Math.round(fees.windowHours)} hours, not a promise (&ldquo;thin&rdquo; means under 6 hours of history); a gauge with no fee history or under {fmt(MIN_RANK_WEIGHT)} power
                 shows a dash. {fees.fees.length} of {data.gauges.length} gauges have a measurable pace.
                 {fees.aeroUsd ? (
-                  <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). Aero&rsquo;s own APR uses its own method and can differ.</>
+                  <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). The amount is voting power; a lock shorter than the maximum holds more AERO than power, so APR on the AERO you staked is lower. Aero&rsquo;s own APR uses its own method and can differ.</>
                 ) : null}{" "}
                 Aero advises judging allocation over a long horizon, because results over a window as short as 47 hours are noisy.
               </>
