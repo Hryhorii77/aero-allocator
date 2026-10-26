@@ -4,7 +4,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { aprPct, MIN_RANK_WEIGHT, paceConfidence, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
+import { lowUsdPerDayOf } from "@/lib/projection";
 import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
@@ -16,7 +17,8 @@ import { btn, chip, H2, input, NOTE, NUM } from "./ui";
 const SHOWN = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const PACE_TONE = { thin: "text-amber-500", fair: "text-neutral-400", solid: "text-emerald-400" } as const;
+const PACE_TONE = { thin: "text-amber-500", fair: "text-neutral-400", solid: "text-emerald-400", spiky: "text-amber-500" } as const;
+const SPIKE_TITLE = "The recent fee pace is a burst far above this gauge's usual level, so the APR is shown as a range from the usual level up to the burst";
 
 type SortKey = "you" | "fees" | "incentives" | "power" | "steady";
 interface Line {
@@ -265,11 +267,14 @@ export function GaugeTable() {
               </thead>
               <tbody>
                 {shown.map(({ g, y }) => {
-                  const conf = y ? paceConfidence(y.windowHours) : null;
+                  const conf = y ? paceLabel(y) : null;
                   const steady = y ? steadyLabel(y) : null;
                   const fresh = newByGauge.get(g.gauge.toLowerCase());
                   const incPerDay = g.incentivesUsdPerWeek / 7;
                   const apr = y ? aprPct(y.usdPerDay, amount, fees?.aeroUsd) : null;
+                  // A spike shows its APR as a range: the gauge's usual level up to the burst.
+                  const aprLow = y?.spike && apr !== null ? aprPct(lowUsdPerDayOf(y), amount, fees?.aeroUsd) : null;
+                  const aprText = apr === null ? null : aprLow !== null && aprLow < apr ? `${fmtApr(aprLow)}–${fmtApr(apr)}` : fmtApr(apr);
                   const flow: Flow | undefined = flowByGauge.get(g.gauge.toLowerCase());
                   return (
                     <Fragment key={g.gauge}>
@@ -302,10 +307,10 @@ export function GaugeTable() {
                           </button>
                         )}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
-                          {apr !== null ? `${fmtApr(apr)} APR · ` : ""}
+                          {aprText !== null ? `${aprText} APR · ` : ""}
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
                           {fmt(g.weight)} power
-                          {conf ? <> · <span className={PACE_TONE[conf]}>{conf} pace</span></> : ""}
+                          {conf ? <> · <span className={PACE_TONE[conf]}>{conf === "spiky" ? "spiky pace" : `${conf} pace`}</span></> : ""}
                           {steady ? ` · ${steady.kind === "incentives" ? "paid by incentives" : `steady ${steady.paying}/${steady.buckets}`}` : ""}
                           {flow ? <> · <span className={flow.sharePctChange >= 0.5 ? "text-sky-400" : ""}>{formatFlow(flow.sharePctChange)} power</span></> : ""}
                         </div>
@@ -323,12 +328,12 @@ export function GaugeTable() {
                           <span className="text-neutral-300">{g.sharePct.toFixed(2)}%</span>
                         )}
                       </td>
-                      {showApr && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{apr === null ? "–" : fmtApr(apr)}</td>}
+                      {showApr && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`} title={y?.spike ? SPIKE_TITLE : undefined}>{aprText === null ? "–" : aprText}</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{y ? `$${fmt(y.feesUsdPerDay)}` : "–"}</td>}
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{incPerDay > 0 ? `$${fmt(incPerDay)}` : "–"}</td>
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{fmt(g.weight)}</td>
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-400 sm:table-cell ${NUM}`}>{g.sharePct.toFixed(2)}%</td>}
-                      {estimating && <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${conf ? PACE_TONE[conf] : "text-neutral-600"}`}>{conf ?? "–"}</td>}
+                      {estimating && <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${conf ? PACE_TONE[conf] : "text-neutral-600"}`} title={y?.spike ? SPIKE_TITLE : undefined}>{conf ?? "–"}</td>}
                       {estimating && (
                         <td className={`hidden px-2 py-2.5 text-right sm:table-cell ${NUM} ${steady && (steady.kind === "incentives" || steady.paying === steady.buckets) ? "text-neutral-200" : "text-neutral-400"}`} title={steady?.kind === "incentives" ? "Paid mostly by incentives, which stream at a fixed rate until their program ends" : "Complete half-days in which the gauge paid at least half its average in fees"}>
                           {steady ? (steady.kind === "incentives" ? "incentives" : `${steady.paying}/${steady.buckets}`) : "–"}

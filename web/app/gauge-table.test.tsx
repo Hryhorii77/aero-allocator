@@ -104,6 +104,27 @@ describe("GaugeTable", () => {
     expect(screen.queryByText(/APR/)).not.toBeInTheDocument();
   });
 
+  it("shows the APR as a range and calls the pace spiky when the pace is a burst above the gauge's usual level", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () =>
+          url.includes("gauge-fees")
+            ? { chainId: 8453, generatedAt: 0, windowHours: 48, aeroUsd: 0.75, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 48, spike: { typicalUsdPerDay: 100 } }] }
+            : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges },
+      })),
+    );
+    render(<GaugeTable />);
+    await screen.findByText(/per day, best split of your amount/);
+    // pace APR 96% (see the test above); at the usual level (a tenth of the fees) it is 9.6%
+    const row = screen.getAllByRole("row")[1];
+    expect(row).toHaveTextContent("9.6%–96%");
+    expect(row).toHaveTextContent("spiky");
+    expect(row).not.toHaveTextContent("solid");
+  });
+
   it("sorts by the column you click", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feeBuckets, steadiness, steadyScore } from "./fee-history";
+import { feeBuckets, spikeOf, steadiness, steadyScore } from "./fee-history";
 
 const T = "0x0000000000000000000000000000000000000001" as const;
 const price = () => ({ priceUsd: 1, decimals: 6 });
@@ -41,5 +41,22 @@ describe("steadiness", () => {
   it("sorts a gauge with no figure last", () => {
     expect(steadyScore({ buckets: 4, paying: 3 })).toBe(0.75);
     expect(steadyScore(null)).toBe(-1);
+  });
+});
+
+describe("spikeOf", () => {
+  const b = (...usd: number[]) => usd.map((u, i) => ({ t: i * 43200, usd: u }));
+  it("flags a pace three times the median half-day (scaled to a day) or more, and gives that usual level", () => {
+    // median half-day 100 -> $200 a day; a pace of $2,800 a day is 14x
+    expect(spikeOf(b(90, 100, 110, 100, 100, 1800, 1500), 2800)).toEqual({ typicalUsdPerDay: 200 });
+    expect(spikeOf(b(90, 100, 110, 100), 600)).toEqual({ typicalUsdPerDay: 200 });
+  });
+  it("does not flag an ordinary pace", () => {
+    expect(spikeOf(b(90, 100, 110, 100, 100, 120), 250)).toBeNull();
+    expect(spikeOf(b(90, 100, 110, 100), 599)).toBeNull();
+  });
+  it("says nothing with too little record, or when the usual half-day is empty (releases are rare)", () => {
+    expect(spikeOf(b(100, 100, 100), 5000)).toBeNull();
+    expect(spikeOf(b(0, 0, 0, 900, 0), 5000)).toBeNull();
   });
 });

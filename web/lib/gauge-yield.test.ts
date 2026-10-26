@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aprPct, MIN_RANK_WEIGHT, rankByUsdPerDay, steadyLabel, steadySortScore } from "./gauge-yield";
+import { aprPct, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 
 const row = (gauge: string, weight: number, inc = 0, activated = true): GaugeRow => ({
@@ -64,5 +64,22 @@ describe("steadyLabel", () => {
     expect(steadySortScore(y(100, 10, { buckets: 4, paying: 3 }))).toBe(0.75);
     expect(steadyLabel(y(100, 10))).toBeNull();
     expect(steadySortScore(y(100, 10))).toBe(-1);
+  });
+});
+
+describe("paceLabel", () => {
+  it("is spiky for a burst, otherwise how much history the pace rests on", () => {
+    expect(paceLabel({ windowHours: 48, spike: { typicalUsdPerDay: 100 } })).toBe("spiky");
+    expect(paceLabel({ windowHours: 48 })).toBe("solid");
+    expect(paceLabel({ windowHours: 10 })).toBe("fair");
+    expect(paceLabel({ windowHours: 2 })).toBe("thin");
+  });
+  it("passes a gauge's spike through the ranking", () => {
+    const rows = rankByUsdPerDay(
+      [row("0xa", 1_000_000)],
+      [{ gauge: "0xa" as `0x${string}`, feesUsdPerDay: 1000, windowHours: 48, spike: { typicalUsdPerDay: 100 } }],
+      1000,
+    );
+    expect(rows[0].spike).toEqual({ typicalUsdPerDay: 100 });
   });
 });

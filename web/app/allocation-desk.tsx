@@ -70,7 +70,8 @@ export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: Ga
   const gain = split.bestSingleUsdPerDay > 0 ? (split.usdPerDay / split.bestSingleUsdPerDay - 1) * 100 : 0;
   const byGauge = new Map(ranked.map((r) => [r.gauge.toLowerCase(), r]));
   const weakest = split.parts.reduce((h, p) => Math.min(h, byGauge.get(p.gauge.toLowerCase())?.windowHours ?? 0), Infinity);
-  const conf = paceConfidence(weakest);
+  const spiky = split.parts.some((p) => byGauge.get(p.gauge.toLowerCase())?.spike);
+  const conf = spiky ? "spiky" : paceConfidence(weakest);
   const range = projectRange(ranked, split);
   const lowShown = range.lowUsdPerDay < range.paceUsdPerDay - 0.005;
 
@@ -83,7 +84,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: Ga
           label={gain >= 0.5 ? "more than putting it all in the top gauge" : "as putting it all in the top gauge"}
         />
         <Card value={`$${usd2((split.usdPerDay * LOCK_HOURS) / 24)}`} label={`over the ${LOCK_HOURS} h lock before you can move it`} />
-        <Card value={conf} label={`how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
+        <Card value={conf} label={spiky ? "a gauge in this split is releasing far more fees than usual right now; the range below counts it at its usual level" : `how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
       </div>
       <p className="mt-3 text-sm text-neutral-300">
         Best split:{" "}
@@ -98,7 +99,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName }: { gauges: Ga
         <p className="mt-1 text-sm text-neutral-300">
           Range: <span className={`text-neutral-100 ${NUM}`}>${usd2(range.lowUsdPerDay)}</span> to{" "}
           <span className={`text-neutral-100 ${NUM}`}>${usd2(range.paceUsdPerDay)}</span> a day (about ${usd2(range.lowUsdPerDay * 30)} to ${usd2(range.paceUsdPerDay * 30)} over 30 days).
-          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace; incentives stay as they are. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
+          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace (or at a gauge's usual level when its pace is a burst); incentives stay as they are. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
         </p>
       )}
       {fees.generatedAt > 0 && <p className={`mt-1 ${NOTE}`}>Fee figures read {ago(fees.generatedAt)}.</p>}

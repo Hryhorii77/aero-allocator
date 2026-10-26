@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { YieldRow } from "./gauge-yield";
-import { currentLowUsdPerDay, lowFeeFactor, projectRange } from "./projection";
+import { currentLowUsdPerDay, lowFeeFactor, lowFeesUsdPerDay, lowUsdPerDayOf, projectRange } from "./projection";
 import type { Split } from "./split";
 
 const row = (o: Partial<YieldRow> & { gauge: string }): YieldRow => ({ symbol: "A/B", feesUsdPerDay: 100, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 1000, windowHours: 48, ...o }) as YieldRow;
@@ -47,5 +47,21 @@ describe("lowFeeFactor / currentLowUsdPerDay", () => {
     const low = currentLowUsdPerDay([{ gauge: "0xa", feesUsdPerDay: 100, incentivesUsdPerDay: 40, weight: 1000 }], [{ gauge: "0xa", pct: 100 }], 1000);
     expect(low).toBeCloseTo(45, 6);
     expect(currentLowUsdPerDay([], [{ gauge: "0xa", pct: 100 }], 1000)).toBe(0);
+  });
+});
+
+describe("a spiking gauge's low case", () => {
+  it("counts fees at the usual level, not the paying share, and never above the pace", () => {
+    expect(lowFeesUsdPerDay({ feesUsdPerDay: 2800, steady: { buckets: 6, paying: 6 }, spike: { typicalUsdPerDay: 400 } })).toBe(400);
+    expect(lowFeesUsdPerDay({ feesUsdPerDay: 300, spike: { typicalUsdPerDay: 400 } })).toBe(300);
+    expect(lowFeesUsdPerDay({ feesUsdPerDay: 100, steady: { buckets: 8, paying: 8 } })).toBe(100);
+  });
+  it("feeds the range, the current position and a single row", () => {
+    const rows = [row({ gauge: "0xa", feesUsdPerDay: 1000, incentivesUsdPerDay: 0, spike: { typicalUsdPerDay: 100 } })];
+    // amount 1000 into weight 1000: share 0.5; pace 500, low 50
+    const r = projectRange(rows, split([{ gauge: "0xa", amount: 1000, usdPerDay: 500 }]));
+    expect(r.lowUsdPerDay).toBeCloseTo(50, 6);
+    expect(currentLowUsdPerDay(rows, [{ gauge: "0xa", pct: 100 }], 1000)).toBeCloseTo(50, 6);
+    expect(lowUsdPerDayOf({ ...rows[0], sharePct: 50 })).toBeCloseTo(50, 6);
   });
 });
