@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { readContract, readContracts } from "wagmi/actions";
 import { getAddress, isAddress } from "viem";
@@ -20,7 +20,9 @@ import {
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { reminderIcs } from "@/lib/ics";
 import { SITE_URL } from "@/lib/site";
+import { totalCostText } from "@/lib/opportunity";
 import { EarnedFees } from "./earned-fees";
+import { PositionAdviceLine } from "./position-advice-line";
 import { SaeroAllocate } from "./saero-allocate";
 import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
@@ -127,6 +129,9 @@ export function SaeroPositions() {
   const [owner, setOwner] = useState<`0x${string}` | null>(null);
   const [result, setResult] = useState<{ positions: SaeroPosition[]; cooldownSec: number } | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  // What each position leaves on the table by staying, USD/day, reported by its advice line.
+  const [costs, setCosts] = useState<Record<string, number>>({});
+  const onCost = useCallback((tokenId: bigint, usdPerDay: number) => setCosts((prev) => (prev[tokenId.toString()] === usdPerDay ? prev : { ...prev, [tokenId.toString()]: usdPerDay })), []);
 
   useEffect(() => {
     setLive(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);
@@ -142,6 +147,7 @@ export function SaeroPositions() {
     const account = getAddress(raw.trim());
     setState("loading");
     setOwner(account);
+    setCosts({});
     try {
       setResult(await readSaeroPositions(account));
       setState("done");
@@ -150,6 +156,7 @@ export function SaeroPositions() {
     }
   };
 
+  const costText = totalCostText(Object.values(costs));
   if (!live) return null;
   return (
     <section id="positions" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
@@ -213,6 +220,7 @@ export function SaeroPositions() {
           first.
         </p>
       )}
+      {state === "done" && costText && <p className="mt-3 text-sm text-neutral-300">{costText}</p>}
       {state === "done" && result && result.positions.length > 0 && (
         <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2">
           {result.positions.map((p) => {
@@ -249,6 +257,7 @@ export function SaeroPositions() {
                     the key to withdraw it, and Aero manages the allocation (to allocate by hand, turn Autopilot off on Aero first).
                   </p>
                 )}
+                {p.staked > 0 && <PositionAdviceLine position={p} onCost={onCost} />}
                 {p.staked > 0 && <EarnedFees tokenId={p.tokenId} />}
                 {p.operator && (
                   <p className="mt-2 text-amber-500">

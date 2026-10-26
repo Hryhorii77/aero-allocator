@@ -98,7 +98,7 @@ describe("SaeroPositions", () => {
     let saved: Blob | null = null;
     const create = vi.fn((b: Blob) => ((saved = b), "blob:x"));
     Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
-    const fetchSpy = vi.fn();
+    const fetchSpy = vi.fn(async () => Promise.reject(new Error("offline")));
     vi.stubGlobal("fetch", fetchSpy);
     render(<SaeroPositions />);
     fireEvent.change(await screen.findByLabelText(/address to read/i), { target: { value: OWNER } });
@@ -114,7 +114,9 @@ describe("SaeroPositions", () => {
     const readyAt = NOW - 3600 + 169_200;
     expect(text).toContain(`DTSTART:${new Date(readyAt * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`);
     expect(text).toContain("sAERO #7 can be re-allocated");
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // Only the public gauge and fee reads go to the server; nothing about the owner or the position does.
+    const urls = (fetchSpy.mock.calls as unknown as string[][]).map((c) => String(c[0]));
+    expect(urls.every((u) => u === "/api/gauges" || u === "/api/gauge-fees")).toBe(true);
   });
 
   it("says there is nothing to allocate in a position with no AERO staked (e.g. an Autopilot withdrawal key) and offers no allocate buttons", async () => {
