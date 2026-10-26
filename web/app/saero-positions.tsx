@@ -130,8 +130,15 @@ export function SaeroPositions() {
   const [result, setResult] = useState<{ positions: SaeroPosition[]; cooldownSec: number } | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   // What each position leaves on the table by staying, USD/day, reported by its advice line.
-  const [costs, setCosts] = useState<Record<string, number>>({});
-  const onCost = useCallback((tokenId: bigint, usdPerDay: number) => setCosts((prev) => (prev[tokenId.toString()] === usdPerDay ? prev : { ...prev, [tokenId.toString()]: usdPerDay })), []);
+  const [costs, setCosts] = useState<Record<string, { costUsdPerDay: number; costLowUsdPerDay: number }>>({});
+  const onCost = useCallback(
+    (tokenId: bigint, cost: { costUsdPerDay: number; costLowUsdPerDay: number }) =>
+      setCosts((prev) => {
+        const old = prev[tokenId.toString()];
+        return old && old.costUsdPerDay === cost.costUsdPerDay && old.costLowUsdPerDay === cost.costLowUsdPerDay ? prev : { ...prev, [tokenId.toString()]: cost };
+      }),
+    [],
+  );
 
   useEffect(() => {
     setLive(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);

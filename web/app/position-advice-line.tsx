@@ -14,7 +14,7 @@ import { NOTE } from "./ui";
  * gauge and fee reads carry no address; where the position sits is read from the chain in this browser. Says nothing when any read
  * fails, so the card never shows a made-up number.
  */
-export function PositionAdviceLine({ position, onCost }: { position: SaeroPosition; onCost: (tokenId: bigint, usdPerDay: number) => void }) {
+export function PositionAdviceLine({ position, onCost }: { position: SaeroPosition; onCost: (tokenId: bigint, cost: { costUsdPerDay: number; costLowUsdPerDay: number }) => void }) {
   const [text, setText] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function PositionAdviceLine({ position, onCost }: { position: SaeroPositi
       const analysis = analysePosition({ position, current, gauges: g, fees: f, cooldownSec: DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
       const line = opportunityLine(analysis);
       setText(line.text);
-      onCost(position.tokenId, line.costUsdPerDay);
+      onCost(position.tokenId, { costUsdPerDay: line.costUsdPerDay, costLowUsdPerDay: line.costLowUsdPerDay });
     })().catch(() => {});
     return () => {
       cancelled = true;
