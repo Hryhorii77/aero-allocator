@@ -1,6 +1,6 @@
 ---
 name: aero-allocator
-description: Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), a sAERO position's stay / switch / allocate advice, and the unsigned allocate() transaction. Free read APIs plus two pay-per-call x402 endpoints (USDC on Base). Non-custodial: never holds keys, signs or sends. Estimates, not financial advice. A legacy MCP server for the retired weekly veAERO vote is kept in the repo.
+description: "Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), a sAERO position's stay / switch / allocate advice, and the unsigned allocate() transaction. Free read APIs plus two pay-per-call x402 endpoints (USDC on Base). Non-custodial: never holds keys, signs or sends. Estimates, not financial advice. A legacy MCP server for the retired weekly veAERO vote is kept in the repo."
 metadata:
   emoji: ✈️
   homepage: https://aeroallocator.app

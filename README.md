@@ -110,7 +110,15 @@ Two skills in `skills/`, for agents that act on a sAERO position. Neither signs 
 | [`skills/saero-allocator-automator`](skills/saero-allocator-automator/SKILL.md) | Once the wait is over, checks a position and re-allocates it only for a real, steady gain (never a one-off fee burst), checks the unsigned `allocate()` before handing it to the owner's wallet. `scripts/decide.mjs` holds the rules; `scripts/run.mjs` runs one pass. |
 | [`skills/veaero-to-saero-upgrade`](skills/veaero-to-saero-upgrade/SKILL.md) | Checks a wallet's old veAERO locks against Aero's migration contract (what each becomes, what blocks it) and, only after the owner confirms each lock, prepares the unsigned `approve` and `depositVeNFT`. An expired lock becomes liquid AERO, not a sAERO position; the upgrade is irreversible. |
 
-The root [`SKILL.md`](SKILL.md) is the overview of the APIs for agents.
+The root [`SKILL.md`](SKILL.md) is the overview of the APIs for agents. The skills are in this public repo, so no separate publishing is needed; install them with the [`skills`](https://www.npmjs.com/package/skills) CLI (the root skill hides the others unless you pass `--full-depth`):
+
+```bash
+npx skills add Hryhorii77/aero-allocator                                                  # the overview skill
+npx skills add Hryhorii77/aero-allocator --full-depth --skill saero-allocator-automator   # re-allocate when it is worth it
+npx skills add Hryhorii77/aero-allocator --full-depth --skill veaero-to-saero-upgrade     # check and prepare an upgrade
+```
+
+Review a skill before you use it: it runs with your agent's permissions.
 
 ## Paid API (x402)
 

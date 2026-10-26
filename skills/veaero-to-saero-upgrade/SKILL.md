@@ -1,6 +1,6 @@
 ---
 name: veaero-to-saero-upgrade
-description: Check a wallet's old veAERO locks against Aero's migration contract on Base and, only when the owner confirms, prepare the two unsigned transactions that upgrade a lock to sAERO. Shows what each lock becomes (an expired lock becomes liquid AERO, not a sAERO position), what blocks it (votes, Relay, restricted list), and what must be claimed first. Read-only: never signs or sends, and the upgrade is irreversible. Verified against Aero's public contracts and a fork of Base.
+description: "Check a wallet's old veAERO locks against Aero's migration contract on Base and, only when the owner confirms, prepare the two unsigned transactions that upgrade a lock to sAERO. Shows what each lock becomes (an expired lock becomes liquid AERO, not a sAERO position), what blocks it (votes, Relay, restricted list), and what must be claimed first. Read-only: never signs or sends, and the upgrade is irreversible. Verified against Aero's public contracts and a fork of Base."
 metadata:
   emoji: ✈️
   homepage: https://aeroallocator.app
