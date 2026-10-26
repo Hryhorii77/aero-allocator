@@ -1,62 +1,40 @@
 ---
 name: aero-allocator
-description: Forecast next-epoch demand for Aerodrome pools on Base and recommend veAERO vote / incentive allocations. Built for Aerodrome's Predictive Allocation era — reward where fees are going, not where they've been. Read-only onchain analytics; execution stays in your wallet layer.
+description: Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), a sAERO position's stay / switch / allocate advice, and the unsigned allocate() transaction. Free read APIs plus two pay-per-call x402 endpoints (USDC on Base). Non-custodial: never holds keys, signs or sends. Estimates, not financial advice. A legacy MCP server for the retired weekly veAERO vote is kept in the repo.
 metadata:
   emoji: ✈️
-  homepage: https://github.com/Hryhorii77/aero-allocator
+  homepage: https://aeroallocator.app
   category: defi-analytics
   chain: base
 ---
 
 # Aero Allocator
 
-MCP server that gives any agent a live, quantitative view of Aerodrome (Base) incentive markets:
+Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22. This project answers one question for a person or an agent: **which Aero gauges pay the most per day for a given amount of sAERO, and what should this position do?** Site: https://aeroallocator.app. Machine-readable description: https://aeroallocator.app/llms.txt.
 
-- **predict_demand** — next-epoch trading-fee forecast per pool, plus `predictiveEdgePct`: predicted demand share minus current vote share. Positive edge = under-incentivized pool.
-- **recommend_allocation** — a weights-sum-to-100% allocation. `voter_roi` optimally splits your veAERO (pass `votingPowerVe`) accounting for self-dilution, with expected USD rewards per pool; `protocol_efficiency` allocates proportional to predicted demand.
-- **prepare_vote_calldata** — unsigned `Voter.vote()` calldata for your wallet layer to review and submit. This skill never signs or holds keys.
-- **scan_pools / pool_history** — raw market data: TVL, per-epoch votes, emissions, fees and bribes in USD.
+Everything is read-only or unsigned. The site and APIs never hold keys, sign or send a transaction; the allocate flow signs in the user's own wallet, and the paid `allocate-plan` call returns calldata for the owner to sign. Amounts are sAERO **voting power**, as Aero shows them, and APR is per unit of power (so it is lower on staked AERO for a lock shorter than the maximum).
 
-## Setup
+## Free reads (no payment, rate limited)
 
-```bash
-git clone <repo> && cd aero-allocator && npm install
-claude mcp add aero-allocator -- npx tsx $(pwd)/src/index.ts
-```
+`GET https://aeroallocator.app/…`
 
-Optional env: `BASE_RPC_URL` (defaults to the public Base RPC; a dedicated RPC makes snapshots faster).
+- `/api/gauges?chain=8453` — every Aero gauge on a chain with weight, caps and incentives per week (chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain). The Base list also carries `cooldownSec`, the live wait between allocations of one position.
+- `/api/gauge-fees?chain=8453` — estimated fees per day per gauge from on-chain fee releases, with `windowHours` of history, a `steady` count and, when the recent pace is a burst far above the gauge's usual level, `spike`.
+- `/api/gauge-history?chain=8453&gauge=0x…` — one gauge's fees per 6 hours, its weight snapshots and a 90-day `daily` record.
+- `/api/gauge-flows?chain=8453` — which gauges are gaining or losing share of the allocation weight, and which just got incentives.
+- `/api/allocation-fee?chain=10&gauges=2` — the ETH cost on Base of sending power to another chain.
 
-## Example prompts
+## Paid (x402, USDC on Base, settled only after a successful answer)
 
-- "Which Aerodrome pools are most under-incentivized right now?"
-- "Recommend a voter_roi allocation across 8 pools and show me the reasoning."
-- "Prepare vote calldata for veAERO #12345 with that allocation, then send it with my Base wallet." (execution via Base MCP `send_calls`, with your approval)
-
-## Safety
-
-- Read-only by construction: tools return data and unsigned calldata only.
-- All forecasts are EWMA + trend extrapolations of onchain epoch history with explicit confidence scores — not financial advice.
-- Voting notes: one vote per veNFT per epoch; voting is blocked in the final hour before the Thursday 00:00 UTC epoch flip.
-
-## Hosted access (pay per call, x402)
-
-Two paid endpoints for sAERO (Aero's continuous allocation, which replaced weekly veAERO voting on 2026-10-22), at
-`https://aeroallocator.app`. Pay per call in USDC on Base via the [x402 protocol](https://www.x402.org/): no account, no API key, no
-wallet connects to this project, and a call that is rejected (400/404/422) is never charged. They are also discoverable in Coinbase's
-x402 Bazaar / agentic.market and described at https://aeroallocator.app/llms.txt. (The old weekly-vote endpoints were removed 2026-10-24.)
+A request with no payment gets HTTP 402 with the price and payout address; pay with any x402 client and retry. No account, no API key. A call that is rejected (400/404/422) is never charged. Both declare x402 Bazaar discovery metadata, so Coinbase's catalog (and agentic.market) can list them once a first paid call has settled; until then, use the URLs here and in llms.txt.
 
 **`GET /api/v1/position?tokenId=<id>` or `?address=0x…` ($0.05) — where does this sAERO position stand?**
-Power, lock, idle vs allocated power, when it can next be re-allocated (47-hour cooldown), what it earns per day now versus the best
-split of Base gauges for its own size (fees plus incentives, after its own dilution), and a `stay` / `switch` / `allocate` /
-`unknown` recommendation. A switch is only recommended when it beats staying by 5% and $0.05/day and rests on at least 6 hours of fee
-history.
+Power, lock, idle vs allocated power, when it can next be re-allocated, what it earns per day now versus the best split of Base gauges for its own size (fees plus incentives, after its own dilution), and a `stay` / `switch` / `allocate` / `unknown` recommendation. A switch is only recommended when it beats staying by 5% and $0.05/day and rests on at least 6 hours of fee history.
 
 **`GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` ($0.10) — the transaction to do it.**
-The unsigned `allocate()` call (`transaction.to/data/value`, chain 8453) for the best split of Base gauges, already simulated as the
-owner (`simulation.ok` or the plain reason it would be rejected), with `cooldown`, expected USD/day versus now, and `warnings`. Sign
-and send it from `sendFrom`; this project never signs or sends. Base only.
+The unsigned `allocate()` call (`transaction.to/data/value`, chain 8453) for the best split of Base gauges, already simulated as the owner (`simulation.ok` or the plain reason it would be rejected), with `cooldown`, expected USD/day versus now, and `warnings`. Sign and send it from `sendFrom`. Base only.
 
-Both are estimates: fee figures are a recent pace (see `feeHistoryHours`, `confidence`), and every allocation restarts a 47-hour wait.
+Both are estimates: fee figures are a recent pace (see `feeHistoryHours`, `confidence`), and every allocation restarts the wait (47 hours at launch, read live from the chain).
 
 ```ts
 import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
@@ -72,10 +50,24 @@ const res = await fetchWithPayment("https://aeroallocator.app/api/v1/position?to
 const data = await res.json();
 ```
 
-## Predictive Allocation
+## Example prompts
 
-When Dromos Labs publishes the Predictive Allocation contracts (September 2026, with the Aero merger — pushed back from the original July target), direct submission lands in `src/adapters/predictive-allocation.ts` — check `predictive_allocation_status` to see if it's live in your installed version.
+- "Which Aero gauges pay the most per day for 10,000 sAERO right now, and how steady is each one's fee pace?"
+- "Should sAERO position #15308 stay where it is or move? Show what staying costs per day."
+- "Give me the unsigned allocate() transaction for the best split of position #15308 across at most 4 gauges." (the owner signs and sends it from their own wallet)
 
-## Arc
+## Safety
 
-Circle's Arc mainnet (chain ID `5042`) launched 2026-09-16 with Aero (Aerodrome/Velodrome's merged protocol) named as a launch trading partner, but no Sugar/Voter contract addresses on Arc are public yet — no engine support until they are.
+- Read-only by construction: the APIs return data and unsigned calldata only.
+- Fee figures are a recent pace, not a promise. A gauge whose pace is a one-off burst is marked `spike`, and its APR is best read as a range from its usual level up to the burst.
+- Every allocation replaces the position's whole Base distribution and restarts the wait before the next change, so a small gain is not worth moving for.
+- Not investment advice.
+
+## Legacy: weekly-vote MCP server (kept, not the live product)
+
+The repo also contains the MCP server and engine built for the weekly veAERO vote on Aerodrome (Base) / Velodrome (Optimism), which Aero retired on 2026-10-22. Its tools (`predict_demand`, `recommend_allocation`, `prepare_vote_calldata`, `scan_pools`, `pool_history`, and the bribe and LP tools) still run, but `prepare_vote_calldata` targets the classic `Voter.vote()` that no longer exists, so do not use it to act on Aero. It has no sAERO tools. The web app imports only its `config` and `prices` modules. See the README for its tools and the forecast model.
+
+```bash
+git clone https://github.com/Hryhorii77/aero-allocator && cd aero-allocator && npm install
+claude mcp add aero-allocator -- npx tsx $(pwd)/src/index.ts
+```
