@@ -1,5 +1,6 @@
 import type { GaugeRow } from "./gauges";
 import type { GaugeFee } from "./gauge-fees-read";
+import type { Spike } from "./fee-history";
 
 /** Gauges lighter than this (whole sAERO power) are not ranked: a few dollars of fees over almost no weight reads as a huge yield and vanishes once you add any size. */
 export const MIN_RANK_WEIGHT = 100_000;
@@ -23,6 +24,8 @@ export interface YieldRow {
   windowHours: number;
   /** How many complete half-days paid at least half the average one; absent until there are three. */
   steady?: { buckets: number; paying: number };
+  /** Set when the fee pace is far above the gauge's usual level, with that level. */
+  spike?: Spike;
 }
 
 /** Yearly return in percent for earning `usdPerDay` on `amount` AERO at `aeroUsd` each; null when the price or amount is missing. */
@@ -34,6 +37,13 @@ export function aprPct(usdPerDay: number, amount: number, aeroUsd: number | null
 /** How much to trust a fee pace: a few hours of fee releases can swing a lot, a day or more is steadier. */
 export function paceConfidence(windowHours: number): "thin" | "fair" | "solid" {
   return windowHours >= 24 ? "solid" : windowHours >= 6 ? "fair" : "thin";
+}
+
+export type PaceLabel = "thin" | "fair" | "solid" | "spiky";
+
+/** What the pace column says: "spiky" when the pace is a burst far above the gauge's usual level, otherwise how much history it rests on. */
+export function paceLabel(y: Pick<YieldRow, "windowHours" | "spike">): PaceLabel {
+  return y.spike ? "spiky" : paceConfidence(y.windowHours);
 }
 
 /**
@@ -66,6 +76,7 @@ export function rankByUsdPerDay(
       poolType: g.poolType,
       windowHours: fee.windowHours,
       ...(fee.steady ? { steady: fee.steady } : {}),
+      ...(fee.spike ? { spike: fee.spike } : {}),
     });
   }
   return rows.sort((a, b) => b.usdPerDay - a.usdPerDay);

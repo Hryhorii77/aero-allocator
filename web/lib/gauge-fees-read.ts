@@ -8,7 +8,7 @@ import { client, getGauges, registryAbi } from "./gauges";
 import { feePace, readFeeEvents, type LogReader } from "./gauge-fees";
 import { appendEvents, coverageHours, eventsWithin, MAX_LOOKBACK_BLOCKS, planRange, RETAIN_DAYS, type Ledger } from "./fee-ledger";
 import { loadLedger, saveLedger } from "./fee-ledger-store";
-import { CHART_BUCKET_HOURS, feeBuckets, STEADY_BUCKET_HOURS, steadiness, type FeeBucket, type Steadiness } from "./fee-history";
+import { CHART_BUCKET_HOURS, feeBuckets, spikeOf, STEADY_BUCKET_HOURS, steadiness, type FeeBucket, type Spike, type Steadiness } from "./fee-history";
 import { computeFlows, type Flow } from "./weight-history";
 import { loadWeightHistory } from "./weight-history-store";
 import { dailyForGauge, type DailyGaugePoint } from "./daily-history";
@@ -56,6 +56,8 @@ export interface GaugeFee {
   windowHours: number;
   /** How many complete half-days paid at least half the average one; absent until there are three of them. */
   steady?: Steadiness;
+  /** Present when the pace is far above the gauge's usual level (a burst of releases), with that usual level. */
+  spike?: Spike;
 }
 
 export interface GaugeFees {
@@ -148,8 +150,10 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
     const pace = feePace(events, pend.get(g) ?? [], head, price, cfg.blockSec);
     if (!pace) return;
     // Steadiness looks back over everything the record keeps, not just the 2-day pace window: three half-days need more than 48 h.
-    const steady = steadiness(feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, cfg.blockSec), head, price, cfg.blockSec, nowSec, STEADY_BUCKET_HOURS));
-    fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600, ...(steady ? { steady } : {}) });
+    const buckets = feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, cfg.blockSec), head, price, cfg.blockSec, nowSec, STEADY_BUCKET_HOURS);
+    const steady = steadiness(buckets);
+    const spike = spikeOf(buckets, pace.usdPerDay);
+    fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600, ...(steady ? { steady } : {}), ...(spike ? { spike } : {}) });
   });
   return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, cfg.blockSec), fees, aeroUsd: await aeroPriceUsd() };
 }

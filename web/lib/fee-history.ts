@@ -82,3 +82,28 @@ export function steadiness(buckets: FeeBucket[]): Steadiness | null {
 
 /** Steadiness as 0-1 for sorting: the share of stretches that paid. */
 export const steadyScore = (s: Steadiness | null | undefined) => (s ? s.paying / s.buckets : -1);
+
+/** A pace this many times a gauge's usual level is called a spike. */
+export const SPIKE_RATIO = 3;
+/** Complete stretches needed before a gauge's usual level can be judged (two days of half-days). */
+export const MIN_TYPICAL_BUCKETS = 4;
+
+export interface Spike {
+  /** What the gauge usually releases per day: the median complete half-day over everything the record keeps, scaled to a day. */
+  typicalUsdPerDay: number;
+}
+
+/**
+ * Whether `paceUsdPerDay` (the recent fee pace) is far above the gauge's usual level. The usual level is the median half-day, which a
+ * couple of big releases cannot move, so a burst inside the pace window shows up against it. Null when the record is too short, or the
+ * median half-day is empty (a gauge that releases rarely has no usual level to compare with), or the pace is not far above it.
+ */
+export function spikeOf(buckets: FeeBucket[], paceUsdPerDay: number): Spike | null {
+  if (buckets.length < MIN_TYPICAL_BUCKETS) return null;
+  const sorted = buckets.map((b) => b.usd).sort((a, b) => a - b);
+  const mid = sorted.length / 2;
+  const median = sorted.length % 2 ? sorted[Math.floor(mid)] : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (!(median > 0)) return null;
+  const typical = (median * 24) / STEADY_BUCKET_HOURS;
+  return paceUsdPerDay >= typical * SPIKE_RATIO ? { typicalUsdPerDay: typical } : null;
+}
