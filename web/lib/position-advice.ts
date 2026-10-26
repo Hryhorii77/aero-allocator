@@ -1,7 +1,7 @@
 import type { GaugeList } from "./gauges";
 import { gaugeLabel } from "./gauges";
 import type { GaugeFees } from "./gauge-fees-read";
-import { paceConfidence, rankByUsdPerDay } from "./gauge-yield";
+import { paceConfidence, rankByUsdPerDay, type YieldRow } from "./gauge-yield";
 import { cooldownState, type CooldownState, type SaeroPosition } from "./saero";
 import { bestSplit, currentUsdPerDay, type Split } from "./split";
 
@@ -37,6 +37,8 @@ export interface Analysis {
   /** Current gauges with no fee estimate, so not in the figure above. */
   unmeasured: string[];
   best: Split | null;
+  /** Every rankable Base gauge for this position's own size, best first, with its own power already taken out of the weights. */
+  ranked: YieldRow[];
   /** Best split minus staying, USD/day; null when either side is missing. */
   gainUsdPerDay: number | null;
   advice: Advice;
@@ -118,5 +120,5 @@ export function analysePosition(args: {
     advice = { action: "stay", reason: "Moving would not earn enough more to be worth the 47-hour wait that follows an allocation.", canActNow, readyAtSec };
   }
 
-  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, gainUsdPerDay: gain, advice, windowHours, confidence: best ? paceConfidence(windowHours) : null };
+  return { power, cooldown, current, currentUsdPerDay: nowUsd, unmeasured, best, ranked, gainUsdPerDay: gain, advice, windowHours, confidence: best ? paceConfidence(windowHours) : null };
 }

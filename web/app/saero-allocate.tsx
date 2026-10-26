@@ -7,10 +7,11 @@ import { base } from "wagmi/chains";
 import type { Address } from "viem";
 import { gaugeLabel, type GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { rankByUsdPerDay, type YieldRow } from "@/lib/gauge-yield";
-import { bestSplit, currentUsdPerDay, type Split } from "@/lib/split";
+import type { YieldRow } from "@/lib/gauge-yield";
+import { analysePosition } from "@/lib/position-advice";
+import type { Split } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, explainAllocateError, MAX_GAUGES, planAllocation } from "@/lib/allocate";
-import { SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
+import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const CHOICES = 10;
@@ -34,7 +35,7 @@ export interface CurrentPick {
 }
 
 /** The gauges this position is on now (leaf allocatedGauges + allocations), read in the browser. Empty if none or unreadable. */
-async function readCurrent(tokenId: bigint, symbolOf: (g: string) => string): Promise<CurrentPick[]> {
+export async function readCurrent(tokenId: bigint, symbolOf: (g: string) => string): Promise<CurrentPick[]> {
   const { wagmiConfig } = await import("@/lib/wagmi");
   const gauges = (await readContract(wagmiConfig, { address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "allocatedGauges", args: [tokenId], chainId: base.id })) as Address[];
   if (gauges.length === 0) return [];
@@ -86,23 +87,17 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         };
         const cur = await readCurrent(position.tokenId, symbolOf).catch(() => [] as CurrentPick[]);
         if (cancelled) return;
-        // Your power counts in a gauge's weight today (the amounts here are power, as Aero shows them), so take it out before comparing.
-        const power = position.votingPower > 0 ? position.votingPower : position.staked;
-        const own = new Map(cur.map((c) => [c.gauge.toLowerCase(), (c.pct / 100) * power]));
-        const gauges = g.gauges.map((x) => ({ ...x, weight: Math.max(0, x.weight - (own.get(x.gauge.toLowerCase()) ?? 0)) }));
-        const all = rankByUsdPerDay(gauges, f.fees, power);
-        const split = bestSplit(all.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), power);
+        // The same analysis the paid API runs: your own power is taken out of each gauge's weight before comparing.
+        const analysis = analysePosition({ position, current: cur, gauges: g, fees: f, cooldownSec: DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
+        const all = analysis.ranked;
+        const split = analysis.best;
         const splitGauges = new Set((split?.parts ?? []).map((p) => p.gauge.toLowerCase()));
         const top = all.slice(0, CHOICES);
         const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
         setFeesNote(f.windowHours);
         setCurrent(cur);
-        if (cur.length > 0) {
-          // A gauge you're on can fall under the ranking's minimum weight once you leave it; price it from its raw row instead.
-          const priced = cur.length ? rankByUsdPerDay(gauges, f.fees, power, 0) : [];
-          const now = currentUsdPerDay(priced, cur, power);
-          setCompare({ nowUsd: now.unmeasured.length === cur.length ? null : now.usd, unmeasured: now.unmeasured, best: split });
-        } else setCompare(null);
+        if (cur.length > 0) setCompare({ nowUsd: analysis.currentUsdPerDay, unmeasured: analysis.unmeasured, best: split });
+        else setCompare(null);
         // Keep your current gauges selectable even when they're outside the top picks.
         const extra = cur
           .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
