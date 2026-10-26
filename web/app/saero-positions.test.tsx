@@ -133,7 +133,6 @@ describe("SaeroPositions", () => {
       ]);
     account.address = OWNER;
     render(<SaeroPositions />);
-    fireEvent.click(await screen.findByRole("button", { name: "use my wallet" }));
     expect(await screen.findByText("#2794")).toBeInTheDocument();
     expect(screen.getByText(/No AERO is staked in this position/)).toHaveTextContent(/Autopilot/);
     expect(screen.queryByRole("button", { name: /allocate|return/i })).not.toBeInTheDocument();
@@ -176,14 +175,23 @@ describe("SaeroPositions", () => {
     expect(read.readContracts).not.toHaveBeenCalled();
   });
 
-  it("reads the connected wallet with one click", async () => {
+  it("reads the connected wallet as soon as it connects, once, and the button reads it again", async () => {
     account.address = OWNER;
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) =>
       functionName === "balanceOf" ? 0n : 169_200,
     );
     render(<SaeroPositions />);
-    fireEvent.click(await screen.findByRole("button", { name: "use my wallet" }));
     await waitFor(() => expect(read.readContract).toHaveBeenCalled());
     expect(read.readContract.mock.calls[0][1].args).toEqual([OWNER]);
+    expect(await screen.findByText(/No sAERO positions at/)).toBeInTheDocument();
+    const calls = read.readContract.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "use my wallet" }));
+    await waitFor(() => expect(read.readContract.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it("does not read anything while no wallet is connected", async () => {
+    render(<SaeroPositions />);
+    await screen.findByLabelText(/address to read/i);
+    expect(read.readContract).not.toHaveBeenCalled();
   });
 });
