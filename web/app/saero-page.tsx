@@ -39,7 +39,8 @@ export function SaeroPage() {
       </header>
       <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Where to allocate your sAERO.</h1>
       <p className={`mt-2 ${LEAD}`}>
-        See which gauges pay the most per day for your amount, then allocate from your wallet. Your address never reaches our server.
+        sAERO is staked AERO on Aero: you point its voting power at gauges and earn the trading fees and incentives those gauges pay. See which
+        gauges pay the most per day for your amount, then allocate from your wallet. Your address never reaches our server.
       </p>
       <GaugeTable />
       <SaeroPositions />
