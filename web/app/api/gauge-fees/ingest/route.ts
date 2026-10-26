@@ -12,6 +12,9 @@ const FEE_CHAIN_IDS = AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.id);
 // Called every 30 min by Vercel Cron (web/vercel.json; GitHub's own schedules ran hours late, so there is no workflow for it) to keep the fee record current. Public on purpose: it only reads public chain
 // data, does nothing if the record was updated in the last 20 minutes, and writes nothing a caller controls.
 export const GET = withApiErrorHandling("gauge-fees-ingest", async (req: Request) => {
+  // When CRON_SECRET is set, Vercel Cron sends it as a bearer token and anyone else is turned away; unset, the route stays open.
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const rl = checkRateLimit(req, { key: "gauge-fees-ingest", limit: 12, windowMs: 60_000 });
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
   const raw = new URL(req.url).searchParams.get("chain");
