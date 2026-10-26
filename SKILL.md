@@ -26,7 +26,7 @@ Everything is read-only or unsigned. The site and APIs never hold keys, sign or 
 
 ## Paid (x402, USDC on Base, settled only after a successful answer)
 
-A request with no payment gets HTTP 402 with the price and payout address; pay with any x402 client and retry. No account, no API key. A call that is rejected (400/404/422) is never charged. Both declare x402 Bazaar discovery metadata, so Coinbase's catalog (and agentic.market) can list them once a first paid call has settled; until then, use the URLs here and in llms.txt.
+A request with no payment gets HTTP 402 with the price and payout address; pay with any x402 client and retry. No account, no API key. A call that is rejected (400/404/422) is never charged. Both are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26; search it for "sAERO position" or "sAERO allocate transaction", or use the URLs here and in llms.txt.
 
 **`GET /api/v1/position?tokenId=<id>` or `?address=0x…` ($0.05) — where does this sAERO position stand?**
 Power, lock, idle vs allocated power, when it can next be re-allocated, what it earns per day now versus the best split of Base gauges for its own size (fees plus incentives, after its own dilution), and a `stay` / `switch` / `allocate` / `unknown` recommendation. A switch is only recommended when it beats staying by 5% and $0.05/day and rests on at least 6 hours of fee history.
