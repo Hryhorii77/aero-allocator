@@ -22,6 +22,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fails on any advisory except the accepted zod one (scripts/audit-gate.ts); a failed or unreadable audit also fails, so re-run it.
+      - name: Audit (engine)
+        run: npx tsx scripts/audit-gate.ts .
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -34,6 +38,9 @@ jobs:
       - name: Install web dependencies
         working-directory: web
         run: npm ci
+
+      - name: Audit (web)
+        run: npx tsx scripts/audit-gate.ts web
 
       - name: Typecheck web
         working-directory: web
