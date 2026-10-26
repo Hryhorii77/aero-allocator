@@ -6,6 +6,7 @@ import { getGaugeFees } from "./gauge-fees-read";
 import { aprPct } from "./gauge-yield";
 import { gaugeLabel, getGauges } from "./gauges";
 import { analysePosition, SWITCH_MIN_GAIN_PCT, SWITCH_MIN_GAIN_USD_PER_DAY, type Analysis } from "./position-advice";
+import { waitHours } from "./saero";
 import { readCooldownSec, readCurrentGauges, readOwnerTokenIds, readPosition, MAX_OWNER_POSITIONS, type ServerPosition } from "./position-server";
 import { logX402Usage } from "./x402-usage";
 
@@ -96,6 +97,6 @@ export async function handlePosition(req: NextRequest): Promise<NextResponse> {
       "Estimates, not guarantees. USD/day = (fees + incentives per day) x your share of a gauge's weight after joining it, with your own " +
       "power taken out of each gauge's weight first. Fees are the recent pace measured from on-chain fee releases (see feeHistoryHours and " +
       `confidence). A switch is advised only when it beats staying by at least ${SWITCH_MIN_GAIN_PCT}% and $${SWITCH_MIN_GAIN_USD_PER_DAY.toFixed(2)}/day, ` +
-      "because every allocation restarts a 47-hour wait. Amounts are voting power, as Aero shows them.",
+      `because every allocation restarts a ${waitHours(cooldownSec)}-hour wait. Amounts are voting power, as Aero shows them.`,
   });
 }

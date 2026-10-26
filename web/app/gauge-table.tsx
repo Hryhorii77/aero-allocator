@@ -186,7 +186,7 @@ export function GaugeTable() {
           )}
           {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
-          {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} />}
+          {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
         </div>
       )}
       {failed && <p className="mt-3 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}

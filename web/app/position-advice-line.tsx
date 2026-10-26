@@ -30,7 +30,7 @@ export function PositionAdviceLine({ position, onCost }: { position: SaeroPositi
       };
       const current = await readCurrent(position.tokenId, symbolOf);
       if (cancelled) return;
-      const analysis = analysePosition({ position, current, gauges: g, fees: f, cooldownSec: DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
+      const analysis = analysePosition({ position, current, gauges: g, fees: f, cooldownSec: g.cooldownSec ?? DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
       const line = opportunityLine(analysis);
       setText(line.text);
       onCost(position.tokenId, { costUsdPerDay: line.costUsdPerDay, costLowUsdPerDay: line.costLowUsdPerDay });

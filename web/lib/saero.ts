@@ -79,6 +79,9 @@ export const saeroLeafAbi = [
 /** The cooldown Aero set at launch (47 hours), used until the live value is read. */
 export const DEFAULT_COOLDOWN_SEC = 169_200;
 
+/** The wait in whole hours, for text: 169,200 s is 47. */
+export const waitHours = (cooldownSec: number) => Math.round(cooldownSec / 3600);
+
 export interface SaeroPosition {
   tokenId: bigint;
   /** Staked AERO, in whole tokens. */

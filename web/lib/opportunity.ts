@@ -17,7 +17,7 @@ const span = (low: number, high: number) => (high - low >= 0.01 ? `$${usd2(low)}
 
 /**
  * What staying put costs a position, in dollars a day, from the same analysis the paid API runs. Only a move the advice calls worth
- * it counts: a gain that rests on thin fee history, or is too small to beat the 47-hour wait, is not "lost" money.
+ * it counts: a gain that rests on thin fee history, or is too small to beat the wait that follows an allocation, is not "lost" money.
  */
 export function opportunityLine(a: Analysis): OpportunityLine {
   const best = a.best;
@@ -46,7 +46,7 @@ export function opportunityLine(a: Analysis): OpportunityLine {
       return {
         text:
           best.usdPerDay > a.currentUsdPerDay
-            ? `Earns about $${usd2(a.currentUsdPerDay)} a day. The best split would earn about $${usd2(best.usdPerDay)}, not enough more to be worth the 47-hour wait.`
+            ? `Earns about $${usd2(a.currentUsdPerDay)} a day. The best split would earn about $${usd2(best.usdPerDay)}, not enough more to be worth the ${a.cooldownHours}-hour wait.`
             : `Earns about $${usd2(a.currentUsdPerDay)} a day, as much as the best split would.`,
         costUsdPerDay: 0,
         costLowUsdPerDay: 0,

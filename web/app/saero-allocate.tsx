@@ -11,7 +11,7 @@ import type { YieldRow } from "@/lib/gauge-yield";
 import { analysePosition } from "@/lib/position-advice";
 import type { Split } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, explainAllocateError, MAX_GAUGES, planAllocation } from "@/lib/allocate";
-import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi, type SaeroPosition } from "@/lib/saero";
+import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi, waitHours, type SaeroPosition } from "@/lib/saero";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const CHOICES = 10;
@@ -68,6 +68,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
   const [current, setCurrent] = useState<CurrentPick[] | null>(null);
   const [compare, setCompare] = useState<{ nowUsd: number | null; unmeasured: string[]; best: Split | null } | null>(null);
   const [feesNote, setFeesNote] = useState<number | null>(null);
+  const [lockHours, setLockHours] = useState(waitHours(DEFAULT_COOLDOWN_SEC));
   const [pct, setPct] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -88,13 +89,14 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
         const cur = await readCurrent(position.tokenId, symbolOf).catch(() => [] as CurrentPick[]);
         if (cancelled) return;
         // The same analysis the paid API runs: your own power is taken out of each gauge's weight before comparing.
-        const analysis = analysePosition({ position, current: cur, gauges: g, fees: f, cooldownSec: DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
+        const analysis = analysePosition({ position, current: cur, gauges: g, fees: f, cooldownSec: g.cooldownSec ?? DEFAULT_COOLDOWN_SEC, nowSec: Math.floor(Date.now() / 1000) });
         const all = analysis.ranked;
         const split = analysis.best;
         const splitGauges = new Set((split?.parts ?? []).map((p) => p.gauge.toLowerCase()));
         const top = all.slice(0, CHOICES);
         const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
         setFeesNote(f.windowHours);
+        setLockHours(analysis.cooldownHours);
         setCurrent(cur);
         if (cur.length > 0) setCompare({ nowUsd: analysis.currentUsdPerDay, unmeasured: analysis.unmeasured, best: split });
         else setCompare(null);
@@ -178,7 +180,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
     <div className="mt-3 rounded-lg border border-neutral-800 px-3 py-3">
       <p className={BODY}>
         Pick up to {MAX_GAUGES} gauges (the best {CHOICES} by estimated $/day for {fmt(position.staked)} AERO are listed) and give each a share. This{" "}
-        <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for 47 hours.
+        <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for {lockHours} hours.
       </p>
       {current && current.length > 0 && (
         <p className={`mt-3 ${BODY}`}>

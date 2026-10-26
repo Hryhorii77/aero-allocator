@@ -99,4 +99,14 @@ describe("analysePosition", () => {
     const stay = analysePosition({ ...base, position: pos(), current: [{ gauge: addr(2), symbol: "P2", pct: 100 }], gauges: g, fees: fees([[1, 100, 30], [2, 5000, 30]]) });
     expect(stay.gainLowUsdPerDay ?? 0).toBeLessThanOrEqual(Math.max(0, stay.gainUsdPerDay ?? 0));
   });
+
+  it("uses the wait it is given in its texts and its ready time, not a fixed 47 hours", () => {
+    const g = list([row(1, 1_000_000), row(2, 300_000)]);
+    const a = analysePosition({ ...base, cooldownSec: 24 * 3600, position: pos({ lastAllocatedSec: base.nowSec - 3600 }), current: [{ gauge: addr(2), symbol: "P2", pct: 100 }], gauges: g, fees: fees([[1, 100, 30], [2, 5000, 30]]) });
+    expect(a.cooldownHours).toBe(24);
+    expect(a.advice.reason).toMatch(/24-hour wait/);
+    expect(a.advice.reason).not.toMatch(/47/);
+    expect(a.cooldown.ready).toBe(false);
+    expect(a.advice.readyAtSec).toBe(base.nowSec - 3600 + 24 * 3600);
+  });
 });
