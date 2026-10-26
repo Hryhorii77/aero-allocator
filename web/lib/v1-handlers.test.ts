@@ -29,6 +29,7 @@ vi.mock("./gauge-fees-read", () => ({ getGaugeFees: mocks.getGaugeFees }));
 
 import { allocateAbi } from "./allocate";
 import { SAERO } from "./saero";
+import { openApiSpec } from "./openapi";
 import { handleAllocatePlan } from "./v1-allocate-plan";
 import { handlePosition } from "./v1-position";
 
@@ -162,5 +163,40 @@ describe("GET /api/v1/allocate-plan", () => {
     const two = await (await handleAllocatePlan(req("/api/v1/allocate-plan?tokenId=1&maxGauges=2"))).json();
     expect(many.picks.length).toBeGreaterThan(2);
     expect(two.picks.length).toBeLessThanOrEqual(2);
+  });
+});
+
+// The OpenAPI description must name every field the paid routes really return (and only those), so an agent reading it is not surprised.
+describe("the OpenAPI schemas match the paid responses", () => {
+  const schemas = (openApiSpec("http://localhost") as { components: { schemas: Record<string, { properties?: Record<string, unknown> }> } }).components.schemas;
+  type Schema = { $ref?: string; properties?: Record<string, Schema>; items?: Schema; anyOf?: Schema[] };
+  const resolve = (s: Schema): Schema => (s.$ref ? (schemas[s.$ref.split("/").pop()!] as Schema) : s);
+  /** Keys in `data` that the schema does not list, nested into objects and the first item of arrays. */
+  function unlisted(schema: Schema, data: unknown, path = ""): string[] {
+    const sc = resolve(schema);
+    const out: string[] = [];
+    if (Array.isArray(data)) return data.length && sc.items ? unlisted(sc.items, data[0], `${path}[]`) : out;
+    if (!data || typeof data !== "object" || !sc.properties) return out;
+    for (const [k, v] of Object.entries(data)) {
+      const prop = sc.properties[k];
+      if (!prop) out.push(`${path}.${k}`);
+      else {
+        const target = prop.anyOf ? prop.anyOf.find((a) => a.$ref) ?? prop : prop;
+        out.push(...unlisted(target, v, `${path}.${k}`));
+      }
+    }
+    return out;
+  }
+
+  it("position", async () => {
+    mocks.readPosition.mockResolvedValue(position());
+    const body = await (await handlePosition(req("/api/v1/position?tokenId=15308"))).json();
+    expect(unlisted({ $ref: "#/components/schemas/PositionReport" }, body)).toEqual([]);
+  });
+
+  it("allocate-plan", async () => {
+    mocks.readPosition.mockResolvedValue(position({ parkedRaw: 2_000n * E18, onBaseRaw: 8_000n * E18 }));
+    const body = await (await handleAllocatePlan(req("/api/v1/allocate-plan?tokenId=15308"))).json();
+    expect(unlisted({ $ref: "#/components/schemas/AllocatePlan" }, body)).toEqual([]);
   });
 });
