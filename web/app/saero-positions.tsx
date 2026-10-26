@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { readContract, readContracts } from "wagmi/actions";
 import { getAddress, isAddress } from "viem";
@@ -155,6 +155,16 @@ export function SaeroPositions() {
       setState("error");
     }
   };
+
+  // Read the connected wallet's positions as soon as it connects (once per address); the read is the same one the button makes, in this browser.
+  const autoFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!live || !connected || autoFor.current === connected) return;
+    autoFor.current = connected;
+    setInput("");
+    void load(connected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, connected]);
 
   const costText = totalCostText(Object.values(costs));
   if (!live) return null;

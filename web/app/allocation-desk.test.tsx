@@ -34,6 +34,17 @@ describe("AllocationDesk", () => {
     expect(screen.getByText(/3 h of history in the weakest pick/)).toBeInTheDocument();
   });
 
+  it("shows a range when fees are cut to the paying share, with the reason, and none when nothing differs", () => {
+    const gauges = [g(1, 200_000), g(2, 200_000)];
+    const { unmount } = render(<AllocationDesk gauges={gauges} fees={{ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [fee(1, 1000, 30), fee(2, 900, 30)] }} amount={1_000_000} />);
+    expect(screen.getByText(/Range:/).textContent).toMatch(/\$[\d,.]+ to \$[\d,.]+ a day \(about/);
+    expect(screen.getByText(/nothing above it is supported by the data/)).toBeInTheDocument();
+    unmount();
+    // fees all from a gauge whose record says every half-day paid: low end still halves at worst, so the range exists; with no fees at all there is none
+    render(<AllocationDesk gauges={[g(1, 200_000)]} fees={{ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [fee(1, 0, 30)] }} amount={1_000} />);
+    expect(screen.queryByText(/Range:/)).not.toBeInTheDocument();
+  });
+
   it("asks for an amount", () => {
     render(<AllocationDesk gauges={[g(1, 200_000)]} fees={{ chainId: 8453, generatedAt: 0, windowHours: 30, fees: [fee(1, 1000, 30)] }} amount={0} />);
     expect(screen.getByText(/Enter an amount above zero/)).toBeInTheDocument();
