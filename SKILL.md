@@ -50,6 +50,8 @@ const res = await fetchWithPayment("https://aeroallocator.app/api/v1/position?to
 const data = await res.json();
 ```
 
+**Upgrading old veAERO:** `skills/veaero-to-saero-upgrade/` checks a wallet's old locks against Aero's migration contract (what each becomes, what blocks it) and prepares the unsigned approve + deposit transactions only after the owner confirms; read-only, irreversible, verified against Aero's public contracts and a fork of Base.
+
 **Automating it:** the companion skill `skills/saero-allocator-automator/` is a playbook and two small scripts for an agent that re-allocates a position when it is worth it: fixed rules (wait over, real and steady gain, never a one-off fee burst), the plan checked before it is handed to the owner's wallet, and no signing in the skill.
 
 ## Example prompts
