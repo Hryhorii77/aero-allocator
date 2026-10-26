@@ -8,7 +8,8 @@ import { LINK } from "./ui";
 // claim, reset votes, upgrade; locks in Relays or vaults must come back to the wallet first; a lock with
 // active votes cannot upgrade; upgrades are irreversible; the veNFT id is retired and a new sAERO position
 // is created with the remaining lock time (rounded up to a full week); permanent locks become sAERO at the
-// maximum stake duration. The portal opens at launch; final-epoch voters one hour later.
+// maximum stake duration. The launch dates (final voting 21 Oct, portal open from 22 Oct) are left out of the text now that both
+// have passed; the panel itself hides after UPGRADE_CHECKLIST_UNTIL_MS.
 const UPGRADE_URL = "https://aero.xyz/aero-upgrade/";
 
 /** Shown from the final vote week until a week after launch, then gone. */
@@ -26,11 +27,11 @@ const STEPS: Array<{ title: string; body: string }> = [
   },
   {
     title: "Reset your votes",
-    body: "A lock with active votes can't upgrade. Final voting closes 21 Oct, 22:59 UTC.",
+    body: "A lock with active votes can't upgrade, so reset any votes still on it.",
   },
   {
     title: "Upgrade on Aero's portal",
-    body: "Opens 22 Oct, 00:00 UTC (01:00 UTC if you voted in the final epoch). It is irreversible: the lock ID is retired and you get a new sAERO position with your remaining lock time, rounded up to a full week.",
+    body: "It is irreversible: the lock ID is retired and you get a new sAERO position with your remaining lock time, rounded up to a full week.",
   },
 ];
 
@@ -38,7 +39,7 @@ export function upgradeChecklistVisible(nowMs: number, protocol: string): boolea
   return protocol === "aerodrome" && nowMs >= UPGRADE_CHECKLIST_FROM_MS && nowMs < UPGRADE_CHECKLIST_UNTIL_MS;
 }
 
-/** Holding veAERO through the cut-over: the four steps in order, with Aero's own dates. Mounted state, not a render-time Date.now(), so server and client HTML agree. */
+/** Holding veAERO through the cut-over: the four steps in order. Mounted state, not a render-time Date.now(), so server and client HTML agree. */
 export function UpgradeChecklist() {
   const [show, setShow] = useState(false);
   useEffect(() => {
