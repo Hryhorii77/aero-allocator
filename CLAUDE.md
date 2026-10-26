@@ -23,6 +23,8 @@ npm run smoke                      # LIVE end-to-end check against Base mainnet
 
 Scripts (`scripts/*.ts`, run via `npm run backtest | epoch-reminder | realized-performance | lockers`) hit the live chain.
 
+CI also runs `npx tsx scripts/audit-gate.ts .` and `... web`: `npm audit --omit=dev` must report nothing except the accepted advisory listed in `scripts/audit-gate.ts` (the zod one, which reaches 20+ packages in `web/`); any other advisory, or an audit that can't run, fails the job. Run it locally the same way, and delete an `ACCEPTED` entry once the audit stops reporting it.
+
 Before proposing a push or deploy, use the `verify` skill (typecheck/test/build for both packages in order, secret scan, audit). CI (`.github/workflows/ci.yml`) runs the same sequence.
 
 ## Architecture
