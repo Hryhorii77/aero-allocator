@@ -2,24 +2,139 @@
 
 [![CI](https://github.com/Hryhorii77/aero-allocator/actions/workflows/ci.yml/badge.svg)](https://github.com/Hryhorii77/aero-allocator/actions/workflows/ci.yml)
 
-> **Status (2026-10-24):** Aero replaced weekly veAERO voting with continuous sAERO allocation on 2026-10-22, and Velodrome merged
-> into Aero. The hosted site, https://aeroallocator.app, is now the **sAERO allocator** (`web/`): which Aero gauges pay the most per
-> day for your amount, your positions, and allocate / return-to-idle from your wallet. The weekly-vote dashboard, its free and paid
-> (x402) APIs, and the vote-alert / epoch-reminder schedules were removed; two new paid sAERO endpoints replace the old ones (see
-> [Paid API (x402)](#paid-api-x402)). The MCP server and engine described below are the
-> weekly-vote toolset, kept as they were for anyone who still wants them; they no longer power the website beyond its config and prices.
+**https://aeroallocator.app** is the sAERO allocator for [Aero](https://aero.xyz) (the merged Aerodrome and Velodrome, live since
+2026-10-22): which gauges pay the most per day for your amount of sAERO, what your positions earn, and an allocate / return-to-idle
+flow signed in your own wallet. It is free, has no accounts, and never holds keys. Figures are estimates from recent on-chain fee
+releases, not financial advice.
 
-MCP server that forecasts **next-epoch demand** for Aerodrome (Base) or Velodrome (Optimism) pools and turns it into concrete incentive-allocation recommendations — built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era (September 2026, pushed back from the original July target), where incentives follow *predicted future demand* instead of last week's votes. Aerodrome is the default; see [Multi-protocol](#multi-protocol-aerodrome--velodrome) to switch.
+This repository holds two things:
 
-Any MCP-capable agent (Claude Code, Claude Desktop, Bankr-hosted agents) can use it to answer:
+- **`web/`**: the Next.js site above, plus its free and paid (x402) APIs. This is the live product. Start with [The site](#the-site).
+- **`src/` and `scripts/`**: an MCP server and forecasting engine for the *weekly-vote* era (Aerodrome/Velodrome, before Aero). Aero
+  replaced weekly voting with continuous allocation, so it no longer powers the site beyond its config and prices; it is kept for
+  anyone who still wants it. See [Legacy: weekly-vote engine and MCP server](#legacy-weekly-vote-engine-and-mcp-server).
 
-- Which pools will generate the most fees **next epoch**?
-- Where is vote share **mispriced** vs predicted demand (the "predictive edge")?
-- How should I split my veAERO votes / incentive budget right now?
+## The site
 
-All data comes live from Base — Aerodrome Sugar contracts for pool state and per-epoch history, DefiLlama for USD pricing. No API keys required.
+What it does (all in `web/`, one page):
 
-## Tools
+- **Gauges**: every Aero gauge on Base (and the other Aero chains) ranked by what *your amount* earns per day after it dilutes the
+  gauge, with an estimated APR, a "power flow" column (which gauges are gaining or losing share of the allocation weight), a Steady
+  column (how evenly a gauge paid), flags for gauges whose incentives just appeared, and a per-gauge history chart (6-hour bars, plus
+  a per-day chart from a 90-day record). The best split across up to six gauges is solved for you.
+- **Your positions**: paste an address or connect a wallet. Positions are read **in the browser** over public RPC, so the address never
+  reaches our server. Each shows size, lock, how much is allocated, the 47-hour wait (with a "remind me" calendar file, built in the
+  browser), what it earns now vs the best split and so what staying costs per day, and the trading fees it has earned and not
+  claimed. Allocating simulates the transaction on-chain before your wallet is asked to sign.
+- **Notes it keeps honest**: the 47-hour wait belongs to each position, an existing position can't be split, a position with no AERO
+  staked is usually an Aero Autopilot key, and fee figures are a recent pace, not a promise.
+
+How the numbers are made: gauge weight is read from Aero's contracts; fees come from the fee releases (`NotifyFeesAmount` logs) over
+the last 48 hours, with each gauge's first release left out; incentives are the streaming programs on each gauge. A yield per gauge is
+`(fees + incentives) × amount / (weight + amount)`. Against Aero's own pages, total allocation matched and APR was within about a point
+or two on the pools compared.
+
+### APIs
+
+Free, rate limited, no key (also described for agents at `/llms.txt`):
+
+| Endpoint | |
+|---|---|
+| `GET /api/gauges?chain=8453` | Every gauge on a chain with weight, caps and incentives (Base 8453, Ethereum 1, OP 10, Arbitrum 42161, Ink 57073, Robinhood 4663) |
+| `GET /api/gauge-fees?chain=8453` | Estimated fees per day per gauge, the hours of history behind each figure, and a steadiness figure |
+| `GET /api/gauge-history?chain=8453&gauge=0x…` | One gauge's fees per 6 hours, weight snapshots, steadiness, and per-day points from the 90-day record |
+| `GET /api/gauge-flows?chain=8453` | How each gauge's share of the allocation weight moved over the last day, and gauges whose incentives just appeared |
+| `GET /api/allocation-fee?chain=10&gauges=2` | ETH cost on Base of sending power to another chain |
+| `GET /api/token-prices?tokens=0x…` | USD prices for up to 12 Base token addresses (lets the page value earned fees without sending a position anywhere) |
+| `GET /api/share?vp=<amount>` | The 1200×630 share card (also the link preview) |
+
+Paid (x402), below: [Paid API (x402)](#paid-api-x402).
+
+### Running it
+
+```bash
+npm install && npm run build      # the engine's dist/, which web/ imports
+cd web && npm install && npm run dev
+```
+
+Open http://localhost:3000. `web/` imports the engine as compiled `dist/`, so rebuild the root after changing `src/`. Checks: `npm run
+typecheck`, `npm test` and `npm run build` in the root and in `web/` (CI runs all of them). Node 22 or newer.
+
+History is kept by Vercel Cron: six crons (one per chain, `web/vercel.json`) call `/api/gauge-fees/ingest` every 30 minutes, which
+extends the fee record (4 days), takes a weight snapshot (3 days) and, once a UTC day has finished, adds it to the daily record
+(90 days). All three live in private Vercel Blobs. If `CRON_SECRET` is set, the route requires it as a bearer token (Vercel Cron sends
+it by itself).
+
+### Environment (`web/`)
+
+| Var | | |
+|---|---|---|
+| `RPC_URL`, `RPC_URL_FALLBACK` | optional | A dedicated RPC, and a second one for failover. Without them public nodes are used, which works but is slower and rate limited |
+| `BLOB_READ_WRITE_TOKEN` | needed for history | Vercel Blob token for the fee, weight and daily records. Without it the site works but shows no history |
+| `CRON_SECRET` | recommended | Locks `/api/gauge-fees/ingest` to Vercel Cron |
+| `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` | Public address, for the link-preview image |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | unset | Free [Reown Cloud](https://cloud.reown.com) project id (the domain must be on its allowlist). Enables WalletConnect; without it that connector is left out because its relay socket would hang the tab |
+| `X402_PAYTO_ADDRESS`, `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET` | for the paid routes | See [Paid API (x402)](#paid-api-x402) |
+
+### Deploying to Vercel
+
+The dashboard depends on the engine package via a local `file:..` reference, which needs some
+non-default project settings to build correctly on Vercel — the framework's zero-config detection
+doesn't handle this monorepo shape out of the box:
+
+| Setting | Value | Why |
+|---|---|---|
+| Root Directory | `web` | Vercel's Next.js detection checks *this* directory's `package.json` for a `next` dependency — pointing it at the repo root (which has no `next` dep) fails detection entirely |
+| Install Command | `npm install` (default) | Must be a real install, not a no-op — Vercel checks the installed Next.js version immediately after this step, before running Build Command |
+| Build Command | `cd .. && npm install --include=dev && npm run build && cd web && npm run build` | Builds the engine's `dist/` first (needs `--include=dev` for `typescript`/`@types/node`, which a plain `npm install` can skip in Vercel's build environment), then the Next.js app that depends on it |
+| Output Directory | default (`.next`) | Resolved *relative to Root Directory* — do not prefix with `web/` (that double-counts and fails with "output directory not found") |
+
+Root Directory isn't exposed as a `vercel` CLI flag; set it via the dashboard (Project Settings →
+General) or the API (`PATCH /v9/projects/{id}` with `{"rootDirectory": "web"}`). Env vars (see the table above) go in Project
+Settings → Environment Variables, per environment (Production/Preview), and take effect on the next deployment. A dedicated RPC (Alchemy,
+Infura) is strongly recommended over the public default — it's the difference between a ~20s and a
+~1min cold snapshot build, which matters against Vercel's function timeout (60s ceiling on Hobby).
+
+Vercel's Deployment Protection (an SSO auth wall) is on by default for all deployments including
+production. To make production public while keeping preview deployments protected, set
+`ssoProtection.deploymentType` to `"preview"` via the API (also not a dashboard toggle at the time of
+writing).
+
+
+## Paid API (x402)
+
+Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
+Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
+They are indexed in Coinbase's x402 Bazaar (and so agentic.market) after their first paid call, and described for agents at `/llms.txt`.
+
+| Endpoint | Price | What it answers |
+|---|---|---|
+| `GET /api/v1/position?tokenId=<id>` or `?address=0x…` | $0.05 | Where does this sAERO position stand: power, lock, idle vs allocated, the 47-hour re-allocation wait, what it earns per day now vs the best split of Base gauges for its own size, and a stay / switch / allocate / unknown recommendation. |
+| `GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` | $0.10 | The unsigned, already-simulated `allocate()` transaction for that best split (to, data, value, chain 8453), with cooldown and warnings. Never signs or sends. Base only. |
+
+These answer something the free `/api/gauges` and `/api/gauge-fees` reads can't: a chain read keyed to one position, and calldata that
+satisfies the Voter's rules (full overwrite per chain, exact total, ascending addresses). The old weekly-vote `/api/v1/forecast` earned
+almost nothing because the free site served the same payload; keep new paid routes on the "free can't do this" side.
+
+Requires three env vars to activate; without all three each paid route serves a clean `501` rather than accepting payment:
+
+| Var | | |
+|---|---|---|
+| `X402_PAYTO_ADDRESS` | Base address you control | Where payments land: never generated or held by this codebase |
+| `CDP_API_KEY_ID` | From [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/) | Coinbase Developer Platform API key |
+| `CDP_API_KEY_SECRET` | Same place | Paired secret |
+
+
+## Legacy: weekly-vote engine and MCP server
+
+Everything below describes the engine and MCP server built for the weekly-vote era; the site above does not use them beyond `config` and
+`prices`.
+
+MCP server that forecasts **next-epoch demand** for Aerodrome (Base) or Velodrome (Optimism) pools and turns it into concrete incentive-allocation recommendations, built for [Aerodrome's Predictive Allocation](https://cryptobriefing.com/aerodrome-predictive-allocation-dex-liquidity/) era, where incentives follow *predicted future demand* instead of last week's votes. Aerodrome is the default; see [Multi-protocol](#multi-protocol-aerodrome--velodrome) to switch.
+
+Any MCP-capable agent (Claude Code, Claude Desktop, Bankr-hosted agents) can use it to answer which pools will generate the most fees next epoch, where vote share is mispriced vs predicted demand, and how to split veAERO votes or an incentive budget. All data comes live from Base (Aerodrome Sugar contracts, DefiLlama prices). No API keys required.
+
+### Tools
 
 | Tool | What it does |
 |---|---|
@@ -34,11 +149,11 @@ All data comes live from Base — Aerodrome Sugar contracts for pool state and p
 | `prepare_submission` | Unsigned calldata for direct Predictive Allocation submission, once wired up — see [Predictive Allocation adapter](#predictive-allocation-adapter) |
 | `predictive_allocation_status` | Whether direct Predictive Allocation submission is wired up yet |
 | `backtest_summary` | Walk-forward accuracy of the demand forecast vs. realized fees and a naive baseline — see [Forecast accuracy](#forecast-accuracy) |
-| `realized_performance` | Your logged `voter_roi` recommendations vs. what actually happened, once each epoch completes — a track record, not a backtest — see [Realized performance tracking](#realized-performance-tracking) |
+| `realized_performance` | Your logged `voter_roi` recommendations vs. what actually happened, once each epoch completes — a track record, not a backtest — see [Realized performance tracking](#epoch-reminders-script-only) |
 
 **This server never holds keys or signs anything.** Execution is the host agent's job, behind explicit user approval.
 
-## Quick start
+### Quick start
 
 ```bash
 npm install
@@ -46,7 +161,8 @@ npm run smoke        # live end-to-end test against Base mainnet
 npm run build
 ```
 
-## Multi-protocol (Aerodrome / Velodrome)
+
+### Multi-protocol (Aerodrome / Velodrome)
 
 Aerodrome (Base) and Velodrome (Optimism) are the same ve(3,3) lineage — Aerodrome is a Velodrome fork sharing the Sugar/Voter contract pattern — so one engine covers both. A single server process serves **one** protocol, selected at startup:
 
@@ -73,123 +189,6 @@ Aerodrome (Base) and Velodrome (Optimism) are the same ve(3,3) lineage — Aerod
 
 RPC selection: `RPC_URL` (new, works for either protocol) always wins if set; otherwise `BASE_RPC_URL` is honored for backward compatibility when running Aerodrome; otherwise each protocol falls back to a public default (`base-rpc.publicnode.com` / `mainnet.optimism.io`). Every deployment also gets automatic failover to a second public RPC (`RPC_URL_FALLBACK`, overridable) if the primary goes down outright, not just rate-limited.
 
-### Dashboard
-
-**Live**: https://aeroallocator.app (Aerodrome/Base)
-
-There is no hosted Velodrome dashboard any more — see [Multi-protocol](#multi-protocol-aerodrome--velodrome) for running one yourself.
-
-A "predicted hot pools" web UI lives in `web/` (Next.js, reuses the engine directly):
-
-```bash
-npm run build                 # engine dist/ used by the web app
-cd web && npm install && npm run dev
-```
-
-Open http://localhost:3000. The page is built around one question — where to vote this epoch — and
-answers it above the fold without a wallet: the **Voter ROI** card is the first screen. Type how much
-veAERO you hold (or paste an address and hit **look up**), and it shows your expected $ next epoch as the
-headline, then the pool split that earns it, sized for that amount.
-
-- **Copy weights** puts whole percentages that sum to exactly 100 on the clipboard (largest-remainder
-  rounding, pools that would round to 0% dropped): a header line, one `POOL  35%` line per pool, and a
-  compact `pcts: 35/35/30` line — for typing into the protocol's own vote screen. **Open Aerodrome**
-  links there.
-- **Copy share text** puts one tweet-sized line on the clipboard (`10,000 veAERO → ~$85.52 expected next
-  epoch · 3 pools · votes close in 5d 13h · aeroallocator.app`), and **share card** opens
-  `/api/share?vp=<amount>` (add `&theme=light` for the light version), a 1200×630 PNG of the same
-  headline figure the page leads with. The site's own link preview uses that card
-  at the default amount (`NEXT_PUBLIC_SITE_URL` sets the address for other deployments; without it a
-  non-Aerodrome deployment gets no preview image).
-- **Address lookup** reads `VeSugar.byAccount` straight from the browser over the public RPC — the address
-  never reaches our server — sums that address's veNFTs, fills the amount, and shows how its current
-  votes compare with the recommendation. No wallet connection needed; a failed or empty lookup keeps the
-  amount you typed.
-- **Connect wallet** is only needed to *cast*. There is one connect button, in the header; the line
-  beside the cast controls points at it. It opens a "Connect a Wallet" dialog (installed wallets first,
-  with icons, then popular ones, last-used tagged Recent), and once connected the address opens an
-  account panel (copy address, explorer link, network, disconnect) instead of disconnecting on click.
-  A wallet on another network turns the button amber with a switch action.
-- Each row shows pool, vote %, veAERO, expected $ and your share of that gauge; TVL, current votes and
-  the bribe-floor vs fee-forecast split are behind the row's expand (▸).
-
-Below the card: the hot-pools table (predicted fees, edge, confidence, search + category filters, an
-expandable per-pool fee-history sparkline), sorted by edge by default (predicted demand share minus
-current vote share — the column that says where to look first, not just which pools are biggest). Then
-collapsed panels: **Other objectives** (the Protocol Efficiency and Edge Hunter allocations — market-wide
-benchmarks for treasuries and agents, not a personal vote); the LP staking-yield table (thin pools — low
-TVL or an APR too high off too little TVL to mean anything — hidden by default, flagged if shown, with a
-plain empty state when that leaves nothing); vote swings (risers/fallers, one scannable line per signal);
-a bribe-placement simulator; the forecast-accuracy panel (the same walk-forward backtest as
-`backtest_summary` — see [Forecast accuracy](#forecast-accuracy)); and a changelog. First load builds the
-onchain snapshot (~1 min), then it's cached.
-
-The sticky header carries the vote clock, snapshot age, a light/dark toggle (follows the device setting
-until you choose) and connect. The mechanism ("weekly gauge voting"),
-epoch progress and refresh sit under the headline as quiet text. **On phones the page splits into Vote /
-Pools / More tabs**: Vote is the card and its actions, Pools is the hot-pools table, and More holds
-everything collapsed above; desktop keeps the single page.
-
-**Vote mode** (on by default) trims the hot-pools table to what a voter actually needs — pool,
-predicted fees, trend, edge, $/1k votes, confidence — folding "last epoch" and "votes vs demand" into
-each row's expand (▸) instead of dropping them. Toggle it off for the full 8-column table. The row
-expand (fee-history sparkline) works the same way on the mobile card layout, not just the desktop
-table. When a small `votingPowerVe` collapses Voter ROI to one or two pools (see gas hurdle above),
-the panel says so directly rather than leaving a short list to read as a failure.
-
-The header carries two urgency signals with deliberately separate jobs: a vote-clock chip for the
-deadline (it counts to the vote *lock* — `Voter.vote()` reverts in the final hour before the Thursday
-00:00 UTC flip, so the cast deadline is Wednesday 23:00 UTC; neutral above 12h, amber inside 12h, red and
-pushing to "vote now" inside the final 2h, then "voting closed — flips in …" for the last hour) and a snapshot-age chip for the data, which turns red with its own
-"may be stale, refresh" once the snapshot is both older than the server's 5-minute cache and close to
-the flip. Only one of them ever tells you to refresh. In that last-6h window the page also quietly
-auto-refreshes (one forced live rebuild on entering it, then a 60s poll) instead of waiting on the next
-visitor to trigger a background refresh.
-
-The veAERO amount you type is remembered locally between visits, so a returning voter isn't handed the
-10,000 default again — a shared `?vp=` link still takes precedence, so links keep meaning what they say.
-
-Connect a wallet (injected or Coinbase Wallet) to cast the Voter ROI allocation as a real vote: your
-veNFTs are auto-detected via VeSugar (manual id entry as fallback) and all of them are selected by
-default — a wallet holding several locks gets its combined voting power and current split immediately,
-and the "cast vote" button batches one `Voter.vote()` per selected veNFT into a single Multicall3
-transaction (one signature, not N). Uncheck a lock to exclude it. You can also skip connecting and copy
-the unsigned `Voter.vote()` calldata for a veNFT id. The dashboard shows your actual current vote split
-next to the recommended one (with the $ difference), and you sign in your wallet; the app never holds
-keys.
-
-**Multi-protocol**: like the MCP server, one web deployment serves one protocol, fixed at build time
-by `AERO_PROTOCOL` (server) and `NEXT_PUBLIC_AERO_PROTOCOL` (client — must be set to the same value;
-a console warning fires if they ever drift). Contract addresses used in the vote transaction always
-come from the server's `PRESET` via `/api/protocol`, never duplicated client-side, so a mismatched
-`NEXT_PUBLIC_AERO_PROTOCOL` can produce wrong labels but never a wrong-contract vote. The hosted Velodrome deployment
-was retired on 2026-09-24 (see above), and with it the cross-deployment switcher; a self-hosted Velodrome
-dashboard is simply `web/` built with those two variables set to `velodrome`.
-
-#### Deploying to Vercel
-
-The dashboard depends on the engine package via a local `file:..` reference, which needs some
-non-default project settings to build correctly on Vercel — the framework's zero-config detection
-doesn't handle this monorepo shape out of the box:
-
-| Setting | Value | Why |
-|---|---|---|
-| Root Directory | `web` | Vercel's Next.js detection checks *this* directory's `package.json` for a `next` dependency — pointing it at the repo root (which has no `next` dep) fails detection entirely |
-| Install Command | `npm install` (default) | Must be a real install, not a no-op — Vercel checks the installed Next.js version immediately after this step, before running Build Command |
-| Build Command | `cd .. && npm install --include=dev && npm run build && cd web && npm run build` | Builds the engine's `dist/` first (needs `--include=dev` for `typescript`/`@types/node`, which a plain `npm install` can skip in Vercel's build environment), then the Next.js app that depends on it |
-| Output Directory | default (`.next`) | Resolved *relative to Root Directory* — do not prefix with `web/` (that double-counts and fails with "output directory not found") |
-
-Root Directory isn't exposed as a `vercel` CLI flag; set it via the dashboard (Project Settings →
-General) or the API (`PATCH /v9/projects/{id}` with `{"rootDirectory": "web"}`). Env vars (`RPC_URL`,
-`AERO_PROTOCOL`, `NEXT_PUBLIC_AERO_PROTOCOL`, optionally `NEXT_PUBLIC_SIBLING_URL`) go in Project
-Settings → Environment Variables, per environment (Production/Preview). A dedicated RPC (Alchemy,
-Infura) is strongly recommended over the public default — it's the difference between a ~20s and a
-~1min cold snapshot build, which matters against Vercel's function timeout (60s ceiling on Hobby).
-
-Vercel's Deployment Protection (an SSO auth wall) is on by default for all deployments including
-production. To make production public while keeping preview deployments protected, set
-`ssoProtection.deploymentType` to `"preview"` via the API (also not a dashboard toggle at the time of
-writing).
 
 Register with Claude Code:
 
@@ -217,30 +216,8 @@ Example agent flow:
 
 > "Predict demand for the top Aerodrome pools, recommend a voter_roi allocation across 8 pools, then prepare the vote calldata for my veAERO #12345 and submit it with my Base wallet."
 
-## Paid API (x402)
 
-Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
-Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
-They are indexed in Coinbase's x402 Bazaar (and so agentic.market) after their first paid call, and described for agents at `/llms.txt`.
-
-| Endpoint | Price | What it answers |
-|---|---|---|
-| `GET /api/v1/position?tokenId=<id>` or `?address=0x…` | $0.05 | Where does this sAERO position stand: power, lock, idle vs allocated, the 47-hour re-allocation wait, what it earns per day now vs the best split of Base gauges for its own size, and a stay / switch / allocate / unknown recommendation. |
-| `GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` | $0.10 | The unsigned, already-simulated `allocate()` transaction for that best split (to, data, value, chain 8453), with cooldown and warnings. Never signs or sends. Base only. |
-
-These answer something the free `/api/gauges` and `/api/gauge-fees` reads can't: a chain read keyed to one position, and calldata that
-satisfies the Voter's rules (full overwrite per chain, exact total, ascending addresses). The old weekly-vote `/api/v1/forecast` earned
-almost nothing because the free site served the same payload; keep new paid routes on the "free can't do this" side.
-
-Requires three env vars to activate; without all three each paid route serves a clean `501` rather than accepting payment:
-
-| Var | | |
-|---|---|---|
-| `X402_PAYTO_ADDRESS` | Base address you control | Where payments land: never generated or held by this codebase |
-| `CDP_API_KEY_ID` | From [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/) | Coinbase Developer Platform API key |
-| `CDP_API_KEY_SECRET` | Same place | Paired secret |
-
-## How the forecast works
+### How the forecast works
 
 For each candidate pool (top N by staked TVL above a TVL floor):
 
@@ -261,7 +238,7 @@ Three allocation objectives — each answers a different question, and they can 
 
 `detect_vote_swings` watches for the pattern voters chase in the final hours of an epoch: a pool suddenly gets a large bribe, and votes drain toward it from everywhere else before lock. For each pool it forecasts a full-epoch baseline from completed-epoch history (same EWMA+trend model, applied to bribes and votes instead of fees), scales it by how much of the epoch has elapsed to get an expected-so-far value, and compares that against the actual in-progress epoch. **risers** are pools whose bribes are running ahead of pace — the early, causal signal, since a bribe can land in one transaction. **fallers** are pools whose votes are running behind pace — the effect, once other voters have reacted. A brand-new bribe with no comparable prior-epoch baseline is reported with a null ratio rather than a meaningless divide-by-near-zero number, and a gauge that had effectively no votes by this point in prior epochs is reported as having no vote-pace baseline at all — the same division would otherwise turn any votes at all into a nine-figure percentage. Like the reminder script, this sharpens as the epoch progresses and is noisiest early on.
 
-## Forecast accuracy
+### Forecast accuracy
 
 `confidence` on each forecast starts as a heuristic (history depth + variance), then gets recalibrated
 against real backtested accuracy before it reaches any tool output — see [Confidence
@@ -279,7 +256,7 @@ nothing. A confidence-calibration table checks whether higher-confidence forecas
 error. One known gap: this replays epoch-boundary predictions only — it doesn't replay the mid-epoch
 pace-extrapolation blend used for the live in-progress epoch.
 
-### Confidence calibration
+#### Confidence calibration
 
 The heuristic confidence (`depthScore × stabilityScore`) is a guess at how trustworthy a forecast is —
 it's never seen a real outcome. `deriveConfidenceCalibration` buckets every walk-forward backtest point
@@ -302,7 +279,7 @@ fails for any reason.
 Run `npm run backtest` for a console report, or call `backtest_summary` from any connected agent for
 live numbers (cached ~1h; `AERO_BACKTEST_EPOCHS` / `AERO_BACKTEST_MAX_POOLS` tune the depth/breadth).
 
-## Predictive Allocation adapter
+### Predictive Allocation adapter
 
 Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as of 2026-08-16; launch has slipped from July to September 2026). Everything mechanism-specific lives behind one interface in `src/adapters/predictive-allocation.ts`, and it's fully config-driven — no code changes needed on launch day, just set env vars once Dromos publishes the address and ABI:
 
@@ -315,77 +292,40 @@ Dromos Labs announced the mechanism but hasn't published contracts/ABI yet (as o
 
 With all four set, `prepare_submission` builds real calldata; `predictive_allocation_status` reports `live: true`. Until then, `prepare_submission` fails with a clear "not published yet" error and `prepare_vote_calldata` targets the classic `Voter.vote()` flow, which works today.
 
-### Arc
+#### Arc
 
 Circle's Arc mainnet (chain ID `5042`, EVM-compatible, gas paid in USDC) launched 2026-09-16, and "Aero" — Aerodrome and Velodrome's planned merged protocol — is named as a launch trading-infrastructure partner. As of this writing, no Sugar/Voter/veAERO-equivalent contract addresses on Arc have been published anywhere (checked Arc's own contract-address docs and `aerodrome-finance/contracts` on GitHub), and it's not yet clear whether voting stays Base-hub-only or becomes Arc-local — so there's nothing here to build against yet. Tracked as a roadmap item once addresses and an ABI are public.
 
-## Configuration (env)
+
+### Configuration (env, engine and scripts)
 
 | Var | Default | |
 |---|---|---|
-| `AERO_PROTOCOL` | `aerodrome` | `aerodrome` (Base) or `velodrome` (Optimism) — see [Multi-protocol](#multi-protocol-aerodrome--velodrome) |
-| `RPC_URL` | protocol default | Dedicated RPC, either protocol — always wins if set |
+| `AERO_PROTOCOL` | `aerodrome` | `aerodrome` (Base) or `velodrome` (Optimism) |
+| `RPC_URL` | protocol default | Dedicated RPC, either protocol; always wins if set |
 | `BASE_RPC_URL` | `https://base-rpc.publicnode.com` | Legacy alias for `RPC_URL`, honored when `AERO_PROTOCOL=aerodrome` |
-| `RPC_URL_FALLBACK` | protocol default | Automatic failover if `RPC_URL` goes down (not just rate-limited) — a second, independently-operated public RPC per protocol; override if you have a dedicated backup |
+| `RPC_URL_FALLBACK` | protocol default | Automatic failover if `RPC_URL` goes down (not just rate-limited) |
 | `AERO_MIN_TVL_USD` | `50000` | Candidate pool TVL floor |
-| `AERO_MAX_CANDIDATES` | `300` | Pools receiving full epoch-history analysis, ranked by staked TVL. Comfortably above the ~260 pools that currently clear `AERO_MIN_TVL_USD` — a lower value silently excludes small-but-high-APR pools from every ranked tool, regardless of how good their yield is |
+| `AERO_MAX_CANDIDATES` | `300` | Pools receiving full epoch-history analysis, ranked by staked TVL. A lower value silently excludes small-but-high-APR pools from every ranked tool |
 | `AERO_BACKTEST_EPOCHS` | `26` | Epochs of history pulled per pool for `backtest_summary` |
 | `AERO_BACKTEST_MAX_POOLS` | `30` | Pools analyzed per default `backtest_summary` run |
-| `AERO_DISCORD_WEBHOOK_URL` | unset | If set, `npm run epoch-reminder` also posts its summary to this Discord webhook — see [Epoch reminders](#epoch-reminders) |
-| `AERO_VOTING_POWER` | unset | Your veAERO amount — if set, the epoch-reminder Discord post includes your personal `voter_roi` split, not just the market-wide reference — see [One-click voting from the alert](#one-click-voting-from-the-alert) |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | unset | Free [Reown Cloud](https://cloud.reown.com) project id (public; the domain must be on its allowlist). Enables WalletConnect: on a phone's normal browser the connect dialog offers Coinbase Wallet and "Other wallets" (WalletConnect's wallet window), and desktop gets a QR option. Without it the connector is left out (its relay socket would hang the tab) and phones only get Coinbase Wallet |
-| `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` on Aerodrome, unset otherwise | Public address of a `web/` deployment, for the link-preview image (`og:image`). Unset on a non-Aerodrome deployment means no preview image |
-| `AERO_DASHBOARD_URL` | unset | Optional, `npm run epoch-reminder` only: the Discord post links to this URL with the allocation pre-loaded. The weekly-vote dashboard it pointed at was removed on 2026-10-24, so it has no use now |
+| `AERO_DISCORD_WEBHOOK_URL` | unset | `npm run epoch-reminder` also posts its summary to this Discord webhook |
+| `AERO_VOTING_POWER` | unset | Your veAERO amount: the epoch-reminder post then includes your personal `voter_roi` split |
 
-## Epoch reminders
+### Epoch reminders (script only)
 
-`npm run epoch-reminder` (`scripts/epoch-reminder.ts`) prints time-to-flip, the biggest predictive-edge
-mispricings, any `detect_vote_swings` signals, and a `protocol_efficiency` reference allocation — a
-snapshot of what's worth re-voting into or out of before lock. Set `AERO_DISCORD_WEBHOOK_URL` and it also
-posts the same summary as a Discord embed, so this is actionable without anyone polling for it.
+`npm run epoch-reminder` (`scripts/epoch-reminder.ts`) prints time-to-flip, the biggest predictive-edge mispricings, any `detect_vote_swings`
+signals and a `protocol_efficiency` reference allocation, and posts it to Discord if `AERO_DISCORD_WEBHOOK_URL` is set. **There is no
+scheduled workflow for it any more** (the GitHub Actions schedule and the vote-alert emails were removed on 2026-10-24 when weekly voting
+ended); run it yourself if you want it.
 
-`.github/workflows/epoch-reminder.yml` runs it on a schedule three times in the final hours before each
-epoch's Thursday 00:00 UTC lock (12h, 6h, and 1.5h out) via `workflow_dispatch`-triggerable cron. Set the
-`AERO_DISCORD_WEBHOOK_URL` repo secret (and optionally `RPC_URL`, for a dedicated endpoint instead of the
-public default) to enable it on your fork.
+With `AERO_VOTING_POWER` set it also logs that `voter_roi` recommendation to `data/voter-roi-log.jsonl` (one entry per epoch), and
+`npm run realized-performance` (or the `realized_performance` tool) compares each completed epoch against what actually happened, using the
+same `R·v/(E+v)` formula the recommendation used, with the epoch's final fees, bribes and votes. That is a track record of your logged
+recommendations going forward, not a backtest of the model (see `backtest_summary`), and it can't know whether you actually followed a
+recommendation. Reconciliation has to happen within the 8-epoch history window of the epoch completing.
 
-### One-click voting from the alert
-
-Set `AERO_VOTING_POWER` (your veAERO amount) and the post also includes your personal `voter_roi` split,
-not just the market-wide `protocol_efficiency` reference. Set `AERO_DASHBOARD_URL` too (your dashboard
-deployment's URL) and the alert becomes a clickable link straight into it with that allocation pre-loaded
-(via the `?vp=` param — see [Deploying to Vercel](#deploying-to-vercel)), wallet-connect ready.
-
-This is deliberately "prepare + one-click approve," not unattended signing — no private key is ever held
-by this script, the GitHub Actions workflow, or any server. You still connect your own wallet and confirm
-the transaction yourself; automation only removes the "remember to check and compute this every week"
-part, not the signing.
-
-### Realized performance tracking
-
-Every time `epoch-reminder` runs with `AERO_VOTING_POWER` set, it also logs that `voter_roi`
-recommendation to `data/voter-roi-log.jsonl` — one entry per epoch (idempotently overwritten across the
-schedule's three runs, so the log always reflects whichever run was closest to lock, the most accurate
-one). `.github/workflows/epoch-reminder.yml` commits this file back to the repo automatically when it
-changes.
-
-`npm run realized-performance` (or the `realized_performance` MCP tool) then compares each logged epoch
-that's since completed against what actually happened: realized reward per pool uses the *exact same*
-formula `recommend_allocation` used to predict it — `R·v/(E+v)` — just with the epoch's final, actual
-fees/bribes/votes instead of forecasts. This needs no new on-chain fetching: the pool's actual outcome for
-any given epoch is already sitting in the same `RewardsSugar.epochsByAddress` history the engine reads for
-everything else — as long as reconciliation happens within that history's 8-epoch window of the epoch
-completing (`SETTINGS.historyEpochs`, not currently env-configurable), not months later.
-
-This is a different question from `backtest_summary`: that validates the *forecast model* by replaying
-history; this is a track record of *your actual recommendations* going forward. One caveat: the tool
-can't know whether you actually followed a given logged recommendation — the "actual votes" figure it
-reconciles against is the pool's whole recorded total for that epoch, which may or may not already
-include yours.
-
-### Vote alerts
-
-## Contracts used
+### Contracts used (legacy engine)
 
 Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-token addresses cross-checked against DefiLlama + CoinGecko.
 
@@ -397,33 +337,18 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 | Voter | `0x16613524e02ad97eDfeF371bC883F2F5d6C480A5` | `0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C` |
 | Reward token (AERO/VELO) | `0x940181a94A35A4569E4529A3CDfB74e38FD98631` | `0x9560e827aF36c94D2Ac33a39bCe1fe78631088dB` |
 
+
 ## Roadmap
 
-- [x] Predictive Allocation adapter is config-driven and launch-ready — wiring the real contracts is an env var change (`prepare_submission`)
-- [ ] Social/attention signals (Farcaster mentions, token listings) as forecast features
-- [x] Backtest harness: replay past epochs, score forecast vs realized fees, publish accuracy (`backtest_summary`, `npm run backtest`)
-- [x] ~~x402-monetized hosted endpoints~~ — built, then removed 2026-10-24 with the weekly-vote dashboard
-- [x] "Predicted hot pools" dashboard (`web/`)
-- [x] Wallet connection + one-click vote from the dashboard (wagmi)
-- [x] Multi-protocol: Velodrome (Optimism) alongside Aerodrome (Base), selected via `AERO_PROTOCOL`
-- [x] Dashboard (`web/`) multi-protocol support — one protocol-fixed deployment per protocol (the cross-linking switcher was retired with the hosted Velodrome site, 2026-09-24)
-- [x] Dashboard deployed live on Vercel (Aerodrome; the hosted Velodrome deployment was retired 2026-09-24) — see [Deploying to Vercel](#deploying-to-vercel)
-- [x] Semi-automated voting: epoch-reminder posts your personal split with a one-click approve link — see [One-click voting from the alert](#one-click-voting-from-the-alert)
-- [x] Realized-vs-recommended tracking: `realized_performance` compares logged recommendations against actual outcomes — see [Realized performance tracking](#realized-performance-tracking)
-- [x] Personal vote desk: dashboard shows your actual on-chain vote split next to the recommendation, with the $ difference
-- [x] Multi-veNFT batch voting: every detected veNFT selected by default, cast as one Multicall3 transaction instead of one wallet signature per lock
-- [x] Gas hurdle for small `votingPowerVe`: pools too small a slice to be worth the extra calldata are collapsed away instead of splitting into an N-way vote nobody can profit from
-- [x] Vote mode: hot-pools table defaults to edge sort and a trimmed column set, with the rest folded into the row expand
-- [x] Mobile row-expand parity, tighter confidence-cluster threshold, a gas-hurdle empty state, and a grouped (status vs actions) header
-- [x] Vote-first information architecture: Voter ROI leads with an expected-$ headline, other objectives collapse behind "Other splits", sticky header, phone tabs (vote / LP / swings), and real empty states
-- [x] First screen answers without a wallet: type an amount or paste an address, copy whole-percent weights that sum to 100, open Aerodrome; connect only to cast. Phone tabs are Vote / Pools / More, and "Other objectives", LP, swings, bribe sim and accuracy are collapsed
-- [x] Read-only address lookup: veNFTs summed via `VeSugar.byAccount` from the browser over the public RPC, filling the amount and the current-vs-recommended comparison (the address never reaches our server)
-- [x] Share text and a 1200×630 share card (`/api/share`), also used as the site's link preview
-- [x] Light and dark themes (header toggle, OS default), a wallet dialog and account panel, one shared button/link style, and a footer in the [afterbook.app](https://afterbook.app) layout
-- [x] Optional tip button (USDC on Base, copy address or send from a connected wallet) and cookie-free Vercel Web Analytics, to judge usage before building any paid dashboard features
-- [x] ~~Vote alerts~~ — built, then removed 2026-10-24 (weekly voting ended)
-- [ ] A published track record for the split itself (this split vs one top pool over settled epochs) — prototyped 2026-09-25 and held: on live data the split trailed a single top pool for holders under ~100k veAERO over 5 epochs, so it needs an engine look and more than the 8 weeks of history the snapshot holds
-- [ ] Arc chain support — blocked on Aero/Dromos Labs publishing Sugar/Voter contract addresses on Arc; see [Arc](#arc)
+- [x] sAERO allocator: ranked gauges, best split, positions read in the browser, allocate and return-to-idle from your wallet
+- [x] Fee pace measured from on-chain releases, with weight snapshots, power flow, steadiness, new-incentive flags and a 90-day daily record
+- [x] Paid x402 endpoints for agents (`v1/position`, `v1/allocate-plan`) and `/llms.txt`
+- [x] Per-position wait explanation, calendar reminder, earned-fees read, Autopilot-key handling, and what staying costs per day
+- [x] Backtest harness (`backtest_summary`) and realized-performance tracking for the weekly-vote engine
+- [ ] Allocating to gauges on other chains (the fee quote is built; the transaction is not)
+- [ ] Claiming rewards: not built, because Aero's claim is callable only by a position's operator or Aero's orchestrator
+- [ ] A move-or-stay backtest: prototyped and dropped, the record was too short and fees too lumpy; retry with more of the daily record
+- [ ] Arc chain support: blocked on Aero/Dromos Labs publishing contract addresses on Arc; see [Arc](#arc)
 
 ## Disclaimer
 
