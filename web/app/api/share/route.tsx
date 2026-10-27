@@ -14,7 +14,7 @@ export const maxDuration = 60;
 // The 1200×630 card people paste under a post: what an amount of sAERO earns per day in the best split of Base gauges, from the
 // same gauge and fee reads as the page.
 //
-// The amount comes from ?vp= — a number the visitor chose to put in a link by pressing "share card", never something the page
+// The amount comes from ?vp= — a number the visitor chose to put in a link by pressing a position's "share card" (its power rounded to two figures, `web/app/position-share.tsx`), never something the page
 // publishes on its own. Cached for a few minutes at the edge: the figure moves with the fee reads, not with every viewer, and a
 // card being unfurled by a crowd shouldn't each cost a gauge scan. When the data can't be read the card still renders, without
 // a number, so a preview never shows a $0 or an error.
