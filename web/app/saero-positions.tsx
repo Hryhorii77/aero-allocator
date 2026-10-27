@@ -24,6 +24,7 @@ import { SITE_URL } from "@/lib/site";
 import { totalCostText } from "@/lib/opportunity";
 import { EarnedFees } from "./earned-fees";
 import { PositionAdviceLine } from "./position-advice-line";
+import { PositionShare } from "./position-share";
 import { SaeroAllocate } from "./saero-allocate";
 import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
@@ -278,6 +279,7 @@ export function SaeroPositions() {
                 )}
                 {p.staked > 0 && <PositionAdviceLine position={p} onCost={onCost} />}
                 {p.staked > 0 && <EarnedFees tokenId={p.tokenId} />}
+                {p.staked > 0 && <PositionShare power={p.votingPower} />}
                 {p.operator && (
                   <p className="mt-2 text-amber-500">
                     An operator ({p.operator.slice(0, 6)}…{p.operator.slice(-4)}) is set on this position and can change its gauge allocation on Base. If it is an Aero
