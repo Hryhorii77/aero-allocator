@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { estimateGas, readContracts, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
@@ -17,7 +17,9 @@ import { rankByUsdPerDay } from "@/lib/gauge-yield";
 import { gaugeLabel, type GaugeList } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { readCurrent, type CurrentPick } from "./saero-allocate";
+import { setPending } from "@/lib/pending-lock";
 import { horizonText } from "./all-chains-split";
+import { SaeroManageChains } from "./saero-manage-chains";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 /** Gas limit for the send: what the simulation needs plus 30%, because a plain estimate sits right at the edge where the cross-chain dispatch runs out of gas (seen on a fork of Base). */
@@ -25,7 +27,7 @@ const GAS_HEADROOM = 130n;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const eth = (wei: bigint) => Number(formatEther(wei)).toPrecision(2);
 
-type Loaded = { split: AllChainsSplit; quotes: Record<number, CrossChainFee>; otherRaw: bigint; current: CurrentPick[] };
+type Loaded = { split: AllChainsSplit; quotes: Record<number, CrossChainFee>; otherRaw: bigint; byChain: Record<number, bigint>; current: CurrentPick[] };
 
 /** True when a step sets gauges on Base, which the position's Base wait gates. */
 const touchesBase = (s: AllocateStep) => s.args[2].some((d) => d.chainId === BigInt(BASE_CHAIN.id));
@@ -47,6 +49,8 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Loaded | "failed" | null>(null);
   const [checking, setChecking] = useState(false);
+  // The chain a just-sent change is for, so its lock is set once the transaction has a hash (not when the wallet is merely asked).
+  const sentFor = useRef<number | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // "Choose myself": a percentage per chain other than Base (Base keeps the rest), and what was read for the chosen split.
   const [mode, setMode] = useState<"best" | "custom">("best");
@@ -58,6 +62,13 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
   const otherSum = otherH.reduce((s, x) => s + (x.h ?? 0), 0);
   const baseH = 10_000 - otherSum;
   const customKey = `${position.votingPower}:${otherH.map((x) => `${x.c.id}=${x.h}`).join(",")}`;
+
+  useEffect(() => {
+    if (hash && sentFor.current !== null) {
+      setPending(position.tokenId, sentFor.current);
+      sentFor.current = null;
+    }
+  }, [hash]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (confirmed) onAllocated?.();
@@ -81,7 +92,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
       ]);
       const used = splitRes.best.chains.filter((c) => c.chainId !== BASE_CHAIN.id);
       const quoteList = await Promise.all(used.map((c) => fetch(`/api/allocation-fee?chain=${c.chainId}&gauges=${c.parts.length}`).then((r) => (r.ok ? (r.json() as Promise<CrossChainFee>) : Promise.reject(new Error(String(r.status)))))));
-      if (live) setData({ split: splitRes, quotes: Object.fromEntries(quoteList.map((q) => [q.chainId, q])), otherRaw: amounts.reduce((a, b) => a + b, 0n), current });
+      if (live) setData({ split: splitRes, quotes: Object.fromEntries(quoteList.map((q) => [q.chainId, q])), otherRaw: amounts.reduce((a, b) => a + (b ?? 0n), 0n), byChain: Object.fromEntries(others.map((c, i) => [c.id, amounts[i] ?? 0n])), current });
     })().catch(() => live && setData("failed"));
     return () => {
       live = false;
@@ -162,10 +173,11 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
     }
   })();
 
-  const send = async (step: AllocateStep) => {
+  const send = async (step: AllocateStep, lockChain: number | null = null) => {
     if (!address) return;
     setProblem(null);
     reset();
+    sentFor.current = null;
     if (chainId !== base.id) {
       switchChain({ chainId: base.id });
       return;
@@ -178,6 +190,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
       const callData = encodeFunctionData({ abi: allocateAbi, functionName: "allocate", args: step.args });
       const gas = await estimateGas(wagmiConfig, { to: SAERO.voter, data: callData, value: step.valueWei, account: address, chainId: base.id } as unknown as Parameters<typeof estimateGas>[1]);
       setChecking(false);
+      sentFor.current = lockChain;
       writeContract({ address: SAERO.voter, abi: allocateAbi, functionName: "allocate", args: step.args, value: step.valueWei, chainId: base.id, gas: (gas * GAS_HEADROOM) / 100n } as unknown as Parameters<typeof writeContract>[0]);
     } catch (e) {
       setChecking(false);
@@ -210,6 +223,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
           close
         </button>
       </div>
+      {!(data && data !== "failed" && data.otherRaw > 0n) && (
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button type="button" className={chip(mode === "best")} aria-pressed={mode === "best"} onClick={() => setMode("best")}>
           best split
@@ -218,7 +232,8 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
           choose the chains myself
         </button>
       </div>
-      {mode === "custom" && (
+      )}
+      {mode === "custom" && ready && (
         <div className="mt-3">
           <p className={NOTE}>Type how much of the position goes to each chain, in percent. Base keeps the rest. On each chain the gauges are the best split for its share.</p>
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
@@ -245,10 +260,16 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
       )}
       {data === null && <p className={`mt-2 ${NOTE}`}>Reading the chains and this position…</p>}
       {data === "failed" && <p className="mt-2 text-sm text-rose-400">Could not read the chains just now. Try again in a moment.</p>}
-      {data && data !== "failed" && data.otherRaw > 0n && (
-        <p className="mt-2 text-sm text-amber-500">
-          This position already has power on other chains. Moving that from here isn&rsquo;t built, so manage it in Aero&rsquo;s app.
-        </p>
+      {data && data !== "failed" && data.otherRaw > 0n && address && (
+        <SaeroManageChains
+          tokenId={position.tokenId}
+          owner={address}
+          byChain={data.byChain}
+          power={position.votingPower}
+          busy={signing || confirming || checking}
+          nonce={receipt?.transactionHash ?? ""}
+          onSend={(step, chain) => void send(step, chain)}
+        />
       )}
       {mode === "custom" && ready && otherSum === 0 && !typedBad && (
         <p className={`mt-2 ${BODY}`}>Type a percentage for at least one chain to see a plan. With everything on Base, use “allocate…” instead.</p>
