@@ -57,11 +57,18 @@ export async function readCurrent(tokenId: bigint, symbolOf: (g: string) => stri
  * day, lets you pick and weight them, then simulates the transaction on-chain before asking your wallet to sign.
  * Aero's allocate() replaces the whole Base distribution and starts a 47-hour wait before the next change.
  */
-export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosition; cooldownReady: boolean }) {
+export function SaeroAllocate({ position, cooldownReady, onAllocated }: { position: SaeroPosition; cooldownReady: boolean; onAllocated?: () => void }) {
   const { chainId, address } = useAccount();
   const { switchChain } = useSwitchChain();
   const { writeContract, data: hash, isPending: signing, error: sendError, reset } = useWriteContract();
-  const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash, chainId: base.id });
+  const { isLoading: confirming, data: receipt } = useWaitForTransactionReceipt({ hash, chainId: base.id });
+  // A mined transaction can still have reverted; only a successful receipt counts as allocated.
+  const confirmed = receipt?.status === "success";
+  const reverted = receipt?.status === "reverted";
+  // Once it lands, the page re-reads the position so the card shows the new allocation and the new wait.
+  useEffect(() => {
+    if (confirmed) onAllocated?.();
+  }, [confirmed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<YieldRow[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -272,7 +279,7 @@ export function SaeroAllocate({ position, cooldownReady }: { position: SaeroPosi
       )}
       {hash && (
         <p className={`mt-2 ${BODY}`}>
-          {confirmed ? "Allocated. " : "Sent. "}
+          {confirmed ? "Allocated. " : reverted ? "The transaction was mined but failed, so nothing changed. " : "Sent. "}
           <a className={LINK} href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noreferrer">
             view on Basescan ↗
           </a>

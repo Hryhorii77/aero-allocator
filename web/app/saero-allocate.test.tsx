@@ -4,12 +4,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const OWNER = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae";
 const account = vi.hoisted(() => ({ address: undefined as string | undefined, chainId: 8453 as number | undefined }));
 const write = vi.hoisted(() => ({ writeContract: vi.fn(), reset: vi.fn() }));
+const tx = vi.hoisted(() => ({ hash: undefined as string | undefined, receipt: undefined as { status: string } | undefined }));
 const sim = vi.hoisted(() => ({ simulateContract: vi.fn(), readContract: vi.fn(), readContracts: vi.fn() }));
 vi.mock("wagmi", () => ({
   useAccount: () => account,
   useSwitchChain: () => ({ switchChain: vi.fn() }),
-  useWriteContract: () => ({ writeContract: write.writeContract, reset: write.reset, data: undefined, isPending: false, error: null }),
-  useWaitForTransactionReceipt: () => ({ isLoading: false, isSuccess: false }),
+  useWriteContract: () => ({ writeContract: write.writeContract, reset: write.reset, data: tx.hash, isPending: false, error: null }),
+  useWaitForTransactionReceipt: () => ({ isLoading: false, data: tx.receipt }),
 }));
 vi.mock("wagmi/actions", () => sim);
 vi.mock("wagmi/chains", () => ({ base: { id: 8453 } }));
@@ -133,6 +134,25 @@ describe("SaeroAllocate", () => {
     await screen.findByText(/Shares add up to 100%/);
     expect(screen.getByRole("button", { name: "allocate" })).toBeDisabled();
     expect(screen.getByText(/Still in cooldown/)).toBeInTheDocument();
+  });
+
+  it("re-reads the position once the transaction succeeds, and says a reverted one changed nothing", async () => {
+    const onAllocated = vi.fn();
+    tx.hash = "0xabc";
+    tx.receipt = { status: "reverted" };
+    const { unmount } = render(<SaeroAllocate position={position} cooldownReady onAllocated={onAllocated} />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/mined but failed, so nothing changed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Allocated\./)).toBeNull();
+    expect(onAllocated).not.toHaveBeenCalled();
+    unmount();
+    tx.receipt = { status: "success" };
+    render(<SaeroAllocate position={position} cooldownReady onAllocated={onAllocated} />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/Allocated\./)).toBeInTheDocument();
+    expect(onAllocated).toHaveBeenCalledTimes(1);
+    tx.hash = undefined;
+    tx.receipt = undefined;
   });
 
   it("explains when all power sits on other chains", () => {
