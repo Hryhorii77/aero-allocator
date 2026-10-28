@@ -12,6 +12,10 @@ import { SAERO_CHAIN_ID } from "./saero";
 //  - msg.value must equal the sum of every dispatch's `value` exactly; a dispatch to another chain needs a non-zero destination gas limit.
 //  - Gauge lists and the dispatch lists are strictly ascending (by address, by chain id) and carry no zero amounts; a chain's gauge list
 //    must add up to that chain's whole budget.
+//  - The plan starts from where the position is now on EVERY chain, not only Base. A chain whose share goes down keeps the gauges it still
+//    wants and lists the rest against the DEALLOC marker (a partial return); a chain whose share goes up draws idle power. Power returned from a
+//    chain other than Base only becomes idle on Base when the leaf's message arrives (minutes), and the marker needs that chain's return cost on
+//    top of the message fee (RootMessageOrchestrator.sol), so the plan is up to two steps and the second reports how much idle power it needs.
 
 export interface ChainTarget {
   chainId: number;
@@ -23,6 +27,8 @@ export interface ChainTarget {
 export interface CrossChainFees {
   chainStepWei: (chainId: number) => bigint;
   gaugeStepWei: (chainId: number, gauges: number) => bigint;
+  /** What a chain keeps out of a dispatch that returns power (its `deallocationReturnCost`); 0 for Base. */
+  returnCostWei?: (chainId: number) => bigint;
 }
 
 export type ChainDispatch = { chainId: bigint; delta: bigint; gasLimit: bigint; value: bigint };
@@ -34,6 +40,18 @@ export interface AllocateStep {
   args: readonly [bigint, ChainDispatch[], GaugeDispatch[], Address];
   /** msg.value: the sum of every dispatch's value. */
   valueWei: bigint;
+  /** Every chain this transaction sets gauges on (each chain's own wait applies to it). */
+  chains: number[];
+  /** Idle power this step draws, base units: it can only be sent once the position's idle power is at least this much. */
+  needsIdle: bigint;
+  /** True for the step that returns power to idle. */
+  returns: boolean;
+}
+
+/** Where the position sits on a chain now: its budget there and the gauges it is on. */
+export interface CurrentChain {
+  amount: bigint;
+  gauges: Array<{ gauge: string; pct: number }>;
 }
 
 const BPS = 10_000n;
@@ -44,20 +62,20 @@ const byAddress = (a: { gauge: Address }, b: { gauge: Address }) => (BigInt(a.ga
 export const FEE_MARGIN_PCT = 10n;
 export const withMargin = (wei: bigint) => (wei * (100n + FEE_MARGIN_PCT)) / 100n;
 
-/** Whether the position's current Base gauges already are the target ones (same gauges, shares within half a percent of the position's Base amount). */
-function sameBase(current: Array<{ gauge: string; pct: number }>, picks: Array<{ gauge: string; bps: number }>, tBps: number): boolean {
-  if (current.length !== picks.length || tBps <= 0) return false;
+/** Whether the current gauges already are the target ones (same gauges, shares within half a percent of the chain's amount). */
+function sameGauges(current: Array<{ gauge: string; pct: number }>, picks: Array<{ gauge: string; bps: number }>, chainBps: number): boolean {
+  if (current.length !== picks.length || chainBps <= 0) return false;
   const now = new Map(current.map((c) => [c.gauge.toLowerCase(), c.pct]));
   return picks.every((p) => {
     const have = now.get(p.gauge.toLowerCase());
-    return have !== undefined && Math.abs(have - (p.bps / tBps) * 100) < 0.5;
+    return have !== undefined && Math.abs(have - (p.bps / chainBps) * 100) < 0.5;
   });
 }
 
 /**
- * The transactions that take a position from where it is (`parked` idle, `onBase` on Base's gauges, nothing on other chains) to
- * `targets`. Steps are meant to be sent in order, the next only after the previous is confirmed. Throws AllocateError for anything the
- * Voter would reject, so a bad plan never reaches the wallet.
+ * The transactions that take a position from where it is (`parked` idle, `onBase` on Base's gauges, `others` on other chains) to
+ * `targets`. Steps are meant to be sent in order, the next only after the previous is confirmed, and the main step only once the idle power
+ * it needs (`needsIdle`) has arrived. Throws AllocateError for anything the Voter would reject, so a bad plan never reaches the wallet.
  */
 export function planAcrossChains(args: {
   tokenId: bigint;
@@ -67,10 +85,15 @@ export function planAcrossChains(args: {
   fees: CrossChainFees;
   /** The position's current Base gauges (for skipping a Base re-allocation that would change nothing). */
   currentBase: Array<{ gauge: string; pct: number }>;
+  /** Where the position sits on other chains now, by chain id. */
+  others?: Record<number, CurrentChain>;
   refundRecipient: Address;
 }): AllocateStep[] {
   const { tokenId, parked, onBase, targets, fees, currentBase, refundRecipient } = args;
-  const total = parked + onBase;
+  const others = args.others ?? {};
+  const now = new Map<number, CurrentChain>([[SAERO_CHAIN_ID, { amount: onBase, gauges: currentBase }]]);
+  for (const [id, c] of Object.entries(others)) if (c.amount > 0n) now.set(Number(id), c);
+  const total = parked + [...now.values()].reduce((s, c) => s + c.amount, 0n);
   if (total <= 0n) throw new AllocateError("This position has no power to allocate.");
 
   const seenChains = new Set<number>();
@@ -102,44 +125,92 @@ export function planAcrossChains(args: {
   const onChain = (id: number) => flat.filter((p) => p.chainId === id);
   const chainTotal = (id: number) => onChain(id).reduce((s, p) => s + p.allocated, 0n);
   const toGauges = (ps: Array<{ gauge: Address; allocated: bigint }>) => ps.map(({ gauge, allocated }) => ({ gauge, allocated, data: "0x" as const })).sort(byAddress);
+  const returnCost = (id: number) => (id === SAERO_CHAIN_ID ? 0n : (fees.returnCostWei?.(id) ?? 0n));
 
-  const tBase = chainTotal(SAERO_CHAIN_ID);
-  const needReturn = onBase > tBase ? onBase - tBase : 0n;
+  // Differences this small are rounding (a stake that moved by a few wei, a share rounded in basis points): not worth a message, and a chain's gauge
+  // list must add up to its real budget anyway, so such a chain keeps its amount and only its gauges can change.
+  const dust = total / 1_000_000_000n + 1_000n;
+  const absDiff = (a: bigint, b: bigint) => (a > b ? a - b : b - a);
+
+  // What each chain needs: a return (its share goes down), idle power (it goes up), or just new gauges (same amount, different gauges).
+  const ids = [...new Set([...now.keys(), ...targets.map((t) => t.chainId)])].sort((a, b) => a - b);
+  const returns: Array<{ id: number; amount: bigint }> = [];
+  const sends: Array<{ id: number; delta: bigint }> = [];
+  const updates: number[] = [];
+  for (const id of ids) {
+    const have = now.get(id)?.amount ?? 0n;
+    const want = chainTotal(id);
+    if (absDiff(want, have) > dust && want < have) returns.push({ id, amount: have - want });
+    else if (absDiff(want, have) > dust && want > have) sends.push({ id, delta: want - have });
+    else if (want > 0n && have > 0n) {
+      const tBps = Math.round(Number((want * BPS) / total));
+      const picks = targets.find((t) => t.chainId === id)?.picks ?? [];
+      if (!sameGauges(now.get(id)?.gauges ?? [], picks, tBps)) updates.push(id);
+    }
+  }
+
   const steps: AllocateStep[] = [];
 
-  // Step 1, only when Base's share goes down: Base's gauges keep their new share and the rest goes back to idle, in one Base-only call.
-  if (needReturn > 0n) {
-    const entries = [...onChain(SAERO_CHAIN_ID).map((p) => ({ gauge: p.gauge, allocated: p.allocated })), { gauge: DEALLOC_GAUGE, allocated: needReturn }];
-    if (entries.length > MAX_GAUGES) throw new AllocateError(`At most ${MAX_GAUGES} entries on Base.`);
+  // Step 1, only when a chain's share goes down: each such chain keeps the gauges it still wants and returns the rest to idle. Base is instant;
+  // another chain's return arrives later and costs its return fee on top of the message.
+  if (returns.length > 0) {
+    const gaugeDispatches: GaugeDispatch[] = returns.map(({ id, amount }) => {
+      const kept = onChain(id).map((p) => ({ gauge: p.gauge, allocated: p.allocated }));
+      const entries = [...kept, { gauge: DEALLOC_GAUGE, allocated: amount }];
+      if (entries.length > MAX_GAUGES) throw new AllocateError(`At most ${MAX_GAUGES} entries on one chain.`);
+      return id === SAERO_CHAIN_ID
+        ? { chainId: BASE, gasLimit: 0n, value: 0n, gauges: toGauges(entries) }
+        : { chainId: BigInt(id), gasLimit: gaugeStepGas(entries.length), value: fees.gaugeStepWei(id, entries.length) + returnCost(id), gauges: toGauges(entries) };
+    });
+    const onlyBase = returns.length === 1 && returns[0].id === SAERO_CHAIN_ID;
+    const keepsSome = returns.some((r) => chainTotal(r.id) > 0n);
     steps.push({
-      label: tBase > 0n ? "Move part of the Base allocation back to idle and set the Base gauges" : "Move the Base allocation back to idle",
-      args: [tokenId, [], [{ chainId: BASE, gasLimit: 0n, value: 0n, gauges: toGauges(entries) }], refundRecipient],
-      valueWei: 0n,
+      label: onlyBase
+        ? keepsSome
+          ? "Move part of the Base allocation back to idle and set the Base gauges"
+          : "Move the Base allocation back to idle"
+        : returns.length === 1
+          ? "Return power from one chain to idle (it reaches Base in a few minutes)"
+          : `Return power from ${returns.length} chains to idle (it reaches Base in a few minutes)`,
+      args: [tokenId, [], gaugeDispatches, refundRecipient],
+      valueWei: gaugeDispatches.reduce((s, d) => s + d.value, 0n),
+      chains: returns.map((r) => r.id),
+      needsIdle: 0n,
+      returns: true,
     });
   }
 
-  // Main step: idle power goes out to the chains (Base included when its share goes up), then each chain's gauges are set.
-  const others = targets.map((t) => t.chainId).filter((id) => id !== SAERO_CHAIN_ID).sort((a, b) => a - b);
-  const baseDelta = needReturn === 0n && tBase > onBase ? tBase - onBase : 0n;
-  const baseUnchanged = needReturn === 0n && baseDelta === 0n && sameBase(currentBase, targets.find((t) => t.chainId === SAERO_CHAIN_ID)?.picks ?? [], Math.round(Number((tBase * BPS) / total)));
-  const touchBase = tBase > 0n && needReturn === 0n && !baseUnchanged;
-
+  // Main step: idle power goes out to the chains whose share goes up, then their gauges are set; chains with the same amount but other gauges are re-set too.
   const chainDispatches: ChainDispatch[] = [];
   const gaugeDispatches: GaugeDispatch[] = [];
-  const ids = [...others, ...(baseDelta > 0n ? [SAERO_CHAIN_ID] : [])].sort((a, b) => a - b);
-  for (const id of ids) {
-    if (id === SAERO_CHAIN_ID) chainDispatches.push({ chainId: BASE, delta: baseDelta, gasLimit: 0n, value: 0n });
-    else chainDispatches.push({ chainId: BigInt(id), delta: chainTotal(id), gasLimit: CHAIN_STEP_GAS, value: fees.chainStepWei(id) });
+  for (const { id, delta } of sends) {
+    chainDispatches.push(id === SAERO_CHAIN_ID ? { chainId: BASE, delta, gasLimit: 0n, value: 0n } : { chainId: BigInt(id), delta, gasLimit: CHAIN_STEP_GAS, value: fees.chainStepWei(id) });
   }
-  for (const id of [...others, ...(touchBase ? [SAERO_CHAIN_ID] : [])].sort((a, b) => a - b)) {
-    const picks = onChain(id);
-    if (id === SAERO_CHAIN_ID) gaugeDispatches.push({ chainId: BASE, gasLimit: 0n, value: 0n, gauges: toGauges(picks) });
-    else gaugeDispatches.push({ chainId: BigInt(id), gasLimit: gaugeStepGas(picks.length), value: fees.gaugeStepWei(id, picks.length), gauges: toGauges(picks) });
+  for (const id of [...sends.map((x) => x.id), ...updates].sort((a, b) => a - b)) {
+    // A chain that only changes gauges keeps its real budget: the rounding difference goes to its largest gauge so the list adds up exactly.
+    const picks = onChain(id).map((p) => ({ ...p }));
+    if (updates.includes(id)) {
+      const budget = now.get(id)?.amount ?? 0n;
+      const top = picks.reduce((m, p) => (p.allocated > m.allocated ? p : m), picks[0]);
+      top.allocated += budget - picks.reduce((sum, p) => sum + p.allocated, 0n);
+    }
+    gaugeDispatches.push(
+      id === SAERO_CHAIN_ID
+        ? { chainId: BASE, gasLimit: 0n, value: 0n, gauges: toGauges(picks) }
+        : { chainId: BigInt(id), gasLimit: gaugeStepGas(picks.length), value: fees.gaugeStepWei(id, picks.length), gauges: toGauges(picks) },
+    );
   }
   if (gaugeDispatches.length > 0 || chainDispatches.length > 0) {
     const valueWei = [...chainDispatches, ...gaugeDispatches].reduce((s, d) => s + d.value, 0n);
-    const names = others.length > 0 ? `Send power to ${others.length === 1 ? "another chain" : `${others.length} other chains`} and set its gauges` : "Set the Base gauges";
-    steps.push({ label: names, args: [tokenId, chainDispatches, gaugeDispatches, refundRecipient], valueWei });
+    const sentTo = sends.filter((x) => x.id !== SAERO_CHAIN_ID).length;
+    steps.push({
+      label: sentTo > 0 ? `Send power to ${sentTo === 1 ? "another chain" : `${sentTo} other chains`} and set its gauges` : sends.length > 0 || updates.length > 0 ? "Set the gauges" : "Set the Base gauges",
+      args: [tokenId, chainDispatches, gaugeDispatches, refundRecipient],
+      valueWei,
+      chains: gaugeDispatches.map((d) => Number(d.chainId)),
+      needsIdle: sends.reduce((s, x) => s + x.delta, 0n),
+      returns: false,
+    });
   }
   if (steps.length === 0) throw new AllocateError("This position already matches that split.");
   return steps;

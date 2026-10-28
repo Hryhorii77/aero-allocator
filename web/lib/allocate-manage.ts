@@ -32,6 +32,9 @@ export function planChainReturn(args: { tokenId: bigint; chainId: number; amount
     label: "Return this chain's power to idle (it comes back to Base in a few minutes)",
     args: [tokenId, [], [{ chainId: BigInt(chainId), gasLimit: gaugeStepGas(1), value, gauges: [{ gauge: DEALLOC_GAUGE, allocated: amount, data: "0x" }] }], refundRecipient],
     valueWei: value,
+    chains: [chainId],
+    needsIdle: 0n,
+    returns: true,
   };
 }
 
@@ -70,5 +73,8 @@ export function planChainRegauge(args: {
     label: "Set this chain's gauges",
     args: [tokenId, [], [{ chainId: BigInt(chainId), gasLimit: gaugeStepGas(gauges.length), value, gauges }], refundRecipient],
     valueWei: value,
+    chains: [chainId],
+    needsIdle: 0n,
+    returns: false,
   };
 }

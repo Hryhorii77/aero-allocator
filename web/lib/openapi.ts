@@ -130,8 +130,9 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
           parameters: [
             { ...chainParam, description: "The destination chain (not Base).", example: 10 },
             { name: "gauges", in: "query", required: false, description: "How many gauges on that chain (default 1).", schema: { type: "integer", minimum: 1 }, example: 2 },
+            { name: "model", in: "query", required: false, description: "Pass 1 for the straight-line cost of any number of gauges instead of one quote: chainStep + gaugeBase + perGauge x gauges, and the return cost.", schema: { type: "string", enum: ["1"] } },
           ],
-          responses: { "200": jsonBody(ref("AllocationFee"), "The cost in wei, as decimal strings."), ...errorResponses() },
+          responses: { "200": jsonBody({ anyOf: [ref("AllocationFee"), ref("AllocationFeeModel")] }, "The cost in wei, as decimal strings."), ...errorResponses() },
         },
       },
       "/api/all-chains-split": {
@@ -328,6 +329,16 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             best: ref("AcrossChains"),
             baseOnly: { anyOf: [ref("AcrossChains"), { type: "null" }] },
             skipped: { type: "array", items: { type: "string" }, description: "Chains left out because they could not be read just now." },
+          },
+        },
+        AllocationFeeModel: {
+          type: "object",
+          properties: {
+            chainId: { type: "integer" },
+            chainStep: str("Wei, decimal string: the step that moves power to the chain."),
+            gaugeBase: str("Wei, decimal string: the fixed part of a gauge step."),
+            perGauge: str("Wei, decimal string: each gauge adds this to a gauge step."),
+            returnCost: str("Wei, decimal string: what the chain keeps when a dispatch returns power to idle."),
           },
         },
         TokenPrices: { type: "object", properties: { prices: { type: "object", additionalProperties: { type: "number" }, description: "USD price by lowercase token address." } } },
