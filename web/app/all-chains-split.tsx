@@ -114,7 +114,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
           </p>
           {!stays && (
             <p className={`mt-1 ${NOTE}`}>
-              This page can allocate on Base only today. For the other chains, use Aero&rsquo;s app with this split as a guide.
+              To act on it, connect your wallet and press &ldquo;allocate across chains…&rdquo; on a position below.
             </p>
           )}
         </>

@@ -28,7 +28,7 @@ export function SaeroReturn({ position, cooldownReady, waitHours: hours = waitHo
   if (position.onBaseRaw <= 0n) return null;
   if (!open) {
     return (
-      <button type="button" className={`mt-2 ${btn("secondary", "sm")}`} onClick={() => setOpen(true)}>
+      <button type="button" className={`mr-2 mt-2 ${btn("secondary", "sm")}`} onClick={() => setOpen(true)}>
         return to idle…
       </button>
     );

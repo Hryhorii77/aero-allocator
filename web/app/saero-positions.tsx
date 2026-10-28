@@ -26,6 +26,7 @@ import { EarnedFees } from "./earned-fees";
 import { PositionAdviceLine } from "./position-advice-line";
 import { PositionShare } from "./position-share";
 import { SaeroAllocate } from "./saero-allocate";
+import { SaeroAllocateChains } from "./saero-allocate-chains";
 import { SaeroReturn } from "./saero-return";
 import { btn, H2, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
@@ -295,6 +296,7 @@ export function SaeroPositions() {
                   <>
                     <SaeroAllocate position={p} cooldownReady={cd.ready} onAllocated={refresh} />
                     <SaeroReturn position={p} cooldownReady={cd.ready} waitHours={lockHours} />
+                    <SaeroAllocateChains position={p} cooldownReady={cd.ready} onAllocated={refresh} />
                   </>
                 )}
               </li>
