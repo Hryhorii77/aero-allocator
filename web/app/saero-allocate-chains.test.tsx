@@ -36,6 +36,23 @@ const baseOnly = split([{ chainId: 8453, name: "Base", pct: 100, usdPerDay: 20, 
 function mockFetch(body: unknown) {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("allocation-fee") ? { chainId: 10, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "0" } : body) })));
 }
+function mockChainFetch(opts: { noFeesOn?: number } = {}) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const chain = Number(new URL(url, "http://x").searchParams.get("chain"));
+      const gauge = chain === 5042 ? g(0xa1) : g(0xb1);
+      const body = url.includes("allocation-fee")
+        ? { chainId: chain, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "0" }
+        : url.includes("gauge-fees")
+          ? { chainId: chain, generatedAt: Date.now(), fees: chain === opts.noFeesOn ? [] : [{ gauge, feesUsdPerDay: 500, windowHours: 30 }] }
+          : url.includes("api/gauges")
+            ? { chainId: chain, generatedAt: Date.now(), totalWeight: 1, gauges: [{ gauge, pool: g(0xc1), symbol: chain === 5042 ? "WETH/USDC" : "A/B", weight: 2_000_000, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 }] }
+            : spread;
+      return { ok: true, json: async () => body };
+    }),
+  );
+}
 const open = () => fireEvent.click(screen.getByRole("button", { name: /allocate across chains…/ }));
 
 beforeEach(() => {
@@ -91,6 +108,46 @@ describe("SaeroAllocateChains", () => {
     render(<SaeroAllocateChains position={position} cooldownReady />);
     open();
     expect(await screen.findByText(/already has power on other chains/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
+  });
+
+  it("plans a split typed chain by chain, with Base keeping the rest, and sends it", async () => {
+    mockChainFetch();
+    render(<SaeroAllocateChains position={position} cooldownReady />);
+    open();
+    await screen.findByRole("button", { name: "choose the chains myself" });
+    fireEvent.click(screen.getByRole("button", { name: "choose the chains myself" }));
+    fireEvent.change(screen.getByLabelText("percent of the position on Arc"), { target: { value: "30" } });
+    expect(screen.getAllByText(/Base keeps/).some((el) => /70%/.test(el.textContent ?? ""))).toBe(true);
+    expect(await screen.findByText(/WETH\/USDC 30%/, {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByText(/One transaction/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "send this step" }));
+    await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
+    const sent = write.writeContract.mock.calls[0][0];
+    expect(sent.args[1].map((c: { chainId: bigint }) => c.chainId)).toEqual([5042n, 8453n]);
+    expect(sent.args[1][0].delta).toBe(300n * E);
+    expect(sent.args[1][1].delta).toBe(700n * E);
+  });
+
+  it("lets any chain take a share, not only Arc, and refuses shares above 100%", async () => {
+    mockChainFetch();
+    render(<SaeroAllocateChains position={position} cooldownReady />);
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "choose the chains myself" }));
+    for (const name of ["Ethereum", "OP", "Arbitrum", "Ink", "Robinhood Chain", "Arc"]) expect(screen.getByLabelText(`percent of the position on ${name}`)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("percent of the position on OP"), { target: { value: "70" } });
+    fireEvent.change(screen.getByLabelText("percent of the position on Arc"), { target: { value: "50" } });
+    expect(await screen.findByText(/add up to more than 100%/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
+  });
+
+  it("says so when a chosen chain has no gauge that can be ranked yet", async () => {
+    mockChainFetch({ noFeesOn: 5042 });
+    render(<SaeroAllocateChains position={position} cooldownReady />);
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "choose the chains myself" }));
+    fireEvent.change(screen.getByLabelText("percent of the position on Arc"), { target: { value: "30" } });
+    expect(await screen.findByText(/No gauge on Arc has a fee estimate yet/, {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
   });
 
