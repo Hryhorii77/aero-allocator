@@ -125,7 +125,7 @@ Review a skill before you use it: it runs with your agent's permissions.
 
 Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
 Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
-The first two are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26 (the cross-chain plan joins once it has had a first settled payment), and described for agents at `/llms.txt` and `/openapi.json`.
+All three are listed in Coinbase's x402 Bazaar (and so agentic.market): `position` and `allocate-plan` since their first settled payments on 2026-10-26, `cross-chain-plan` since its first on 2026-10-28 (the call that took three attempts: see the 500-character description limit in CLAUDE.md). They are described for agents at `/llms.txt` and `/openapi.json`.
 
 | Endpoint | Price | What it answers |
 |---|---|---|
