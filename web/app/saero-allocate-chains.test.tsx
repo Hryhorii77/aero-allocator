@@ -14,6 +14,8 @@ vi.mock("wagmi", () => ({
 vi.mock("wagmi/actions", () => act);
 vi.mock("wagmi/chains", () => ({ base: { id: 8453 } }));
 vi.mock("@/lib/wagmi", () => ({ wagmiConfig: {} }));
+const leaf = vi.hoisted(() => ({ readLeafChain: vi.fn() }));
+vi.mock("@/lib/leaf-read", () => leaf);
 
 import { SaeroAllocateChains } from "./saero-allocate-chains";
 import type { SaeroPosition } from "@/lib/saero";
@@ -34,7 +36,7 @@ const spread = split([
 const baseOnly = split([{ chainId: 8453, name: "Base", pct: 100, usdPerDay: 20, feeUsd: 0, parts: [part(g(5), "A/B", 100)] }]);
 
 function mockFetch(body: unknown) {
-  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("allocation-fee") ? { chainId: 10, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "0" } : body) })));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("allocation-fee") ? { chainId: 10, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "145" } : body) })));
 }
 function mockChainFetch(opts: { noFeesOn?: number } = {}) {
   vi.stubGlobal(
@@ -43,7 +45,7 @@ function mockChainFetch(opts: { noFeesOn?: number } = {}) {
       const chain = Number(new URL(url, "http://x").searchParams.get("chain"));
       const gauge = chain === 5042 ? g(0xa1) : g(0xb1);
       const body = url.includes("allocation-fee")
-        ? { chainId: chain, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "0" }
+        ? { chainId: chain, gauges: 1, chainStep: "1000", gaugeStep: "2000", total: "3000", returnCost: "145" }
         : url.includes("gauge-fees")
           ? { chainId: chain, generatedAt: Date.now(), fees: chain === opts.noFeesOn ? [] : [{ gauge, feesUsdPerDay: 500, windowHours: 30 }] }
           : url.includes("api/gauges")
@@ -102,31 +104,73 @@ describe("SaeroAllocateChains", () => {
     expect(screen.getByText(/Still in cooldown/)).toBeInTheDocument();
   });
 
-  it("leaves a position that already has power on another chain to Aero's app", async () => {
-    mockFetch(spread);
-    act.readContracts.mockResolvedValue([5n * E, 0n, 0n, 0n, 0n]);
-    render(<SaeroAllocateChains position={position} cooldownReady />);
-    open();
-    expect(await screen.findByText(/already has power on other chains/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
-  });
+  describe("a position that already has power on another chain", () => {
+    const OP_AMOUNT = 40n * E;
+    const leafState = (o: object = {}) => ({ chainId: 10, gauges: [{ gauge: g(9), amount: OP_AMOUNT }], total: OP_AMOUNT, idle: 0n, lastAllocatedSec: 0, cooldownSec: 169_200, ...o });
+    beforeEach(() => {
+      mockChainFetch();
+      act.readContracts.mockResolvedValue([0n, OP_AMOUNT, 0n, 0n, 0n, 0n]);
+      leaf.readLeafChain.mockResolvedValue(leafState());
+    });
 
-  it("plans a split typed chain by chain, with Base keeping the rest, and sends it", async () => {
-    mockChainFetch();
-    render(<SaeroAllocateChains position={position} cooldownReady />);
-    open();
-    await screen.findByRole("button", { name: "choose the chains myself" });
-    fireEvent.click(screen.getByRole("button", { name: "choose the chains myself" }));
-    fireEvent.change(screen.getByLabelText("percent of the position on Arc"), { target: { value: "30" } });
-    expect(screen.getAllByText(/Base keeps/).some((el) => /70%/.test(el.textContent ?? ""))).toBe(true);
-    expect(await screen.findByText(/WETH\/USDC 30%/, {}, { timeout: 4000 })).toBeInTheDocument();
-    expect(screen.getByText(/One transaction/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "send this step" }));
-    await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
-    const sent = write.writeContract.mock.calls[0][0];
-    expect(sent.args[1].map((c: { chainId: bigint }) => c.chainId)).toEqual([5042n, 8453n]);
-    expect(sent.args[1][0].delta).toBe(300n * E);
-    expect(sent.args[1][1].delta).toBe(700n * E);
+    it("lists the chain and its gauges, and offers the best gauges and a return to idle instead of the new-split buttons", async () => {
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      expect(await screen.findByText(/This position has power on other chains/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "choose the chains myself" })).toBeNull();
+      expect(screen.getByRole("button", { name: "set the best gauges" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "return to idle" })).toBeEnabled();
+    });
+
+    it("returns a chain's power with the marker, carrying the return cost on top of the message fee", async () => {
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      fireEvent.click(await screen.findByRole("button", { name: "return to idle" }));
+      await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
+      const sent = write.writeContract.mock.calls[0][0];
+      const d = sent.args[2][0];
+      expect(d.chainId).toBe(10n);
+      expect(d.gauges).toHaveLength(1);
+      expect(d.gauges[0].allocated).toBe(OP_AMOUNT);
+      expect(d.value).toBe(2200n + 145n); // outbound fee with the 10% margin, plus the exact return cost
+      expect(sent.value).toBe(d.value);
+      expect(sent.args[1]).toEqual([]);
+    });
+
+    it("sets the best gauges for the chain's power with the whole budget spread over them", async () => {
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      fireEvent.click(await screen.findByRole("button", { name: "set the best gauges" }));
+      await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
+      const d = write.writeContract.mock.calls[0][0].args[2][0];
+      expect(d.gauges.reduce((a: bigint, x: { allocated: bigint }) => a + x.allocated, 0n)).toBe(OP_AMOUNT);
+      expect(d.value).toBe(2200n);
+    });
+
+    it("offers nothing while the chain's own wait is running", async () => {
+      leaf.readLeafChain.mockResolvedValue(leafState({ lastAllocatedSec: Math.floor(Date.now() / 1000) - 60 }));
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      expect(await screen.findByText(/wait ends in/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "set the best gauges" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "return to idle" })).toBeDisabled();
+    });
+
+    it("offers nothing while Aero's last message is still on its way (the chain and Base don't agree)", async () => {
+      leaf.readLeafChain.mockResolvedValue(leafState({ gauges: [], total: 0n, idle: 0n }));
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      expect(await screen.findByText(/still on its way/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "return to idle" })).toBeDisabled();
+    });
+
+    it("offers nothing when the chain's own node can't be read", async () => {
+      leaf.readLeafChain.mockResolvedValue(null);
+      render(<SaeroAllocateChains position={position} cooldownReady />);
+      open();
+      expect(await screen.findByText(/Could not read OP's own node/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "return to idle" })).toBeDisabled();
+    });
   });
 
   it("shows no transaction in the chosen-chains mode until another chain has a percentage", async () => {
