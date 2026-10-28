@@ -1,5 +1,5 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
-import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
+import { RPC_URL, RPC_URL_FALLBACK } from "./rpc-config";
 import { AERO_CHAINS, BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
 import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi } from "./saero";
@@ -151,7 +151,7 @@ export function buildGaugeRows(
 
 /** A client for one Aero chain. Base keeps the configured RPC_URL (+ fallback); the others use their public nodes. */
 export function client(cfg: AeroChain = BASE_CHAIN) {
-  const urls = cfg.id === BASE_CHAIN.id ? [RPC_URL ?? PRESET.defaultRpcUrl, RPC_URL_FALLBACK] : cfg.rpcs;
+  const urls = cfg.id === BASE_CHAIN.id ? [RPC_URL, RPC_URL_FALLBACK] : cfg.rpcs;
   return createPublicClient({ chain: cfg.chain, transport: fallback(urls.filter((u): u is string => !!u).map((u) => http(u))) });
 }
 

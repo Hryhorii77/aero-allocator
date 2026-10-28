@@ -1,5 +1,7 @@
 # Aero launch readiness
 
+> **Historical.** Written before Aero launched. The `src/` engine files named in the table near the end were removed on 2026-10-28 (last present at commit `1f94d77`), and most of the "likely to break" items have since been rebuilt or removed. Kept for what it recorded about the launch.
+
 Working notes for when Aero's docs and addresses go public. Written 2026-09-26
 from Aero's articles and the two public contract repos; **re-verify against the
 sources before acting** (the article text was read through a page summary, the

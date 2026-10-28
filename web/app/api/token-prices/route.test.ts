@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const prices = vi.hoisted(() => ({ getPrices: vi.fn() }));
-vi.mock("aero-allocator/prices", () => ({ getPrices: prices.getPrices }));
+vi.mock("@/lib/prices", () => ({ getPrices: prices.getPrices }));
 
 import { GET } from "./route";
 

@@ -1,5 +1,5 @@
 import { formatEther } from "viem";
-import { getPrices } from "aero-allocator/prices";
+import { getPrices } from "./prices";
 import { AERO_CHAINS, BASE_CHAIN } from "./aero-chains";
 import { bestAcrossChains, type AcrossChains, type ChainBook } from "./all-chains-split";
 import { modelFeeWei, quoteCostModel, quoteCrossChain, type CrossChainCostModel } from "./allocate-fee";

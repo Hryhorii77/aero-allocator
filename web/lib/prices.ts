@@ -1,11 +1,10 @@
-// USD token prices via DefiLlama's free coins API. No key required.
-import { PROTOCOL } from "./config.js";
+// USD token prices on Base via DefiLlama's free coins API. No key required. (Moved here from the weekly-vote engine, which was removed.)
 
 const LLAMA_URL = "https://coins.llama.fi/prices/current/";
 const BATCH = 80;
 
-// DefiLlama's coins API chain slug — "base" and "optimism" both happen to match viem's chain names here.
-const LLAMA_CHAIN = PROTOCOL === "velodrome" ? "optimism" : "base";
+// DefiLlama's coins API chain slug for Base.
+const LLAMA_CHAIN = "base";
 
 export interface TokenPrice {
   priceUsd: number;
@@ -98,18 +97,4 @@ export async function getPrices(addresses: string[]): Promise<Map<string, TokenP
   }
 
   return result;
-}
-
-/** Sum a list of (token, rawAmount) rewards into USD. Unknown tokens count as 0. */
-export function sumRewardsUsd(
-  rewards: ReadonlyArray<{ token: string; amount: bigint }>,
-  prices: Map<string, TokenPrice | null>,
-): number {
-  let total = 0;
-  for (const r of rewards) {
-    const p = prices.get(r.token.toLowerCase());
-    if (!p) continue;
-    total += (Number(r.amount) / 10 ** p.decimals) * p.priceUsd;
-  }
-  return total;
 }
