@@ -196,7 +196,7 @@ describe("GaugeTable", () => {
   });
 
   it("asks for fee estimates on every chain now, and says plainly when one chain's fee read fails", async () => {
-    for (const [name, id] of [["Arbitrum", 42161], ["Ink", 57073], ["Robinhood Chain", 4663]] as const) {
+    for (const [name, id] of [["Arbitrum", 42161], ["Ink", 57073], ["Robinhood Chain", 4663], ["Arc", 5042]] as const) {
       const f = vi.fn(async (url: string) =>
         url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: id, generatedAt: 0, totalWeight: 1, gauges }) },
       );
