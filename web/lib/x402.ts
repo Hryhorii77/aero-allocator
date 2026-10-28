@@ -56,7 +56,7 @@ export function paidRoute(
   if (!status.configured) {
     return async () => NextResponse.json({ error: `This endpoint is not configured on this deployment (${status.reason}).` }, { status: 501 });
   }
-  return withX402(
+  const wrapped = withX402(
     handler,
     {
       [route.path]: {
@@ -70,4 +70,24 @@ export function paidRoute(
     },
     opts.server ?? x402Server,
   );
+  // A request that carried a payment and still got a 402 was refused by the facilitator (or the payment was malformed). The response says why in
+  // its PAYMENT-REQUIRED header, but nothing else records it, so log the reason: a rejected payer otherwise leaves no trace to debug from.
+  return async (req: NextRequest) => {
+    const res = await wrapped(req);
+    if (res.status === 402 && (req.headers.get("payment-signature") || req.headers.get("x-payment"))) logPaymentRejected(route.path, res);
+    return res;
+  };
+}
+
+/** Writes one error line with the reason the response gives for refusing a payment. Never throws and never includes the payment itself. */
+export function logPaymentRejected(path: string, res: Response): void {
+  let reason = "unknown";
+  try {
+    const header = res.headers.get("payment-required");
+    const decoded = header ? (JSON.parse(Buffer.from(header, "base64").toString("utf8")) as { error?: unknown }) : null;
+    if (typeof decoded?.error === "string") reason = decoded.error.slice(0, 300);
+  } catch {
+    /* an unreadable header is itself the answer: keep "unknown" */
+  }
+  console.error(JSON.stringify({ level: "error", route: path, message: "x402 payment rejected", reason }));
 }

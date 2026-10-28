@@ -75,3 +75,30 @@ describe("paidRoute with payment config", () => {
     }
   });
 });
+
+describe("paidRoute logs why a payment was refused", () => {
+  it("writes the facilitator's reason when a request with a payment still gets a 402, and nothing for a plain unpaid request", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const verify = vi.fn(async () => ({ isValid: false, invalidReason: "insufficient_funds", payer: "0x2222222222222222222222222222222222222222" }));
+    const facilitator = {
+      verify,
+      settle: vi.fn(),
+      getSupported: async () => ({ kinds: [{ x402Version: 2, scheme: "exact", network: BASE_MAINNET_CAIP2 }], extensions: ["bazaar"], signers: {} }),
+    } as unknown as FacilitatorClient;
+    const wrapped = paidRoute(route, async () => NextResponse.json({ ok: true }), { env: FULL_ENV, server: makeX402Server(facilitator as never) });
+    const unpaid = await wrapped(req());
+    expect(unpaid.status).toBe(402);
+    expect(spy).not.toHaveBeenCalled();
+    const challenge = decode(unpaid.headers.get("PAYMENT-REQUIRED"));
+    const payment = Buffer.from(JSON.stringify({ x402Version: 2, resource: challenge.resource, accepted: challenge.accepts[0], payload: { signature: "0xsig", authorization: {} } })).toString("base64");
+    const rejected = await wrapped(req({ "PAYMENT-SIGNATURE": payment }));
+    expect(rejected.status).toBe(402);
+    expect(verify).toHaveBeenCalledTimes(1);
+    const logged = spy.mock.calls.map((c) => String(c[0])).find((l) => l.includes("x402 payment rejected"));
+    expect(logged).toBeDefined();
+    expect(JSON.parse(logged!)).toMatchObject({ level: "error", route: "/api/v1/test", message: "x402 payment rejected" });
+    expect(logged).toMatch(/insufficient_funds/);
+    expect(logged).not.toContain("0xsig");
+    spy.mockRestore();
+  });
+});
