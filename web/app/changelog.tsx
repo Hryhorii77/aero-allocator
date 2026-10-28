@@ -15,7 +15,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-28",
     title:
-      "New: Arc is now on the list of chains. Also new: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split, or lets you choose the chains and percentages yourself, and sends it from your wallet, one or two transactions, each checked first. Power already on other chains can now be set to the best gauges or returned to idle from the same panel.",
+      "New: Arc is now on the list of chains. Also new: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split, or lets you choose the chains and percentages yourself, and sends it from your wallet, one or two transactions, each checked first. It also moves power between chains and takes part of it back, and lets you pick the gauges inside each chain.",
   },
   {
     date: "2026-10-27",
