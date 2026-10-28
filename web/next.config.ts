@@ -11,6 +11,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // @x402/next loads the Bazaar extension with a dynamic import the bundler is told to ignore (webpackIgnore), so the bundler never sees it and the
+  // paid functions shipped without the package ("Cannot find package '@x402/extensions'" on every request, caught and logged). Keeping it external
+  // makes the build trace it into those functions, so that import resolves.
+  serverExternalPackages: ["@x402/extensions"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
