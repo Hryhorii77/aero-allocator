@@ -30,14 +30,14 @@ describe("AllChainsSplitPanel", () => {
     expect(f).toHaveBeenCalledWith("/api/all-chains-split?amount=1000");
   });
 
-  it("shows each chain's share, the ETH fee and the gain over Base alone, and says allocating is Base only", async () => {
+  it("shows each chain's share, the ETH fee and the gain over Base alone, and points to the position's allocate-across-chains button", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body(spread) })));
     render(<AllChainsSplitPanel amount={1000} />);
     fireEvent.click(screen.getByRole("button", { name: "compare all chains" }));
     expect(await screen.findByText(/across 2 chains/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText(/\+\$20\.00/)).toBeInTheDocument();
     expect(screen.getByText(/about \$2\.70 in ETH to send power here/)).toBeInTheDocument();
-    expect(screen.getByText(/allocate on Base only today/)).toBeInTheDocument();
+    expect(screen.getByText(/allocate across chains…/)).toBeInTheDocument();
   });
 
   it("asks for the chosen horizon and says so when the read fails", async () => {

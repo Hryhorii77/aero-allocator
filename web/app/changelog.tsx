@@ -15,7 +15,7 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-28",
     title:
-      "New: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. It is read-only; allocating is still on Base only.",
+      "New: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split and sends it from your wallet, one or two transactions, each checked first.",
   },
   {
     date: "2026-10-27",
