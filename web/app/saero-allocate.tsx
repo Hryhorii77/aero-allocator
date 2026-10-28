@@ -178,7 +178,7 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
   }
   if (!open) {
     return (
-      <button type="button" className={`mt-2 ${btn("primary", "sm")}`} onClick={() => setOpen(true)}>
+      <button type="button" className={`mr-2 mt-2 ${btn("primary", "sm")}`} onClick={() => setOpen(true)}>
         allocate…
       </button>
     );
