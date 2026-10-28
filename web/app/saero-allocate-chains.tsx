@@ -349,18 +349,20 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
           </p>
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
             {others.map((c) => (
-              <label key={c.id} className="flex items-center gap-2 text-sm text-neutral-300">
-                <span className="w-24 shrink-0 truncate">{c.name}</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={typed[c.id] ?? ""}
-                  onChange={(e) => setTyped((t) => ({ ...t, [c.id]: e.target.value }))}
-                  placeholder="0"
-                  aria-label={`percent of the position on ${c.name}`}
-                  className={inputCls(percentToHundredths(typed[c.id] ?? "") === null, `w-16 ${NUM}`)}
-                />
-                <span className={NOTE}>%</span>
+              <label key={c.id} className="flex flex-col gap-1 text-sm text-neutral-300 sm:flex-row sm:items-center sm:gap-2">
+                <span className="min-w-0 truncate sm:flex-1">{c.name}</span>
+                <span className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={typed[c.id] ?? ""}
+                    onChange={(e) => setTyped((t) => ({ ...t, [c.id]: e.target.value }))}
+                    placeholder="0"
+                    aria-label={`percent of the position on ${c.name}`}
+                    className={inputCls(percentToHundredths(typed[c.id] ?? "") === null, `w-14 shrink-0 ${NUM}`)}
+                  />
+                  <span className={NOTE}>%</span>
+                </span>
               </label>
             ))}
           </div>
