@@ -134,6 +134,19 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
           responses: { "200": jsonBody(ref("AllocationFee"), "The cost in wei, as decimal strings."), ...errorResponses() },
         },
       },
+      "/api/all-chains-split": {
+        get: {
+          operationId: "allChainsSplit",
+          summary: "Best split of an amount over every Aero chain, after the ETH each extra chain costs",
+          description:
+            "Tries every set of chains and returns the one that earns the most over the horizon once the one-off ETH fee to reach each extra chain is taken off, next to Base alone. Read-only: nothing here sends or signs. Estimates, not financial advice.",
+          parameters: [
+            { name: "amount", in: "query", required: true, description: "Voting power to place, in whole sAERO power (above 0).", schema: { type: "number", exclusiveMinimum: 0 }, example: 100000 },
+            { name: "days", in: "query", required: false, description: "Days the fees are weighed against, 1 to 90. Default: the allocation wait.", schema: { type: "number", minimum: 1, maximum: 90 }, example: 30 },
+          ],
+          responses: { "200": jsonBody(ref("AllChainsSplit"), "The best set of chains and the Base-only comparison."), ...errorResponses() },
+        },
+      },
       "/api/token-prices": {
         get: {
           operationId: "tokenPrices",
@@ -278,6 +291,43 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             gaugeStep: str("Wei, decimal string."),
             total: str("Wei, decimal string: the ETH needed on Base to send this allocation."),
             returnCost: str("Wei, decimal string: a further charge moving it back can carry."),
+          },
+        },
+        AcrossChains: {
+          type: "object",
+          properties: {
+            chains: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  chainId: { type: "integer" },
+                  name: { type: "string" },
+                  pct: { type: "number", description: "Share of the whole amount on this chain, 0-100." },
+                  usdPerDay: { type: "number" },
+                  feeUsd: { type: "number", description: "One-off ETH cost of sending power here, in USD (0 on Base)." },
+                  parts: { type: "array", items: { type: "object", properties: { symbol: { type: "string" }, gauge: { type: "string" }, pct: { type: "number" }, usdPerDay: { type: "number" } } } },
+                },
+              },
+            },
+            usdPerDay: { type: "number" },
+            feeUsd: { type: "number" },
+            netUsd: { type: "number", description: "Earned over the horizon minus the one-off fees." },
+            weakestHours: { type: "number" },
+            spiky: { type: "boolean" },
+            confidence: { type: "string", enum: ["thin", "fair", "solid", "spiky"] },
+          },
+        },
+        AllChainsSplit: {
+          type: "object",
+          properties: {
+            amount: { type: "number" },
+            days: { type: "number", description: "The horizon the fees are weighed against." },
+            ethUsd: { type: ["number", "null"] },
+            generatedAt: { type: "integer", description: "Oldest fee read among the chains used, ms since epoch." },
+            best: ref("AcrossChains"),
+            baseOnly: { anyOf: [ref("AcrossChains"), { type: "null" }] },
+            skipped: { type: "array", items: { type: "string" }, description: "Chains left out because they could not be read just now." },
           },
         },
         TokenPrices: { type: "object", properties: { prices: { type: "object", additionalProperties: { type: "number" }, description: "USD price by lowercase token address." } } },

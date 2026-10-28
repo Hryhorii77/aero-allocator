@@ -44,6 +44,7 @@ Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and
 | `GET /api/gauge-fees?chain=8453` | Estimated fees per day per gauge, the hours of history behind each figure, a steadiness figure, and a `spike` marker when the recent pace is at least 3x the gauge's usual level (a burst, not a trend) |
 | `GET /api/gauge-history?chain=8453&gauge=0x…` | One gauge's fees per 6 hours, weight snapshots, steadiness, and per-day points from the 90-day record |
 | `GET /api/gauge-flows?chain=8453` | How each gauge's share of the allocation weight moved over the last day, and gauges whose incentives just appeared |
+| `GET /api/all-chains-split?amount=100000&days=30` | best split of an amount over every chain, after the ETH each extra chain costs (read-only) |
 | `GET /api/allocation-fee?chain=10&gauges=2` | ETH cost on Base of sending power to another chain |
 | `GET /api/token-prices?tokens=0x…` | USD prices for up to 12 Base token addresses (lets the page value earned fees without sending a position anywhere) |
 | `GET /api/share?vp=<amount>` | The 1200×630 share card (also the link preview) |

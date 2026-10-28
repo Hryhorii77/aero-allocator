@@ -18,6 +18,7 @@ Chain: Base (8453). Amounts are sAERO voting power.
 - GET ${siteUrl}/api/gauge-history?chain=8453&gauge=0x... : one gauge's fees released per 6 hours, its weight snapshots, how steady its payouts were, and a 90-day daily record of fees, power and incentives.
 - GET ${siteUrl}/api/gauge-flows?chain=8453 : how each gauge's share of the allocation weight moved over the last day and which gauges just started receiving incentives (empty until two hours of snapshots exist).
 - GET ${siteUrl}/api/token-prices?tokens=0x...,0x... : USD prices for up to 12 Base token addresses.
+- GET ${siteUrl}/api/all-chains-split?amount=100000&days=30 : best split of an amount over every chain, after the ETH each extra chain costs (read-only).
 - GET ${siteUrl}/api/allocation-fee?chain=10&gauges=2 : ETH cost on Base of sending power to another chain (read from Aero's own message adapter).
 
 ## Paid (x402: USDC on Base, settled only after a successful answer)

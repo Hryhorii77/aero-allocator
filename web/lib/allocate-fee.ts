@@ -50,3 +50,25 @@ export async function quoteCrossChain(chainId: number, gauges: number): Promise<
   ]);
   return { chainId, gauges, chainStep: chainStep.toString(), gaugeStep: gaugeStep.toString(), total: (chainStep + gaugeStep).toString(), returnCost: returnCost.toString() };
 }
+
+/**
+ * The fee as a straight line in destination gas (the adapter prices gas, not the message): two quotes give the cost of the chain
+ * step and of a gauge step for any number of gauges, without one read per gauge count. Used to compare chains; the final plan
+ * is re-quoted exactly with `quoteCrossChain`.
+ */
+export type CrossChainCostModel = { chainId: number; chainStepWei: bigint; gaugeBaseWei: bigint; perGaugeWei: bigint };
+
+export async function quoteCostModel(chainId: number): Promise<CrossChainCostModel> {
+  if (chainId === BASE_CHAIN.id) throw new Error("Base needs no cross-chain fee");
+  const c = client(BASE_CHAIN);
+  const adapter = await c.readContract({ address: ORCHESTRATOR, abi, functionName: "adapters", args: [BigInt(chainId)] });
+  if (/^0x0+$/.test(adapter)) throw new Error("no adapter for this chain");
+  const quote = (gas: bigint) =>
+    c.readContract({ address: adapter, abi: adapterAbi, functionName: "quoteMessage", args: ["0x" + "00".repeat(160) as `0x${string}`, gas, "0x000000000000000000000000000000000000dEaD"] });
+  const [chainStepWei, one, six] = await Promise.all([quote(CHAIN_STEP_GAS), quote(gaugeStepGas(1)), quote(gaugeStepGas(6))]);
+  const perGaugeWei = six > one ? (six - one) / 5n : 0n;
+  return { chainId, chainStepWei, gaugeBaseWei: one - perGaugeWei, perGaugeWei };
+}
+
+/** Wei an allocation of `gauges` gauges on the chain needs as msg.value, from the cost model. */
+export const modelFeeWei = (m: CrossChainCostModel, gauges: number): bigint => m.chainStepWei + m.gaugeBaseWei + m.perGaugeWei * BigInt(Math.max(1, gauges));

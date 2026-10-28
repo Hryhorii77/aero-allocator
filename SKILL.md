@@ -22,6 +22,7 @@ Everything is read-only or unsigned. The site and APIs never hold keys, sign or 
 - `/api/gauge-fees?chain=8453` — estimated fees per day per gauge from on-chain fee releases, with `windowHours` of history, a `steady` count and, when the recent pace is a burst far above the gauge's usual level, `spike`.
 - `/api/gauge-history?chain=8453&gauge=0x…` — one gauge's fees per 6 hours, its weight snapshots and a 90-day `daily` record.
 - `/api/gauge-flows?chain=8453` — which gauges are gaining or losing share of the allocation weight, and which just got incentives.
+- `/api/all-chains-split?amount=100000&days=30` — the best split over every chain, after the ETH each extra chain costs.
 - `/api/allocation-fee?chain=10&gauges=2` — the ETH cost on Base of sending power to another chain.
 
 ## Paid (x402, USDC on Base, settled only after a successful answer)
