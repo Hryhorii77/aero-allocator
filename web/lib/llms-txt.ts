@@ -1,4 +1,5 @@
 import { ALLOCATE_PLAN_PRICE_USD } from "./v1-allocate-plan";
+import { CROSS_CHAIN_PLAN_PRICE_USD } from "./v1-cross-chain-plan";
 import { POSITION_PRICE_USD } from "./v1-position";
 
 /** What an agent needs to use this site: the free reads, the two paid calls, and how paying works. Plain text, served at /llms.txt. */
@@ -27,6 +28,7 @@ A request with no payment gets HTTP 402 with the price and our payout address. P
 
 - GET ${siteUrl}/api/v1/position?tokenId=<id> or ?address=0x… (${usd(POSITION_PRICE_USD)}) : a position's power, lock, idle vs allocated power, the re-allocation wait (47 hours at launch, read live from the chain), what it earns per day now versus the best split of gauges for its own size, and a stay / switch / allocate recommendation. A switch is only recommended on at least 6 hours of fee history.
 - GET ${siteUrl}/api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6> (${usd(ALLOCATE_PLAN_PRICE_USD)}) : the unsigned allocate() transaction (to, data, value) for the best split of Base gauges, already simulated as the owner, with the cooldown and warnings. Sign and send it from the owner's wallet. Base only.
+- GET ${siteUrl}/api/v1/cross-chain-plan?tokenId=<id>&chains=5042:30,10:20 (${usd(CROSS_CHAIN_PLAN_PRICE_USD)}) : ordered unsigned allocate() transactions that spread the position over several chains: the best split over every chain after the ETH each extra chain costs, or the chain percentages you give; plans from the position's state on every chain, says what each step waits for, simulates the step that can be sent now. Never signs or sends.
 
 ## Limits
 

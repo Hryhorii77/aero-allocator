@@ -15,12 +15,12 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-10-28",
     title:
-      "New: Arc is now on the list of chains. Also new: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split, or lets you choose the chains and percentages yourself, and sends it from your wallet, one or two transactions, each checked first. It also moves power between chains and takes part of it back, and lets you pick the gauges inside each chain.",
+      "New: a paid cross-chain plan for agents (ordered unsigned allocate steps over several chains). Also: Arc is now on the list of chains. Also new: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split, or lets you choose the chains and percentages yourself, and sends it from your wallet, one or two transactions, each checked first. It also moves power between chains and takes part of it back, and lets you pick the gauges inside each chain.",
   },
   {
     date: "2026-10-27",
     title:
-      "For agents: /openapi.json now describes the free and paid APIs, and two agent skills are in the repo (re-allocate only when the gain is real and steady; check and prepare a veAERO to sAERO upgrade). Neither signs anything. Each position has a share card button: the link holds only its power rounded to two figures. The allocate panel now uses the wait read from the chain, the Upgrade guide no longer shows past dates, and small text is easier to read.",
+      "For agents: /openapi.json now describes the free and paid APIs, and two agent skills are in the repo (re-allocate only when the gain is real and steady; check and prepare a veAERO to sAERO upgrade). None of them signs anything. Each position has a share card button: the link holds only its power rounded to two figures. The allocate panel now uses the wait read from the chain, the Upgrade guide no longer shows past dates, and small text is easier to read.",
   },
 ];
 

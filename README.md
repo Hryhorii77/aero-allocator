@@ -125,12 +125,13 @@ Review a skill before you use it: it runs with your agent's permissions.
 
 Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
 Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site and MCP server are unaffected.
-Both are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26, and described for agents at `/llms.txt` and `/openapi.json`.
+The first two are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26 (the cross-chain plan joins once it has had a first settled payment), and described for agents at `/llms.txt` and `/openapi.json`.
 
 | Endpoint | Price | What it answers |
 |---|---|---|
 | `GET /api/v1/position?tokenId=<id>` or `?address=0x…` | $0.05 | Where does this sAERO position stand: power, lock, idle vs allocated, the 47-hour re-allocation wait, what it earns per day now vs the best split of Base gauges for its own size, and a stay / switch / allocate / unknown recommendation. |
 | `GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` | $0.10 | The unsigned, already-simulated `allocate()` transaction for that best split (to, data, value, chain 8453), with cooldown and warnings. Never signs or sends. Base only. |
+| `GET /api/v1/cross-chain-plan?tokenId=<id>&chains=5042:30,10:20` | $0.25 | The ordered, unsigned `allocate()` transactions that spread the position over several chains: the best split over every chain after the ETH each extra chain costs (or the percentages given, Base keeping the rest), planned from the position's state on every chain (returns, sends, partial moves). Each step has its ETH, what it waits for (each chain's own wait, return messages from other chains) and, for step 1, a simulation as the owner. Call again between steps. Never signs or sends. The first call can take ~20 s while seven chains are read. |
 
 These answer something the free `/api/gauges` and `/api/gauge-fees` reads can't: a chain read keyed to one position, and calldata that
 satisfies the Voter's rules (full overwrite per chain, exact total, ascending addresses). The old weekly-vote `/api/v1/forecast` earned
@@ -362,7 +363,7 @@ Both from `velodrome-finance/sugar`'s `deployments/{base,optimism}.env`; reward-
 
 - [x] sAERO allocator: ranked gauges, best split, positions read in the browser, allocate and return-to-idle from your wallet
 - [x] Fee pace measured from on-chain releases, with weight snapshots, power flow, steadiness, new-incentive flags and a 90-day daily record
-- [x] Paid x402 endpoints for agents (`v1/position`, `v1/allocate-plan`), `/llms.txt` and `/openapi.json`, listed in the x402 Bazaar
+- [x] Paid x402 endpoints for agents (`v1/position`, `v1/allocate-plan`, `v1/cross-chain-plan`), `/llms.txt` and `/openapi.json`, listed in the x402 Bazaar
 - [x] Two agent skills: re-allocate a position only when it is worth it, and check or prepare a veAERO to sAERO upgrade (read-only, irreversible, verified against Aero's contracts)
 - [x] A gauge whose fee pace is a burst is marked spiky and its APR shown as a range
 - [x] Per-position wait explanation, calendar reminder, earned-fees read, Autopilot-key handling, and what staying costs per day

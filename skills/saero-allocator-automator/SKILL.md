@@ -28,6 +28,8 @@ Aero (the merged Aerodrome and Velodrome) lets a sAERO position be re-allocated 
 5. **Check the plan** (`checkPlan` in `scripts/decide.mjs`), then give `transaction` to the owner's wallet layer to simulate again, show, and sign from `sendFrom`.
 6. **Record the time you sent it.** The position cannot be changed again until the wait ends; do not re-plan before then.
 
+Optional, read-only: `GET /api/all-chains-split?amount=<power>&days=<n>` (free) says whether spreading the position over other chains would beat Base alone after the one-off ETH each extra chain costs. This loop only moves power on Base; to act on a cross-chain split, `GET /api/v1/cross-chain-plan?tokenId=…` ($0.25) returns the ordered unsigned steps, and the same checks apply (the owner confirms each one, nothing is signed here).
+
 `scripts/run.mjs` does steps 1 to 5 in one pass and prints the unsigned transaction. `--dry` shows the free data and the prices and pays nothing.
 
 ## The rules (all must pass to act)
