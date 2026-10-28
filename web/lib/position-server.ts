@@ -1,5 +1,5 @@
 import { getAddress, isAddress, type Address } from "viem";
-import { BASE_CHAIN } from "./aero-chains";
+import { AERO_CHAINS, BASE_CHAIN } from "./aero-chains";
 import { client } from "./gauges";
 import type { CurrentGauge } from "./position-advice";
 import { DEFAULT_COOLDOWN_SEC, SAERO, saeroEscrowAbi, saeroLeafAbi, saeroVoterAbi, SAERO_CHAIN_ID, type SaeroPosition } from "./saero";
@@ -81,4 +81,14 @@ export async function readCurrentGauges(tokenId: bigint, symbolOf: (gauge: strin
     .filter((x) => x.raw > 0n && !/^0x0+$/.test(x.gauge))
     .sort((a, b) => b.pct - a.pct)
     .map(({ gauge, symbol, pct }) => ({ gauge, symbol, pct }));
+}
+
+/** What the position has booked on each chain other than Base (base units), read from the Voter on Base: the chains it has no power on are 0. */
+export async function readOtherChainAmounts(tokenId: bigint): Promise<Record<number, bigint>> {
+  const others = AERO_CHAINS.filter((c) => c.id !== BASE_CHAIN.id && c.feeLogs);
+  const amounts = (await client(BASE_CHAIN).multicall({
+    allowFailure: false,
+    contracts: others.map((c) => ({ address: SAERO.voter, abi: saeroVoterAbi, functionName: "allocationChainAmounts" as const, args: [tokenId, BigInt(c.id)] as const })),
+  })) as bigint[];
+  return Object.fromEntries(others.map((c, i) => [c.id, amounts[i] ?? 0n]));
 }

@@ -1,4 +1,5 @@
 import { ALLOCATE_PLAN_PRICE_USD } from "./v1-allocate-plan";
+import { CROSS_CHAIN_PLAN_PRICE_USD } from "./v1-cross-chain-plan";
 import { POSITION_PRICE_USD } from "./v1-position";
 
 /** USDC on Base: what the paid routes ask to be paid in. */
@@ -192,6 +193,28 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             "400": jsonBody(ref("Error"), "A malformed tokenId or maxGauges. Never charged."),
             "404": jsonBody(ref("Error"), "No such position. Never charged."),
             "422": jsonBody(ref("Error"), "No Base gauge has a measurable fee pace right now, so there is no split to plan. Never charged."),
+          },
+        },
+      },
+      "/api/v1/cross-chain-plan": {
+        get: {
+          operationId: "crossChainPlan",
+          summary: `Ordered, unsigned allocate() transactions across several chains (paid, $${CROSS_CHAIN_PLAN_PRICE_USD.toFixed(2)})`,
+          description:
+            "For one position: the best split over every Aero chain after the one-off ETH each extra chain costs (or the chain percentages you give, Base keeping the rest), as one or two ordered unsigned allocate() calls on chain 8453 with the ETH to attach. It plans from the position's state on every chain, says what each step is waiting for (each chain has its own wait; power returned from a chain other than Base reaches Base minutes after the return lands) and simulates the step that can be sent now as the owner. Sign and send from sendFrom, then call again; this service never signs or sends.",
+          parameters: [
+            { ...tokenId, required: true, description: "sAERO position id (a whole number)." },
+            { name: "chains", in: "query", required: false, description: "Percent of the position per chain other than Base, as chainId:percent pairs, e.g. 5042:30,10:20 (Arc 30%, OP 20%, Base keeps 50%). Leave out for the best split.", schema: { type: "string", pattern: "^\\d+:[0-9.,]+(,\\d+:[0-9.,]+)*$" }, example: "5042:30,10:20" },
+            { name: "days", in: "query", required: false, description: "Days the one-off ETH fees are weighed against when choosing the best split, 1 to 90 (default: the allocation wait). Ignored when chains is given.", schema: { type: "number", minimum: 1, maximum: 90 }, example: 30 },
+          ],
+          "x-payment-info": paymentInfo(CROSS_CHAIN_PLAN_PRICE_USD, payTo),
+          responses: {
+            "200": jsonBody(ref("CrossChainPlan"), "The targets and the ordered unsigned steps."),
+            "402": paymentRequired,
+            "400": jsonBody(ref("Error"), "A malformed tokenId, chains or days. Never charged."),
+            "404": jsonBody(ref("Error"), "No such position. Never charged."),
+            "422": jsonBody(ref("Error"), "Nothing to allocate, no gauge to rank, or the position already matches that split. Never charged."),
+            "503": jsonBody(ref("Error"), "A chain's cost to reach could not be read just now. Never charged."),
           },
         },
       },
@@ -393,6 +416,58 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             positions: { type: "array", items: ref("Position") },
             truncated: { type: "object", description: "Present when an address holds more than 10 positions.", properties: { total: { type: "integer" }, returned: { type: "integer" }, note: { type: "string" } } },
             basis: str("How the figures are made."),
+          },
+        },
+        CrossChainPlan: {
+          type: "object",
+          properties: {
+            generatedAt: str("ISO time."),
+            tokenId: str("Position id."),
+            owner: str("Owner address."),
+            sendFrom: str("Sign and send each transaction from this address."),
+            mode: { type: "string", enum: ["best", "chains"] },
+            horizonDays: nullable(num("Days the fees were weighed over (best mode).")),
+            targets: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  chainId: { type: "integer" },
+                  name: str("Chain name."),
+                  pct: num("Share of the whole position on this chain, 0-100."),
+                  expectedUsdPerDay: num("What this chain's gauges earn per day for that share."),
+                  gauges: { type: "array", items: { type: "object", properties: { gauge: str("Gauge address."), symbol: str("Pool symbol."), pct: num("Share of the whole position, 0-100."), usdPerDay: num("What it earns per day.") } } },
+                },
+              },
+            },
+            expectedUsdPerDay: num("The whole split's USD per day, before fees."),
+            confidence: nullable({ type: "string", enum: ["thin", "fair", "solid", "spiky"] }),
+            steps: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  index: { type: "integer" },
+                  kind: { type: "string", enum: ["return", "send"] },
+                  label: str("What the step does."),
+                  transaction: { type: "object", description: "The unsigned allocate() call.", properties: { chainId: { type: "integer", const: 8453 }, to: { type: "string" }, data: { type: "string" }, value: str("ETH to attach, in wei.") } },
+                  valueEth: str("The same value in ETH."),
+                  chains: { type: "array", items: { type: "integer" }, description: "Every chain the step sets gauges on (each has its own wait)." },
+                  needsIdlePower: str("Idle power the step draws, base units."),
+                  canSendNow: { type: "boolean" },
+                  blockedBy: { type: "array", items: { type: "string" }, description: "Why it cannot be sent yet; empty when it can." },
+                  simulation: nullable({ type: "object", description: "Step 1 only: ok true, or ok false with the plain reason." }),
+                  suggestedGasLimit: nullable(str("Gas limit with 30% headroom over the estimate (step 1 only).")),
+                },
+              },
+            },
+            warnings: { type: "array", items: { type: "string" } },
+            notes: { type: "array", items: { type: "string" } },
+            baseWaitHours: num("Hours between two allocations of one position on one chain."),
+            power: {
+              type: "object",
+              properties: { idle: str("Base units."), onBase: str("Base units."), onOtherChains: { type: "object", additionalProperties: { type: "string" }, description: "Base units by chain id." } },
+            },
           },
         },
         AllocatePlan: {

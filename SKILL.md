@@ -35,7 +35,10 @@ Power, lock, idle vs allocated power, when it can next be re-allocated, what it 
 **`GET /api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6>` ($0.10) — the transaction to do it.**
 The unsigned `allocate()` call (`transaction.to/data/value`, chain 8453) for the best split of Base gauges, already simulated as the owner (`simulation.ok` or the plain reason it would be rejected), with `cooldown`, expected USD/day versus now, and `warnings`. Sign and send it from `sendFrom`. Base only.
 
-Both are estimates: fee figures are a recent pace (see `feeHistoryHours`, `confidence`), and every allocation restarts the wait (47 hours at launch, read live from the chain).
+**`GET /api/v1/cross-chain-plan?tokenId=<id>&chains=5042:30,10:20` ($0.25) — the same, across chains.**
+Ordered unsigned `allocate()` calls that spread the position over several chains: the best split over every chain after the one-off ETH each extra chain costs (leave `chains` out), or your percentages per chain (Base keeps the rest). Planned from the position's state on every chain, so it also returns power, moves it between chains and handles mixed positions. Each step has `transaction` (with the ETH in `value`), `canSendNow` and `blockedBy` (each chain has its own wait; power returned from another chain reaches Base minutes later), and step 1 is simulated. Send the steps in order, and call again between them. The first call can take about 20 s.
+
+All three are estimates: fee figures are a recent pace (see `feeHistoryHours`, `confidence`), and every allocation restarts the wait (47 hours at launch, read live from the chain).
 
 ```ts
 import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";

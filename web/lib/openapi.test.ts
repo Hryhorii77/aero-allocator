@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_USDC, openApiSpec } from "./openapi";
 import { ALLOCATE_PLAN_PRICE_USD } from "./v1-allocate-plan";
+import { CROSS_CHAIN_PLAN_PRICE_USD } from "./v1-cross-chain-plan";
 import { POSITION_PRICE_USD } from "./v1-position";
 
 const PAY_TO = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae";
@@ -35,7 +36,7 @@ describe("openApiSpec", () => {
       expect(item.get.responses["200"], path).toBeDefined();
     }
     expect(Object.keys(spec.paths)).toEqual(
-      expect.arrayContaining(["/api/gauges", "/api/gauge-fees", "/api/gauge-history", "/api/gauge-flows", "/api/allocation-fee", "/api/token-prices", "/api/v1/position", "/api/v1/allocate-plan"]),
+      expect.arrayContaining(["/api/gauges", "/api/gauge-fees", "/api/gauge-history", "/api/gauge-flows", "/api/allocation-fee", "/api/token-prices", "/api/v1/position", "/api/v1/allocate-plan", "/api/v1/cross-chain-plan"]),
     );
   });
 
@@ -44,7 +45,10 @@ describe("openApiSpec", () => {
     const plan = spec.paths["/api/v1/allocate-plan"].get;
     expect(pos["x-payment-info"]).toMatchObject({ priceUsd: POSITION_PRICE_USD, amount: "50000", asset: BASE_USDC, payTo: PAY_TO });
     expect(plan["x-payment-info"]).toMatchObject({ priceUsd: ALLOCATE_PLAN_PRICE_USD, amount: "100000", asset: BASE_USDC });
-    for (const op of [pos, plan]) expect(Object.keys(op.responses)).toEqual(expect.arrayContaining(["200", "400", "402", "404"]));
+    const cross = spec.paths["/api/v1/cross-chain-plan"].get;
+    expect(cross["x-payment-info"]).toMatchObject({ priceUsd: CROSS_CHAIN_PLAN_PRICE_USD, amount: "250000", asset: BASE_USDC });
+    for (const op of [pos, plan, cross]) expect(Object.keys(op.responses)).toEqual(expect.arrayContaining(["200", "400", "402", "404"]));
+    expect(Object.keys(cross.responses)).toEqual(expect.arrayContaining(["422", "503"]));
     expect(Object.keys(plan.responses)).toContain("422");
   });
 
@@ -54,6 +58,8 @@ describe("openApiSpec", () => {
       expect(spec.paths[path].get.parameters?.find((p) => p.name === "chain")?.required).toBe(true);
     }
     expect(spec.paths["/api/v1/allocate-plan"].get.parameters?.find((p) => p.name === "tokenId")?.required).toBe(true);
+    expect(spec.paths["/api/v1/cross-chain-plan"].get.parameters?.find((p) => p.name === "tokenId")?.required).toBe(true);
+    expect(spec.paths["/api/v1/cross-chain-plan"].get.parameters?.find((p) => p.name === "chains")?.required).toBe(false);
     expect(spec.paths["/api/v1/position"].get.parameters?.find((p) => p.name === "tokenId")?.required).toBe(false);
   });
 
