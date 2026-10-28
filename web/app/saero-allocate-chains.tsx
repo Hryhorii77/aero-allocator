@@ -90,7 +90,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
 
   // The chosen split: read each chosen chain's gauges and fees (public reads), plan the best gauges inside each share, and quote the ETH.
   useEffect(() => {
-    if (!open || mode !== "custom" || typedBad || baseH < 0) return;
+    if (!open || mode !== "custom" || typedBad || baseH < 0 || otherSum === 0) return;
     let live = true;
     const t = setTimeout(async () => {
       try {
@@ -135,7 +135,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
       ? null
       : mode === "best"
         ? { chains: data.split.best.chains, usdPerDay: data.split.best.usdPerDay, feeText: `after about $${fmt(data.split.best.feeUsd)} in one-off ETH fees`, quotes: data.quotes, days: data.split.days }
-        : customReady && "chains" in customReady
+        : otherSum > 0 && customReady && "chains" in customReady
           ? { chains: customReady.chains, usdPerDay: customReady.usdPerDay, feeText: "before the one-off ETH fees below", quotes: customReady.quotes }
           : null;
   const plan = ((): { steps: AllocateStep[] } | { error: string } | null => {
@@ -250,8 +250,11 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
           This position already has power on other chains. Moving that from here isn&rsquo;t built, so manage it in Aero&rsquo;s app.
         </p>
       )}
+      {mode === "custom" && ready && otherSum === 0 && !typedBad && (
+        <p className={`mt-2 ${BODY}`}>Type a percentage for at least one chain to see a plan. With everything on Base, use “allocate…” instead.</p>
+      )}
       {customError && ready && <p className="mt-2 text-sm text-amber-500">{customError}</p>}
-      {mode === "custom" && ready && !customError && !proposal && <p className={`mt-2 ${NOTE}`}>Reading the chains you picked…</p>}
+      {mode === "custom" && ready && otherSum > 0 && !customError && !proposal && <p className={`mt-2 ${NOTE}`}>Reading the chains you picked…</p>}
       {ready && plan && "error" in plan && (
         <p className={`mt-2 ${BODY}`}>
           {plan.error === "base"
