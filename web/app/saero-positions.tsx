@@ -165,6 +165,11 @@ export function SaeroPositions() {
     }
   };
 
+  // After an allocation lands: read the positions again without clearing the list, so the card shows the new allocation and wait.
+  const refresh = useCallback(() => {
+    if (owner) void readSaeroPositions(owner).then(setResult, () => {});
+  }, [owner]);
+
   // Read the connected wallet's positions as soon as it connects (once per address); the read is the same one the button makes, in this browser.
   const autoFor = useRef<string | null>(null);
   useEffect(() => {
@@ -288,7 +293,7 @@ export function SaeroPositions() {
                 )}
                 {p.staked > 0 && connected && owner && connected.toLowerCase() === owner.toLowerCase() && (
                   <>
-                    <SaeroAllocate position={p} cooldownReady={cd.ready} />
+                    <SaeroAllocate position={p} cooldownReady={cd.ready} onAllocated={refresh} />
                     <SaeroReturn position={p} cooldownReady={cd.ready} waitHours={lockHours} />
                   </>
                 )}
