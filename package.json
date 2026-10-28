@@ -1,54 +1,20 @@
 {
   "name": "aero-allocator",
   "version": "0.1.0",
-  "description": "Aerodrome Predictive Allocation optimizer \u2014 MCP server that forecasts next-epoch pool demand on Base and recommends incentive allocations",
+  "private": true,
+  "description": "Aero Allocator: the sAERO allocation site (web/), the agent skills (skills/) and the CI audit gate (scripts/). The weekly-vote MCP engine that used to live in src/ was removed.",
   "type": "module",
-  "bin": {
-    "aero-allocator": "dist/index.js"
-  },
-  "main": "dist/index.js",
-  "exports": {
-    "./scoring": "./dist/scoring.js",
-    "./position": "./dist/position.js",
-    "./data": "./dist/data.js",
-    "./config": "./dist/config.js",
-    "./prices": "./dist/prices.js",
-    "./types": "./dist/types.js",
-    "./backtest": "./dist/backtest.js",
-    "./replay": "./dist/replay.js",
-    "./bribe-target": "./dist/bribe-target.js",
-    "./predictive-allocation": "./dist/adapters/predictive-allocation.js",
-    "./lockers": "./dist/lockers.js"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx src/index.ts",
-    "smoke": "tsx scripts/smoke.ts",
-    "backtest": "tsx scripts/backtest.ts",
-    "epoch-reminder": "tsx scripts/epoch-reminder.ts",
-    "realized-performance": "tsx scripts/realized-performance.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json",
-    "test": "vitest run",
-    "lockers": "tsx scripts/lockers.ts"
+    "build": "node -e \"console.log('Nothing to build at the root: the site is built from web/ (this script exists because the Vercel project still runs the root build first).')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
-  "keywords": [
-    "aerodrome",
-    "base",
-    "mcp",
-    "defi",
-    "predictive-allocation",
-    "veaero"
-  ],
   "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "viem": "^2.30.0",
-    "zod": "^3.24.0"
-  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
+    "viem": "^2.30.0",
     "vitest": "^4.1.10"
   },
   "engines": {

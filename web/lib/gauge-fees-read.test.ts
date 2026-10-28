@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("aero-allocator/config", () => ({
-  PRESET: { defaultRpcUrl: "https://public.example" },
-  RPC_URL: "https://private.example",
-  RPC_URL_FALLBACK: "https://public.example",
-}));
-vi.mock("aero-allocator/prices", () => ({ getPrices: vi.fn() }));
+vi.mock("./protocol", () => ({ DISPLAY_PRESET: { defaultRpcUrl: "https://public.example" }, PROTOCOL: "aerodrome" }));
+vi.mock("./rpc-config", () => ({ RPC_URL: "https://private.example", RPC_URL_FALLBACK: "https://public.example" }));
+vi.mock("./prices", () => ({ getPrices: vi.fn() }));
 
 vi.mock("./fee-ledger-store", () => ({ loadLedger: vi.fn(), saveLedger: vi.fn() }));
 

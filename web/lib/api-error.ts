@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PROTOCOL } from "aero-allocator/config";
+import { PROTOCOL } from "./protocol";
 
 /**
  * Wraps a route handler so an unexpected throw (RPC down even after

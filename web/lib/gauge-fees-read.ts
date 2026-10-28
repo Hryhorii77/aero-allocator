@@ -1,6 +1,7 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
-import { PRESET, RPC_URL, RPC_URL_FALLBACK } from "aero-allocator/config";
-import { getPrices } from "aero-allocator/prices";
+import { DISPLAY_PRESET } from "./protocol";
+import { getPrices } from "./prices";
+import { RPC_URL, RPC_URL_FALLBACK } from "./rpc-config";
 import { AERO_TOKEN } from "./saero";
 import { BASE_CHAIN, chainById, lookbackBlocks, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
@@ -35,7 +36,7 @@ export const MIN_INGEST_GAP_MS = 20 * 60_000;
  * tried first and the configured ones only after it. Other chains use their own public nodes.
  */
 export function logRpcUrls(cfg: AeroChain = BASE_CHAIN): string[] {
-  const urls = cfg.id === BASE_CHAIN.id ? [PRESET.defaultRpcUrl, RPC_URL, RPC_URL_FALLBACK] : (cfg.logRpcs ?? cfg.rpcs);
+  const urls = cfg.id === BASE_CHAIN.id ? [DISPLAY_PRESET.defaultRpcUrl, RPC_URL, RPC_URL_FALLBACK] : (cfg.logRpcs ?? cfg.rpcs);
   return [...new Set(urls.filter((u): u is string => !!u))];
 }
 

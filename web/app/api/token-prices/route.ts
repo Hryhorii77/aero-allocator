@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
-import { getPrices } from "aero-allocator/prices";
+import { getPrices } from "@/lib/prices";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
