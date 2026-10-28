@@ -13,14 +13,14 @@ import { LINK } from "./ui";
 // ship day lands, drop the oldest day's entries.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-10-28",
+    title:
+      "New: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. It is read-only; allocating is still on Base only.",
+  },
+  {
     date: "2026-10-27",
     title:
       "For agents: /openapi.json now describes the free and paid APIs, and two agent skills are in the repo (re-allocate only when the gain is real and steady; check and prepare a veAERO to sAERO upgrade). Neither signs anything. Each position has a share card button: the link holds only its power rounded to two figures. The allocate panel now uses the wait read from the chain, the Upgrade guide no longer shows past dates, and small text is easier to read.",
-  },
-  {
-    date: "2026-10-26",
-    title:
-      "Each position now says what staying costs per day, as a range from fees running light to today's pace, with a total. Gauges whose fee pace is a one-off burst are marked spiky and show their APR as a range, and the history chart gains a 90-day daily view. Positions can show their unclaimed fees, and explain how to move more often than every 47 hours.",
   },
 ];
 

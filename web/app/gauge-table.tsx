@@ -11,6 +11,7 @@ import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-histo
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
+import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
 import { btn, chip, H2, input, NOTE, NUM } from "./ui";
@@ -188,6 +189,7 @@ export function GaugeTable() {
           {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
           {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
+          {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
         </div>
       )}
       {failed && <p className="mt-3 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
