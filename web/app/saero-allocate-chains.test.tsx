@@ -129,6 +129,19 @@ describe("SaeroAllocateChains", () => {
     expect(sent.args[1][1].delta).toBe(700n * E);
   });
 
+  it("shows no transaction in the chosen-chains mode until another chain has a percentage", async () => {
+    mockChainFetch();
+    render(<SaeroAllocateChains position={position} cooldownReady />);
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "choose the chains myself" }));
+    expect(await screen.findByText(/Type a percentage for at least one chain/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
+    expect(screen.queryByText(/Next:/)).toBeNull();
+    // a typo is not "nothing typed": it gets its own message and still no transaction
+    fireEvent.change(screen.getByLabelText("percent of the position on Arc"), { target: { value: "abc" } });
+    expect(screen.queryByRole("button", { name: "send this step" })).toBeNull();
+  });
+
   it("lets any chain take a share, not only Arc, and refuses shares above 100%", async () => {
     mockChainFetch();
     render(<SaeroAllocateChains position={position} cooldownReady />);
