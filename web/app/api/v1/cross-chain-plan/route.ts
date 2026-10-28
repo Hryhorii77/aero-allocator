@@ -8,12 +8,13 @@ export const GET = paidRoute(
   {
     path: "/api/v1/cross-chain-plan",
     priceUsd: CROSS_CHAIN_PLAN_PRICE_USD,
+    // Coinbase's facilitator rejects a payment whose resource description is over 500 characters (measured 2026-10-28: 500 passes its schema check,
+    // 520 does not), so keep this short. lib/paid-routes.test.ts enforces it for every paid route.
     description:
       "Ordered, ready-to-sign Aero allocate() transactions that spread an sAERO position over gauges on several chains (Base, Ethereum, OP, " +
-      "Arbitrum, Ink, Robinhood Chain, Arc): the best split over every chain after the one-off ETH each extra chain costs, or the chain " +
-      "percentages you give. Plans from the position's current state on every chain (returns, sends, partial moves), with the ETH to attach, " +
-      "what each step waits for (per-chain waits, return messages) and a simulation of the step that can be sent now. Never signs or sends. " +
-      "Pass ?tokenId= and optionally ?chains=5042:30,10:20.",
+      "Arbitrum, Ink, Robinhood, Arc): the best split after each extra chain's ETH cost, or the percentages you give (?chains=5042:30,10:20). " +
+      "Plans from the position's state on every chain, with the ETH to attach, what each step waits for and a simulation of step 1. " +
+      "Never signs or sends. Pass ?tokenId=.",
     tags: ["aero", "aerodrome", "saero", "defi", "base", "calldata", "allocation", "cross-chain"],
     discovery: {
       input: { tokenId: "15308", chains: "5042:30,10:20" },

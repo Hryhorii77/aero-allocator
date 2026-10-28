@@ -85,7 +85,7 @@ export function logPaymentRejected(path: string, res: Response): void {
   try {
     const header = res.headers.get("payment-required");
     const decoded = header ? (JSON.parse(Buffer.from(header, "base64").toString("utf8")) as { error?: unknown }) : null;
-    if (typeof decoded?.error === "string") reason = decoded.error.slice(0, 300);
+    if (typeof decoded?.error === "string") reason = decoded.error.slice(0, 1500);
   } catch {
     /* an unreadable header is itself the answer: keep "unknown" */
   }
