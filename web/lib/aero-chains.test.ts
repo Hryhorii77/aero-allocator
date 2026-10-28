@@ -15,16 +15,20 @@ describe("AERO_CHAINS", () => {
   });
   it("looks chains up by id", () => {
     expect(chainById(10)?.name).toBe("OP");
-    expect(chainById(5042)).toBeUndefined();
+    expect(chainById(5042)?.name).toBe("Arc");
+    expect(chainById(999)).toBeUndefined();
   });
   it("measures fee pace on every chain it reads, each with a node that was tested to serve the logs", () => {
-    expect(AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.key)).toEqual(["base", "ethereum", "optimism", "arbitrum", "ink", "robinhood"]);
+    expect(AERO_CHAINS.filter((c) => c.feeLogs).map((c) => c.key)).toEqual(["base", "ethereum", "optimism", "arbitrum", "ink", "robinhood", "arc"]);
     for (const c of AERO_CHAINS) expect(c.blockSec).toBeGreaterThan(0);
   });
   it("uses the log nodes found to serve deep history, not the ones that refuse it", () => {
     // publicnode only serves recent Arbitrum blocks ("archive requests require a paid plan"); Ink's default node caps queries at 1,000 blocks.
     expect(chainById(42161)!.logRpcs).toEqual(["https://arb1.arbitrum.io/rpc"]);
     expect(chainById(57073)!.logRpcs).toEqual(["https://rpc-qnd.inkonchain.com"]);
+    // Arc: dRPC refuses log queries on its free tier, publicnode serves only the latest 1,000 blocks, thirdweb caps at 1,000 and rate-limits; Tenderly takes 100,000.
+    expect(chainById(5042)!.logRpcs).toEqual(["https://arc.gateway.tenderly.co"]);
+    expect(chainById(5042)!.chain.contracts?.multicall3?.address).toBe("0xcA11bde05977b3631167028862bE2a173976CA11");
     for (const c of AERO_CHAINS) {
       if (c.logSpan) expect(c.logSpan).toBeLessThanOrEqual(50_000);
       if (c.logAddresses) expect(c.logAddresses).toBeGreaterThan(0);
@@ -33,6 +37,7 @@ describe("AERO_CHAINS", () => {
   it("turns a backfill in hours into blocks with the chain's own block time, else uses the default", () => {
     expect(lookbackBlocks(chainById(57073)!, 9_500n)).toBe(86_400n);
     expect(lookbackBlocks(chainById(42161)!, 9_500n)).toBe(BigInt(Math.round(86_400 / 0.295)));
+    expect(lookbackBlocks(chainById(5042)!, 9_500n)).toBe(BigInt(Math.round(86_400 / 0.507)));
     expect(lookbackBlocks(chainById(8453)!, 9_500n)).toBe(9_500n);
   });
 });

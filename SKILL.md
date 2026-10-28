@@ -18,7 +18,7 @@ Everything is read-only or unsigned. The site and APIs never hold keys, sign or 
 
 `GET https://aeroallocator.app/…`
 
-- `/api/gauges?chain=8453` — every Aero gauge on a chain with weight, caps and incentives per week (chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain). The Base list also carries `cooldownSec`, the live wait between allocations of one position.
+- `/api/gauges?chain=8453` — every Aero gauge on a chain with weight, caps and incentives per week (chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain, 5042 Arc). The Base list also carries `cooldownSec`, the live wait between allocations of one position.
 - `/api/gauge-fees?chain=8453` — estimated fees per day per gauge from on-chain fee releases, with `windowHours` of history, a `steady` count and, when the recent pace is a burst far above the gauge's usual level, `spike`.
 - `/api/gauge-history?chain=8453&gauge=0x…` — one gauge's fees per 6 hours, its weight snapshots and a 90-day `daily` record.
 - `/api/gauge-flows?chain=8453` — which gauges are gaining or losing share of the allocation weight, and which just got incentives.

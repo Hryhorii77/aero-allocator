@@ -40,7 +40,7 @@ Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and
 
 | Endpoint | |
 |---|---|
-| `GET /api/gauges?chain=8453` | Every gauge on a chain with weight, caps and incentives; the Base list also carries `cooldownSec`, the live wait between allocations of one position (Base 8453, Ethereum 1, OP 10, Arbitrum 42161, Ink 57073, Robinhood 4663) |
+| `GET /api/gauges?chain=8453` | Every gauge on a chain with weight, caps and incentives; the Base list also carries `cooldownSec`, the live wait between allocations of one position (Base 8453, Ethereum 1, OP 10, Arbitrum 42161, Ink 57073, Robinhood 4663, Arc 5042) |
 | `GET /api/gauge-fees?chain=8453` | Estimated fees per day per gauge, the hours of history behind each figure, a steadiness figure, and a `spike` marker when the recent pace is at least 3x the gauge's usual level (a burst, not a trend) |
 | `GET /api/gauge-history?chain=8453&gauge=0x…` | One gauge's fees per 6 hours, weight snapshots, steadiness, and per-day points from the 90-day record |
 | `GET /api/gauge-flows?chain=8453` | How each gauge's share of the allocation weight moved over the last day, and gauges whose incentives just appeared |

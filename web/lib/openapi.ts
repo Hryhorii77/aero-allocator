@@ -16,8 +16,8 @@ const chainParam = {
   name: "chain",
   in: "query",
   required: true,
-  description: "Chain id: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain.",
-  schema: { type: "integer", enum: [8453, 1, 10, 42161, 57073, 4663] },
+  description: "Chain id: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain, 5042 Arc.",
+  schema: { type: "integer", enum: [8453, 1, 10, 42161, 57073, 4663, 5042] },
   example: 8453,
 };
 
