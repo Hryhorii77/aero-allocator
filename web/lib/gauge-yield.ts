@@ -160,3 +160,11 @@ export function incentiveEndText(
   if (lastIn <= waitSec) return `incentives end in ${hoursText(Math.max(0, lastIn))}`;
   return `some incentives end in ${hoursText(Math.max(0, y.incentivesEnd.first - nowSec))}`;
 }
+
+/**
+ * For the "steadiest only" filter: every complete half-day of the fee record paid (or the gauge is paid by incentives that run past the
+ * wait) and the pace is not a burst. A gauge with no record yet is not steady, it is unknown.
+ */
+export function isSteadiest(y: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "incentivesLowUsdPerDay" | "steady" | "spike">): boolean {
+  return !y.spike && steadySortScore(y) === 1;
+}

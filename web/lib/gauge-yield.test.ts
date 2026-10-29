@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aprPct, incentiveEndText, incentivesOverWait, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore } from "./gauge-yield";
+import { aprPct, incentiveEndText, isSteadiest, incentivesOverWait, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 
 const row = (gauge: string, weight: number, inc = 0, activated = true): GaugeRow => ({
@@ -126,5 +126,21 @@ describe("incentives that end inside the wait", () => {
     expect(incentiveEndText({ ...base, incentivesEnd: { first: now + 600, last: now + 600 } }, now, WAIT)).toBe("incentives end in under 1 h");
     expect(incentiveEndText({ incentivesUsdPerDay: 100, incentivesLowUsdPerDay: 100, incentivesEnd: { first: now + 300 * H, last: now + 300 * H } }, now, WAIT)).toBeNull();
     expect(incentiveEndText({ incentivesUsdPerDay: 100 }, now, WAIT)).toBeNull();
+  });
+});
+
+describe("isSteadiest", () => {
+  const y = (o: object) => ({ feesUsdPerDay: 100, incentivesUsdPerDay: 0, ...o });
+  it("needs every complete half-day to have paid", () => {
+    expect(isSteadiest(y({ steady: { buckets: 6, paying: 6 } }))).toBe(true);
+    expect(isSteadiest(y({ steady: { buckets: 6, paying: 5 } }))).toBe(false);
+  });
+  it("leaves out a gauge with no record yet and a burst, however clean its record", () => {
+    expect(isSteadiest(y({}))).toBe(false);
+    expect(isSteadiest(y({ steady: { buckets: 6, paying: 6 }, spike: { typicalUsdPerDay: 10, ratio: 5 } }))).toBe(false);
+  });
+  it("counts a gauge paid by incentives that run past the wait, not one whose incentives end inside it", () => {
+    expect(isSteadiest({ feesUsdPerDay: 20, incentivesUsdPerDay: 80 })).toBe(true);
+    expect(isSteadiest({ feesUsdPerDay: 20, incentivesUsdPerDay: 80, incentivesLowUsdPerDay: 30 })).toBe(false);
   });
 });

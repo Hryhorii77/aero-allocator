@@ -4,13 +4,14 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import type { GaugeList, GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
-import { aprPct, incentiveEndText, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
+import { aprPct, incentiveEndText, isSteadiest, MIN_RANK_WEIGHT, paceLabel, rankByUsdPerDay, steadyLabel, steadySortScore, type YieldRow } from "@/lib/gauge-yield";
 import { lowUsdPerDayOf } from "@/lib/projection";
 import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
 import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
+import { QuickSplit } from "./quick-split";
 import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
@@ -69,6 +70,9 @@ export function GaugeTable() {
   const [flows, setFlows] = useState<Flows | null>(null);
   const [amountText, setAmountText] = useState("10000");
   const [sortKey, setSortKey] = useState<SortKey>("you");
+  // Phones start on the short answer (the quick split); this unfolds the long explanations and the whole table. From `sm` up everything is always shown.
+  const [more, setMore] = useState(false);
+  const [steadyOnly, setSteadyOnly] = useState(false);
 
   const [chainId, setChainId] = useState<number>(BASE_CHAIN.id);
   const onBase = chainId === BASE_CHAIN.id;
@@ -143,7 +147,12 @@ export function GaugeTable() {
     return out.sort((a, b) => sortValue(b, key) - sortValue(a, key) || b.g.weight - a.g.weight);
   }, [data, fees, estimating, amount, sortKey]);
   if (!live) return null;
-  const shown = all ? lines : lines.slice(0, SHOWN);
+  const rankedCount = lines.filter((l) => l.y).length;
+  const steadyCount = lines.filter((l) => l.y && isSteadiest(l.y)).length;
+  const filtered = steadyOnly && estimating ? lines.filter((l) => l.y && isSteadiest(l.y)) : lines;
+  const shown = all ? filtered : filtered.slice(0, SHOWN);
+  // With the quick split on screen (phones, once an amount is priced) the rest is folded away until asked for.
+  const fold = estimating && !!data && !more ? "hidden sm:block" : "";
 
   return (
     <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
@@ -188,14 +197,24 @@ export function GaugeTable() {
           )}
           {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
-          {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
-          {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
+          {fees && data && parsed.ok && (
+            <div className="sm:hidden">
+              <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />
+              <button type="button" aria-expanded={more} className={`mt-3 min-h-11 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
+                {more ? "hide the details" : "more: explanations, all chains and every gauge"}
+              </button>
+            </div>
+          )}
+          <div className={fold}>
+            {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
+            {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
+          </div>
         </div>
       )}
       {failed && <p className="mt-3 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
       {!data && !failed && <p className={`mt-3 ${NOTE}`}>Loading gauges…</p>}
       {data && (
-        <>
+        <div className={fold}>
           {flows && flows.newIncentives.length > 0 && (
             <p className="mt-3 text-sm leading-relaxed text-neutral-400">
               <span className="text-neutral-400">New incentives, last day: </span>
@@ -236,6 +255,14 @@ export function GaugeTable() {
               )}
               .
             </p>
+          )}
+          {estimating && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button type="button" aria-pressed={steadyOnly} className={chip(steadyOnly)} onClick={() => { setSteadyOnly((v) => !v); setAll(false); }} title="Gauges whose every complete half-day paid, or that incentives pay past the wait; bursts and gauges with no record yet are left out">
+                steadiest only
+              </button>
+              {steadyOnly && <span className={NOTE}>{steadyCount} of {rankedCount} ranked gauges</span>}
+            </div>
           )}
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-0 border-collapse text-sm">
@@ -367,9 +394,10 @@ export function GaugeTable() {
               </tbody>
             </table>
           </div>
-          {lines.length > SHOWN && (
+          {steadyOnly && estimating && filtered.length === 0 && <p className={`mt-3 ${NOTE}`}>No gauge has a clean fee record right now. Turn the filter off to see them all.</p>}
+          {filtered.length > SHOWN && (
             <button type="button" className={`mt-3 ${btn("secondary", "sm")}`} onClick={() => setAll((v) => !v)}>
-              {all ? `show top ${SHOWN}` : `show all ${lines.length}`}
+              {all ? `show top ${SHOWN}` : `show all ${filtered.length}`}
             </button>
           )}
           <p className={`mt-3 ${NOTE}`}>
@@ -393,7 +421,7 @@ export function GaugeTable() {
               drop from expiring locks doesn&rsquo;t count. A gauge that is filling up earns less per unit of power. It shows where power went, not where it will go.
             </p>
           )}
-        </>
+        </div>
       )}
     </section>
   );
