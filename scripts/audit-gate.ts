@@ -9,6 +9,11 @@
  */
 import { spawnSync } from "node:child_process";
 
+/** Until when each accepted advisory is tolerated (UTC date). Past it the advisory fails the gate again, so the exception is re-checked, not forgotten. */
+export const ACCEPTED_UNTIL: Record<string, string> = {
+  "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5": "2026-11-30",
+};
+
 /** Advisories accepted for now, by URL, with why. Re-check upstream releases; delete an entry once `npm audit` stops reporting it. */
 export const ACCEPTED: Record<string, string> = {
   "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5":
@@ -40,10 +45,26 @@ export function advisoriesOf(report: AuditReport): Advisory[] {
 }
 
 /** Advisories not on the accepted list, and accepted ones the report no longer shows. */
-export function judge(report: AuditReport, accepted: Record<string, string> = ACCEPTED): { unexpected: Advisory[]; gone: string[] } {
+/** True while an accepted advisory is still inside its date; one with no date never expires (only the repo's own list should omit it). */
+function stillAccepted(url: string, nowMs: number, until: Record<string, string>): boolean {
+  const d = until[url];
+  return d === undefined || nowMs < Date.parse(`${d}T00:00:00Z`) + 86_400_000;
+}
+
+export function judge(
+  report: AuditReport,
+  accepted: Record<string, string> = ACCEPTED,
+  nowMs: number = Date.now(),
+  until: Record<string, string> = ACCEPTED_UNTIL,
+): { unexpected: Advisory[]; gone: string[]; expired: string[] } {
   const found = advisoriesOf(report);
   const seen = new Set(found.map((a) => a.url));
-  return { unexpected: found.filter((a) => !(a.url in accepted)), gone: Object.keys(accepted).filter((u) => !seen.has(u)) };
+  const ok = (u: string) => u in accepted && stillAccepted(u, nowMs, until);
+  return {
+    unexpected: found.filter((a) => !ok(a.url)),
+    gone: Object.keys(accepted).filter((u) => !seen.has(u)),
+    expired: found.filter((a) => a.url in accepted && !ok(a.url)).map((a) => a.url),
+  };
 }
 
 function main(dir: string): number {
@@ -59,7 +80,8 @@ function main(dir: string): number {
     console.error(`audit-gate (${dir}): npm audit reported an error: ${JSON.stringify(report.error).slice(0, 300)}`);
     return 2;
   }
-  const { unexpected, gone } = judge(report);
+  const { unexpected, gone, expired } = judge(report);
+  for (const u of expired) console.error(`audit-gate (${dir}): the acceptance of ${u} ran out on ${ACCEPTED_UNTIL[u]}; check whether a fixed release is reachable, then fix it or move the date in ACCEPTED_UNTIL`);
   for (const u of gone) console.log(`audit-gate (${dir}): accepted advisory no longer reported, remove it from ACCEPTED: ${u}`);
   if (unexpected.length > 0) {
     console.error(`audit-gate (${dir}): ${unexpected.length} advisory(ies) not on the accepted list:`);

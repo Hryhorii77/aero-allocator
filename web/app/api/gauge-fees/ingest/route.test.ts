@@ -16,8 +16,15 @@ const req = (auth?: string) => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("GET /api/gauge-fees/ingest", () => {
-  it("is open when CRON_SECRET is not set", async () => {
+  it("is open without CRON_SECRET only outside production (local dev and tests)", async () => {
     expect((await GET(req())).status).toBe(200);
+  });
+
+  it("fails closed in production when CRON_SECRET is missing, for every caller", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect((await GET(req())).status).toBe(401);
+    expect((await GET(req("Bearer "))).status).toBe(401);
+    expect((await GET(req("Bearer undefined"))).status).toBe(401);
   });
 
   it("requires the bearer token when CRON_SECRET is set", async () => {

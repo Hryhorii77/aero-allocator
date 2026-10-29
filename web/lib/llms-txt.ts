@@ -34,7 +34,7 @@ A request with no payment gets HTTP 402 with the price and our payout address. P
 
 - Fee figures are a recent pace, not a promise; see feeHistoryHours and confidence in each response.
 - Every allocation restarts a wait before the next change (47 hours at launch; read live from the chain).
-- Sending power to other chains is not built.
+- The paid cross-chain plan only prepares transactions; each one is signed by the owner, and a chain's wait applies per position and per chain. Claiming rewards is not offered (Aero allows it only for a position's operator or its orchestrator).
 
 OpenAPI description of all of the above: ${siteUrl}/openapi.json
 
