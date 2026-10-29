@@ -86,7 +86,7 @@ export function analysePosition(args: {
 
   const own = new Map(current.map((c) => [c.gauge.toLowerCase(), (c.pct / 100) * power]));
   const gauges = list.gauges.map((g) => ({ ...g, weight: Math.max(0, g.weight - (own.get(g.gauge.toLowerCase()) ?? 0)) }));
-  const ranked = rankByUsdPerDay(gauges, fees.fees, power);
+  const ranked = rankByUsdPerDay(gauges, fees.fees, power, undefined, { nowSec, waitSec: cooldownSec });
   const best = bestSplit(
     ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })),
     power,
@@ -98,7 +98,7 @@ export function analysePosition(args: {
   let unmeasured: string[] = [];
   if (current.length > 0) {
     // A gauge you're on can fall under the ranking's minimum weight once you leave it; price it from its raw row instead.
-    const priced = rankByUsdPerDay(gauges, fees.fees, power, 0);
+    const priced = rankByUsdPerDay(gauges, fees.fees, power, 0, { nowSec, waitSec: cooldownSec });
     const now = currentUsdPerDay(priced, current, power);
     unmeasured = now.unmeasured;
     nowUsd = now.unmeasured.length === current.length ? null : now.usd;

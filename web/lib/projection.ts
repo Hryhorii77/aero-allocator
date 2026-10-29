@@ -18,8 +18,13 @@ export function lowFeesUsdPerDay(row: Pick<YieldRow, "feesUsdPerDay" | "steady" 
   return Math.min(row.feesUsdPerDay, low);
 }
 
+/** Incentives per day the low case counts: what they average over the wait, counting each program only until it ends (what streams now when the end times are unknown). */
+export function lowIncentivesUsdPerDay(row: Pick<YieldRow, "incentivesUsdPerDay" | "incentivesLowUsdPerDay">): number {
+  return Math.min(row.incentivesUsdPerDay, row.incentivesLowUsdPerDay ?? row.incentivesUsdPerDay);
+}
+
 export interface Range {
-  /** USD/day with each gauge's fees cut to its share of paying half-days (at least half), incentives unchanged. */
+  /** USD/day with each gauge's fees cut to its share of paying half-days (at least half) and its incentives averaged over the wait. */
   lowUsdPerDay: number;
   /** USD/day at the recent fee pace: the best split's own figure. */
   paceUsdPerDay: number;
@@ -28,7 +33,7 @@ export interface Range {
 /**
  * A range for a split instead of one number. Fee releases are lumpy, so the recent pace can overstate a quiet stretch. The low end
  * keeps the same split but counts each gauge's fees at the share of its complete half-days that paid at least half the average (half
- * when the record is too short to say), or at its usual level when its pace is a spike, and leaves incentives alone because they stream at a fixed rate. There is no high end: the
+ * when the record is too short to say), or at its usual level when its pace is a spike, and averages each gauge's incentives over the wait, because a program that ends inside it stops paying (they stream at a fixed rate until then). There is no high end: the
  * recent pace is the best the data supports, and calling anything above it a forecast would be a guess.
  */
 export function projectRange(ranked: YieldRow[], split: Split): Range {
@@ -40,19 +45,19 @@ export function projectRange(ranked: YieldRow[], split: Split): Range {
       low += part.usdPerDay;
       continue;
     }
-    low += ((lowFeesUsdPerDay(row) + row.incentivesUsdPerDay) * part.amount) / (row.weight + part.amount);
+    low += ((lowFeesUsdPerDay(row) + lowIncentivesUsdPerDay(row)) * part.amount) / (row.weight + part.amount);
   }
   return { lowUsdPerDay: Math.min(low, split.usdPerDay), paceUsdPerDay: split.usdPerDay };
 }
 
 /** The low case for one gauge row: what the amount behind `row.sharePct` would earn per day with fees at their low level. */
-export function lowUsdPerDayOf(row: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "sharePct" | "steady" | "spike">): number {
-  return ((lowFeesUsdPerDay(row) + row.incentivesUsdPerDay) * row.sharePct) / 100;
+export function lowUsdPerDayOf(row: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "incentivesLowUsdPerDay" | "sharePct" | "steady" | "spike">): number {
+  return ((lowFeesUsdPerDay(row) + lowIncentivesUsdPerDay(row)) * row.sharePct) / 100;
 }
 
-/** The low case for where a position sits now: the same pricing as `currentUsdPerDay`, with each gauge's fees cut by `lowFeeFactor`. */
+/** The low case for where a position sits now: the same pricing as `currentUsdPerDay`, with each gauge's fees cut by `lowFeeFactor` and its incentives averaged over the wait. */
 export function currentLowUsdPerDay(
-  rows: Array<Pick<YieldRow, "gauge" | "feesUsdPerDay" | "incentivesUsdPerDay" | "weight" | "steady" | "spike">>,
+  rows: Array<Pick<YieldRow, "gauge" | "feesUsdPerDay" | "incentivesUsdPerDay" | "incentivesLowUsdPerDay" | "weight" | "steady" | "spike">>,
   current: Array<{ gauge: string; pct: number }>,
   power: number,
 ): number {
@@ -62,7 +67,7 @@ export function currentLowUsdPerDay(
     const r = byGauge.get(c.gauge.toLowerCase());
     if (!r) continue;
     const own = (c.pct / 100) * power;
-    usd += ((lowFeesUsdPerDay(r) + r.incentivesUsdPerDay) * own) / (r.weight + own);
+    usd += ((lowFeesUsdPerDay(r) + lowIncentivesUsdPerDay(r)) * own) / (r.weight + own);
   }
   return usd;
 }

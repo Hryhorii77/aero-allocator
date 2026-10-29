@@ -65,3 +65,21 @@ describe("a spiking gauge's low case", () => {
     expect(lowUsdPerDayOf({ ...rows[0], sharePct: 50 })).toBeCloseTo(50, 6);
   });
 });
+
+describe("incentives that end inside the wait", () => {
+  it("counts them at their average over the wait in the low case, not at what streams now", () => {
+    // weight 1000, amount 1000: share 0.5. Fees 100 (halved to 50 for lack of record), incentives 40 now but 10 on average over the wait.
+    const r = projectRange([row({ gauge: "0xa", incentivesUsdPerDay: 40, incentivesLowUsdPerDay: 10 })], split([{ gauge: "0xa", amount: 1000, usdPerDay: 70 }]));
+    expect(r.paceUsdPerDay).toBe(70);
+    expect(r.lowUsdPerDay).toBeCloseTo((50 + 10) * 0.5, 6);
+  });
+  it("prices a gauge row and a held position the same way", () => {
+    const y = row({ gauge: "0xa", incentivesUsdPerDay: 40, incentivesLowUsdPerDay: 10, sharePct: 50 });
+    expect(lowUsdPerDayOf(y)).toBeCloseTo(30, 6);
+    expect(currentLowUsdPerDay([y], [{ gauge: "0xa", pct: 100 }], 1000)).toBeCloseTo(30, 6);
+  });
+  it("never counts more incentives than stream now", () => {
+    const y = row({ gauge: "0xa", incentivesUsdPerDay: 40, incentivesLowUsdPerDay: 90, sharePct: 50 });
+    expect(lowUsdPerDayOf(y)).toBeCloseTo((50 + 40) * 0.5, 6);
+  });
+});

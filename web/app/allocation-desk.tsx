@@ -59,7 +59,7 @@ function CrossChainNote({ chainId, gauges, chainName }: { chainId: number; gauge
 export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; chainName?: string; cooldownSec?: number }) {
   const lockHours = waitHours(cooldownSec ?? DEFAULT_COOLDOWN_SEC);
   const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
-  const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount), [gauges, fees, amount]);
+  const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount, undefined, { waitSec: cooldownSec }), [gauges, fees, amount, cooldownSec]);
   const split = useMemo(
     () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount),
     [ranked, amount],
@@ -99,7 +99,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }:
         <p className="mt-1 text-sm text-neutral-300">
           Range: <span className={`text-neutral-100 ${NUM}`}>${usd2(range.lowUsdPerDay)}</span> to{" "}
           <span className={`text-neutral-100 ${NUM}`}>${usd2(range.paceUsdPerDay)}</span> a day (about ${usd2(range.lowUsdPerDay * 30)} to ${usd2(range.paceUsdPerDay * 30)} over 30 days).
-          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace (or at a gauge&rsquo;s usual level when its pace is a burst); incentives stay as they are. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
+          <span className={NOTE}> The low end counts fees at the share of half-days that paid, at least half their recent pace (or at a gauge&rsquo;s usual level when its pace is a burst), and counts incentives only until their program ends if that is inside the wait. Today&rsquo;s pace is the top because nothing above it is supported by the data.</span>
         </p>
       )}
       {fees.generatedAt > 0 && <p className={`mt-1 ${NOTE}`}>Fee figures read {ago(fees.generatedAt)}.</p>}
