@@ -254,6 +254,11 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             activated: { type: "boolean" },
             incentivesUsdPerWeek: num("Incentives streaming now, USD per week."),
             incentivesUsdPer1k: num("Incentives per 1,000 of allocated power per week."),
+            incentivePrograms: {
+              type: "array",
+              description: "The incentive programs streaming now, each with its end time. Absent when none. A program can be renewed after it ends.",
+              items: { type: "object", properties: { end: num("When the program ends, unix seconds."), usdPerDay: num("What it pays per day, USD.") } },
+            },
             poolType: str('"CL100" (concentrated liquidity, by tick spacing), "stable" or "volatile"; may be empty.'),
             feePct: nullable(num("Current fee of a concentrated-liquidity pool in percent; null for classic pools.")),
           },

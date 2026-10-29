@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeIncentiveUsdPerWeek, buildGaugeRows, gaugeWeight, weeklyCap } from "./gauges";
+import { activeIncentives, activeIncentiveUsdPerWeek, buildGaugeRows, gaugeWeight, weeklyCap } from "./gauges";
 
 const E18 = 10n ** 18n;
 const pt = (bias: bigint, slope: bigint, ts: number, perm: bigint) => ({ bias, slope, ts, permanentStakeBalance: perm });
@@ -67,7 +67,25 @@ describe("activeIncentiveUsdPerWeek", () => {
   });
 });
 
+describe("activeIncentives", () => {
+  const USDC = "0xusdc" as const;
+  const price = (t: string) => (t === USDC ? { priceUsd: 1, decimals: 6 } : null);
+  it("lists each streaming program with its end and its USD per day, and sums to the weekly figure", () => {
+    const a = { token: USDC, rate: 1_000_000n * 10n ** 18n, start: 0, end: 100 }; // 1 USDC per second = 86,400 a day
+    const b = { token: USDC, rate: 500_000n * 10n ** 18n, start: 0, end: 300 };
+    const out = activeIncentives([a, b, { ...a, end: 10 }, { ...a, start: 200 }], 50, price);
+    expect(out).toEqual([{ end: 100, usdPerDay: 86_400 }, { end: 300, usdPerDay: 43_200 }]);
+    expect(activeIncentiveUsdPerWeek([a, b], 50, price)).toBeCloseTo(7 * 129_600, 6);
+  });
+});
+
 describe("incentivesUsdPer1k", () => {
+  it("keeps the programs' end times on the row, and leaves the field out when there are none", () => {
+    const base = { gauge: "0xa" as const, pool: "0x1" as const, symbol: "A/B", point: pt(0n, 0n, 0, 2000n * E18), capPerSec: 0n, activated: true };
+    const { rows } = buildGaugeRows([{ ...base, incentivesUsdPerWeek: 7, incentivePrograms: [{ end: 99, usdPerDay: 1 }] }, { ...base, gauge: "0xb" as const, incentivePrograms: [] }], 0);
+    expect(rows.find((r) => r.gauge === "0xa")?.incentivePrograms).toEqual([{ end: 99, usdPerDay: 1 }]);
+    expect(rows.find((r) => r.gauge === "0xb")).not.toHaveProperty("incentivePrograms");
+  });
   it("divides weekly incentives by the gauge weight, per 1,000", () => {
     const { rows } = buildGaugeRows(
       [{ gauge: "0xa", pool: "0x1", symbol: "A/B", point: pt(0n, 0n, 0, 2000n * E18), capPerSec: 0n, activated: true, incentivesUsdPerWeek: 500 }],

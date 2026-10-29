@@ -65,20 +65,35 @@ export interface IncentiveProgram {
   end: number;
 }
 
+/** One incentive program that is streaming now: when it ends (unix seconds) and what it pays per day, in USD. */
+export interface ActiveIncentive {
+  end: number;
+  usdPerDay: number;
+}
+
+/** The programs streaming at `nowSec`, each with its end and its USD per day; tokens without a price are left out. */
+export function activeIncentives(
+  programs: IncentiveProgram[],
+  nowSec: number,
+  price: (token: Address) => { priceUsd: number; decimals: number } | null | undefined,
+): ActiveIncentive[] {
+  const out: ActiveIncentive[] = [];
+  for (const p of programs) {
+    if (p.start > nowSec || p.end <= nowSec) continue;
+    const pr = price(p.token);
+    if (!pr) continue;
+    out.push({ end: p.end, usdPerDay: ((Number(p.rate) / RATE_SCALE) * 86_400 * pr.priceUsd) / 10 ** pr.decimals });
+  }
+  return out;
+}
+
 /** USD per week streamed right now by the programs that are active at `nowSec`; tokens without a price count as 0. */
 export function activeIncentiveUsdPerWeek(
   programs: IncentiveProgram[],
   nowSec: number,
   price: (token: Address) => { priceUsd: number; decimals: number } | null | undefined,
 ): number {
-  let usd = 0;
-  for (const p of programs) {
-    if (p.start > nowSec || p.end <= nowSec) continue;
-    const pr = price(p.token);
-    if (!pr) continue;
-    usd += ((Number(p.rate) / RATE_SCALE) * WEEK * pr.priceUsd) / 10 ** pr.decimals;
-  }
-  return usd;
+  return activeIncentives(programs, nowSec, price).reduce((usd, p) => usd + p.usdPerDay * 7, 0);
 }
 
 export interface GaugeRow {
@@ -96,6 +111,8 @@ export interface GaugeRow {
   incentivesUsdPerWeek: number;
   /** Incentives per 1,000 of allocated power per week: the pull of the gauge's incentives on a marginal allocator. */
   incentivesUsdPer1k: number;
+  /** The programs streaming now with their end times, so a short program is not read as a lasting one. Absent when none, and in older payloads. */
+  incentivePrograms?: ActiveIncentive[];
   /** "CL100" (concentrated liquidity, by tick spacing), "stable" or "volatile"; empty when it can't be told. Absent in older payloads. */
   poolType?: string;
   /** Current fee of a concentrated-liquidity pool in percent (they move with volatility); null for classic pools. */
@@ -126,7 +143,7 @@ export interface GaugeList {
 
 /** Turns raw per-gauge reads into rows, heaviest first, with each gauge's share of the total. */
 export function buildGaugeRows(
-  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number; poolType?: string; feePct?: number | null }>,
+  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number; incentivePrograms?: ActiveIncentive[]; poolType?: string; feePct?: number | null }>,
   nowSec: number,
 ): { rows: GaugeRow[]; totalWeight: number } {
   const weights = raw.map((r) => gaugeWeight(r.point, nowSec));
@@ -142,6 +159,7 @@ export function buildGaugeRows(
       activated: r.activated,
       incentivesUsdPerWeek: r.incentivesUsdPerWeek ?? 0,
       incentivesUsdPer1k: weights[i] > 0 ? ((r.incentivesUsdPerWeek ?? 0) / weights[i]) * 1000 : 0,
+      ...(r.incentivePrograms?.length ? { incentivePrograms: r.incentivePrograms } : {}),
       poolType: r.poolType ?? "",
       feePct: r.feePct ?? null,
     }))
@@ -236,6 +254,7 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
       capPerSec: per[i * 3 + 1] as bigint,
       activated: state[4],
       incentivesUsdPerWeek: activeIncentiveUsdPerWeek(byGauge[i], nowSec, priceOf),
+      incentivePrograms: activeIncentives(byGauge[i], nowSec, priceOf),
       ...kindOf(i),
     };
   });
