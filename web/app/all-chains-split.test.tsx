@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { AllChainsSplitPanel, horizonText } from "./all-chains-split";
+import { act } from "react";
+import { AllChainsSplitPanel, horizonText, ReadingNote } from "./all-chains-split";
 
 const acrossBase = { chains: [{ chainId: 8453, name: "Base", pct: 100, usdPerDay: 20, feeUsd: 0, parts: [{ symbol: "A/B", gauge: "0x1", pct: 100, usdPerDay: 20 }] }], usdPerDay: 20, feeUsd: 0, netUsd: 40, weakestHours: 30, spiky: false, confidence: "solid" };
 const spread = {
@@ -48,6 +49,26 @@ describe("AllChainsSplitPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "30 days" }));
     expect(await screen.findByText(/Could not read the chains just now/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(f).toHaveBeenLastCalledWith("/api/all-chains-split?amount=1000&days=30");
+  });
+});
+
+describe("ReadingNote", () => {
+  afterEach(() => vi.useRealTimers());
+  it("counts the seconds while a read runs and says why it takes a while", () => {
+    vi.useFakeTimers();
+    render(<ReadingNote />);
+    expect(screen.getByRole("status")).toHaveTextContent(/Reading every chain… 0 s/);
+    expect(screen.getByRole("status")).toHaveTextContent(/up to about 20 seconds/);
+    act(() => {
+      vi.advanceTimersByTime(7000);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/Reading every chain… 7 s/);
+  });
+  it("shows while the panel waits for the read", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(<AllChainsSplitPanel amount={1000} />);
+    fireEvent.click(screen.getByRole("button", { name: "compare all chains" }));
+    expect(screen.getByRole("status")).toHaveTextContent(/Reading every chain/);
   });
 });
 

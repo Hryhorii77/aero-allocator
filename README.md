@@ -60,8 +60,8 @@ Open http://localhost:3000. Checks, in `web/`: `npx tsc --noEmit`, `npm run lint
 
 History is kept by Vercel Cron: six crons (one per chain, `web/vercel.json`) call `/api/gauge-fees/ingest` every 30 minutes, which
 extends the fee record (4 days), takes a weight snapshot (3 days) and, once a UTC day has finished, adds it to the daily record
-(90 days). All three live in private Vercel Blobs. If `CRON_SECRET` is set, the route requires it as a bearer token (Vercel Cron sends
-it by itself).
+(90 days). All three live in private Vercel Blobs. The route requires `CRON_SECRET` as a bearer token (Vercel Cron sends
+it by itself); a deployed site without it refuses every call, so history stays empty until it is set.
 
 ### Environment (`web/`)
 
@@ -69,7 +69,7 @@ it by itself).
 |---|---|---|
 | `RPC_URL`, `RPC_URL_FALLBACK` | optional | A dedicated RPC, and a second one for failover. Without them public nodes are used, which works but is slower and rate limited |
 | `BLOB_READ_WRITE_TOKEN` | needed for history | Vercel Blob token for the fee, weight and daily records. Without it the site works but shows no history |
-| `CRON_SECRET` | recommended | Locks `/api/gauge-fees/ingest` to Vercel Cron |
+| `CRON_SECRET` | needed for history | Locks `/api/gauge-fees/ingest` to Vercel Cron; without it a deployed site refuses the cron's calls |
 | `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` | Public address, for the link-preview image |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | unset | Free [Reown Cloud](https://cloud.reown.com) project id (the domain must be on its allowlist). Enables WalletConnect; without it that connector is left out because its relay socket would hang the tab |
 | `X402_PAYTO_ADDRESS`, `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET` | for the paid routes | See [Paid API (x402)](#paid-api-x402) |

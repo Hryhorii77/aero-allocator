@@ -12,6 +12,28 @@ const HORIZONS: Array<{ label: string; days?: number }> = [{ label: "the wait" }
 export const horizonText = (days: number) => (days < 2.5 ? `${Math.round(days * 24)} hours` : `${Math.round(days)} days`);
 
 /**
+ * Shown while the read runs. One request can't report its own progress, so this counts the seconds honestly and says why it takes
+ * a while: seven chains are read one after another when nothing is cached (up to about 20 s), and a repeat is quick.
+ */
+export function ReadingNote() {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSec((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="mt-2" role="status">
+      <p className={NOTE}>
+        Reading every chain… {sec} s. The first read can take up to about 20 seconds because seven chains are read live; repeat reads are quick.
+      </p>
+      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-neutral-800" aria-hidden>
+        <div className="h-full w-1/3 animate-pulse rounded-full bg-sky-500" />
+      </div>
+    </div>
+  );
+}
+
+/**
  * The table above is one chain at a time. This tries every set of chains for the amount and shows the one that earns the most after
  * the one-off ETH each extra chain costs to reach, next to Base alone. It reads only public data and sends nothing.
  */
@@ -68,7 +90,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
         </button>
       </div>
       {got === "failed" && <p className="mt-2 text-sm text-rose-400">Could not read the chains just now. Try again in a moment.</p>}
-      {!res && got !== "failed" && <p className={`mt-2 ${NOTE}`}>Reading every chain…</p>}
+      {!res && got !== "failed" && <ReadingNote key={key} />}
       {res && best && (
         <>
           <p className="mt-2 text-sm text-neutral-300">

@@ -174,7 +174,7 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
 
   const usable = position.parkedRaw + position.onBaseRaw > 0n;
   if (!usable) {
-    return <p className={`mt-2 ${NOTE}`}>All of this position&rsquo;s power sits on other chains; allocating there isn&rsquo;t supported yet.</p>;
+    return <p className={`mt-2 ${NOTE}`}>All of this position&rsquo;s power sits on other chains. Use &ldquo;allocate across chains&hellip;&rdquo; below to change it there or bring it back.</p>;
   }
   if (!open) {
     return (
