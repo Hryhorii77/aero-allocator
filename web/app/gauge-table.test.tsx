@@ -93,7 +93,8 @@ describe("GaugeTable", () => {
     // $19.72/day on 10,000 AERO at $0.75: 19.72 x 365 / 7,500 = 96%
     expect(screen.getByRole("columnheader", { name: "Est. APR" })).toBeInTheDocument();
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("96%");
-    expect(screen.getByText(/about 96% APR/)).toBeInTheDocument();
+    // The phone card repeats the figure (only one of the two shows at a time).
+    expect(screen.getAllByText(/about 96% APR/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/AERO.s price \(\$0\.75\)/)).toBeInTheDocument();
     unmount();
 
@@ -270,5 +271,62 @@ describe("GaugeTable", () => {
     expect(screen.getByText(/new incentives · \$428\/week, appeared within 3 h/)).toBeInTheDocument();
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("incentives");
     expect(screen.getAllByRole("row")[1]).not.toHaveTextContent("1/4");
+  });
+
+  describe("phone mode and the steadiest-only filter", () => {
+    const stub = (feeRows: Array<{ gauge: string; feesUsdPerDay: number; windowHours: number; steady?: { buckets: number; paying: number } }>) => {
+      vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 40, fees: feeRows } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+    };
+
+    it("shows the quick split with one button to the positions panel, and folds the long parts until 'more' is pressed", async () => {
+      stub([{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 40 }, { gauge: "0x4", feesUsdPerDay: 900, windowHours: 40 }]);
+      const { container } = render(<GaugeTable />);
+      expect(await screen.findByText("Best split for your amount")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "allocate from my wallet" })).toHaveAttribute("href", "#positions");
+      // Folded on phones, always shown from sm up: the class pair carries both.
+      const folded = container.querySelectorAll(".hidden.sm\\:block");
+      expect(folded.length).toBeGreaterThanOrEqual(2);
+      const more = screen.getByRole("button", { name: /more: explanations/ });
+      expect(more).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(more);
+      expect(container.querySelectorAll(".hidden.sm\\:block")).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "hide the details" })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("keeps everything visible without a fee estimate (nothing to summarise yet)", async () => {
+      vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+      const { container } = render(<GaugeTable />);
+      await screen.findByText("T0/USDC");
+      expect(screen.queryByText("Best split for your amount")).not.toBeInTheDocument();
+      expect(container.querySelectorAll(".hidden.sm\\:block")).toHaveLength(0);
+    });
+
+    it("'steadiest only' keeps gauges whose every half-day paid and drops patchy, bursty and unmeasured ones", async () => {
+      stub([
+        { gauge: "0x1", feesUsdPerDay: 500, windowHours: 40, steady: { buckets: 6, paying: 6 } },
+        { gauge: "0x2", feesUsdPerDay: 800, windowHours: 40, steady: { buckets: 6, paying: 4 } },
+        { gauge: "0x3", feesUsdPerDay: 900, windowHours: 40 },
+      ]);
+      render(<GaugeTable />);
+      await screen.findByText("Best split for your amount");
+      const chip = screen.getByRole("button", { name: "steadiest only" });
+      expect(chip).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(chip);
+      expect(chip).toHaveAttribute("aria-pressed", "true");
+      const rows = screen.getAllByRole("row");
+      expect(rows).toHaveLength(2); // header + T1
+      expect(rows[1]).toHaveTextContent("T1/USDC");
+      expect(screen.getByText(/1 of 3 ranked gauges/)).toBeInTheDocument();
+    });
+
+    it("says so when no gauge passes the filter", async () => {
+      stub([{ gauge: "0x1", feesUsdPerDay: 500, windowHours: 40, steady: { buckets: 6, paying: 3 } }]);
+      render(<GaugeTable />);
+      await screen.findByText("Best split for your amount");
+      fireEvent.click(screen.getByRole("button", { name: "steadiest only" }));
+      expect(screen.getByText(/No gauge has a clean fee record right now/)).toBeInTheDocument();
+    });
   });
 });
