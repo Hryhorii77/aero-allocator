@@ -6,7 +6,8 @@ import { NextResponse } from "next/server";
 // limit: Vercel can route a determined attacker's requests across many
 // concurrent instances, each with its own independent bucket. It's enough
 // to bound the common case (one client hammering the endpoint) without
-// adding infrastructure.
+// adding infrastructure. (Since 2026-10-31 two Vercel Firewall rules add a limit shared
+// across instances in front of this one; see the README, Deploying.)
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 // Crude safeguard against unbounded growth on a very long-lived warm
