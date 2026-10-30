@@ -23,6 +23,12 @@ describe("GET /api/all-chains-split", () => {
     expect(await res.json()).toEqual({ amount: 100, days: 30 });
   });
 
+  it("works the answer out for the amount to three figures, so an exact amount and the page's rounded one agree", async () => {
+    read.mockResolvedValue({ amount: 12300, days: 30 });
+    await call("amount=12345&days=30", "9.9.9.5");
+    expect(read).toHaveBeenLastCalledWith(12300, 30);
+  });
+
   it("is a 503 when nothing can be ranked", async () => {
     read.mockResolvedValue(null);
     expect((await call("amount=100", "9.9.9.4")).status).toBe(503);

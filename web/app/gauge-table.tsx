@@ -74,6 +74,8 @@ export function GaugeTable() {
   // Phones start on the short answer (the quick split); this unfolds the long explanations and the whole table. From `sm` up everything is always shown.
   const [more, setMore] = useState(false);
   const [steadyOnly, setSteadyOnly] = useState(false);
+  // Gauges Aero has not activated earn nothing and can't be ranked, so they sit behind a button instead of among the real ones.
+  const [showInactive, setShowInactive] = useState(false);
 
   const [chainId, setChainId] = useState<number>(BASE_CHAIN.id);
   const onBase = chainId === BASE_CHAIN.id;
@@ -92,6 +94,7 @@ export function GaugeTable() {
     setData(null);
     setFailed(false);
     setAll(false);
+    setShowInactive(false);
     setOpenGauge(null);
     fetch(`/api/gauges?chain=${chainId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -151,7 +154,10 @@ export function GaugeTable() {
   const rankedCount = lines.filter((l) => l.y).length;
   const steadyCount = lines.filter((l) => l.y && isSteadiest(l.y)).length;
   const filtered = steadyOnly && estimating ? lines.filter((l) => l.y && isSteadiest(l.y)) : lines;
-  const shown = all ? filtered : filtered.slice(0, SHOWN);
+  const activeLines = filtered.filter((l) => l.g.activated);
+  const inactiveLines = filtered.filter((l) => !l.g.activated);
+  const pool = showInactive ? [...activeLines, ...inactiveLines] : activeLines;
+  const shown = all ? pool : pool.slice(0, SHOWN);
   // With the quick split on screen (phones, once an amount is priced) the rest is folded away until asked for.
   const fold = estimating && !!data && !more ? "hidden sm:block" : "";
 
@@ -396,10 +402,15 @@ export function GaugeTable() {
               </tbody>
             </table>
           </div>
-          {steadyOnly && estimating && filtered.length === 0 && <p className={`mt-3 ${NOTE}`}>No gauge has a clean fee record right now. Turn the filter off to see them all.</p>}
-          {filtered.length > SHOWN && (
+          {steadyOnly && estimating && pool.length === 0 && <p className={`mt-3 ${NOTE}`}>No gauge has a clean fee record right now. Turn the filter off to see them all.</p>}
+          {pool.length > SHOWN && (
             <button type="button" className={`mt-3 ${btn("secondary", "sm")}`} onClick={() => setAll((v) => !v)}>
-              {all ? `show top ${SHOWN}` : `show all ${filtered.length}`}
+              {all ? `show top ${SHOWN}` : `show all ${pool.length}`}
+            </button>
+          )}
+          {inactiveLines.length > 0 && (
+            <button type="button" aria-pressed={showInactive} className={`mt-3 ${all || pool.length > SHOWN ? "ml-2 " : ""}${btn("secondary", "sm")}`} onClick={() => setShowInactive((v) => !v)} title="Gauges Aero has not activated: they earn nothing yet">
+              {showInactive ? "hide not activated" : `show ${inactiveLines.length} not activated`}
             </button>
           )}
           <p className={`mt-3 ${NOTE}`}>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MAX_AMOUNT } from "@/lib/amount";
+import { MAX_AMOUNT, roundAmount } from "@/lib/amount";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { readAllChainsSplit } from "@/lib/all-chains-read";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
@@ -19,7 +19,8 @@ export const GET = withApiErrorHandling("all-chains-split", async (req: Request)
   const rawDays = q.get("days");
   const days = rawDays === null ? undefined : Number(rawDays);
   if (days !== undefined && !(days >= 1 && days <= 90)) return NextResponse.json({ error: "days must be between 1 and 90" }, { status: 400 });
-  const out = await readAllChainsSplit(amount, days);
+  // Same rounding as the page applies, so callers that pass an exact amount are answered the same way.
+  const out = await readAllChainsSplit(roundAmount(amount), days);
   if (!out) return NextResponse.json({ error: "nothing to rank right now" }, { status: 503 });
   return NextResponse.json(out, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
 });
