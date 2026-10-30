@@ -96,6 +96,7 @@ production. To make production public while keeping preview deployments protecte
 `ssoProtection.deploymentType` to `"preview"` via the API (also not a dashboard toggle at the time of
 writing).
 
+Preview builds are skipped: `web/vercel.json` has an `ignoreCommand` that exits 0 only when `VERCEL_ENV` is `preview` (anything else, or an unset variable, builds), because every pull request's preview and its merge build both cost build minutes and the October bill's biggest line was Build CPU. GitHub's CI still builds and tests each pull request. Delete the `ignoreCommand` line to get previews back.
 
 ## Agent skills
 
