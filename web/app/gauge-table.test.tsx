@@ -38,7 +38,11 @@ describe("GaugeTable", () => {
     expect(screen.getByText("T9/USDC")).toBeInTheDocument();
     expect(screen.queryByText("T10/USDC")).not.toBeInTheDocument();
     expect(screen.getAllByText(/\$591/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "show all 15" }));
+    // 15 gauges, one not activated: "show all" counts the 14 real ones and the other waits behind its own button.
+    fireEvent.click(screen.getByRole("button", { name: "show all 14" }));
+    expect(screen.getByText("T13/USDC")).toBeInTheDocument();
+    expect(screen.queryByText("T14/USDC")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "show 1 not activated" }));
     expect(screen.getByText("T14/USDC")).toBeInTheDocument();
     expect(screen.getByText("not activated")).toBeInTheDocument();
   });
@@ -327,6 +331,24 @@ describe("GaugeTable", () => {
       await screen.findByText("Best split for your amount");
       fireEvent.click(screen.getByRole("button", { name: "steadiest only" }));
       expect(screen.getByText(/No gauge has a clean fee record right now/)).toBeInTheDocument();
+    });
+  });
+
+  describe("gauges Aero has not activated", () => {
+    it("sit behind a button instead of among the real ones, and come back when asked", async () => {
+      vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+      render(<GaugeTable />);
+      await screen.findByText("T0/USDC");
+      // T14 is the one gauge in the fixture that is not activated.
+      fireEvent.click(screen.getByRole("button", { name: "show all 14" }));
+      expect(screen.queryByText("T14/USDC")).not.toBeInTheDocument();
+      expect(screen.queryByText("not activated")).not.toBeInTheDocument();
+      const show = screen.getByRole("button", { name: "show 1 not activated" });
+      fireEvent.click(show);
+      expect(screen.getByText("T14/USDC")).toBeInTheDocument();
+      expect(screen.getByText("not activated")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "hide not activated" })).toHaveAttribute("aria-pressed", "true");
     });
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AllChainsSplit } from "@/lib/all-chains-read";
 import { ago } from "@/lib/ago";
+import { roundAmount } from "@/lib/amount";
 import { btn, chip, NOTE, NUM } from "./ui";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -42,14 +43,16 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
   const [horizon, setHorizon] = useState(0);
   const [got, setGot] = useState<{ key: string; data: AllChainsSplit } | "failed" | null>(null);
   const days = HORIZONS[horizon].days;
-  const key = `${amount}:${days ?? "wait"}`;
+  // Ask for the amount to three figures so nearby amounts share one cached answer (see roundAmount).
+  const asked = roundAmount(amount);
+  const key = `${asked}:${days ?? "wait"}`;
 
   // Typing an amount changes it on every keystroke, so the read waits for a short pause.
   useEffect(() => {
     if (!open) return;
     let live = true;
     const t = setTimeout(() => {
-      fetch(`/api/all-chains-split?amount=${amount}${days ? `&days=${days}` : ""}`)
+      fetch(`/api/all-chains-split?amount=${asked}${days ? `&days=${days}` : ""}`)
         .then((r) => (r.ok ? (r.json() as Promise<AllChainsSplit>) : Promise.reject(new Error(String(r.status)))))
         .then((data) => live && setGot({ key, data }))
         .catch(() => live && setGot("failed"));
@@ -58,7 +61,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
       live = false;
       clearTimeout(t);
     };
-  }, [open, key, amount, days]);
+  }, [open, key, asked, days]);
 
   if (!open) {
     return (
@@ -89,6 +92,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
           close
         </button>
       </div>
+      {asked !== amount && <p className={`mt-1 ${NOTE}`}>Worked out for {asked.toLocaleString("en-US")} sAERO, your amount to three figures.</p>}
       {got === "failed" && <p className="mt-2 text-sm text-rose-400">Could not read the chains just now. Try again in a moment.</p>}
       {!res && got !== "failed" && <ReadingNote key={key} />}
       {res && best && (

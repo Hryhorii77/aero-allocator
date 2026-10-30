@@ -52,6 +52,26 @@ describe("AllChainsSplitPanel", () => {
   });
 });
 
+describe("AllChainsSplitPanel rounding", () => {
+  it("asks for the amount to three figures, so nearby amounts share a cached answer, and says so", async () => {
+    const f = vi.fn(async () => ({ ok: true, json: async () => body(acrossBase) }));
+    vi.stubGlobal("fetch", f);
+    render(<AllChainsSplitPanel amount={12_345} />);
+    fireEvent.click(screen.getByRole("button", { name: "compare all chains" }));
+    await screen.findByText(/Staying on Base is the best use/, {}, { timeout: 3000 });
+    expect(f).toHaveBeenLastCalledWith("/api/all-chains-split?amount=12300");
+    expect(screen.getByText(/Worked out for 12,300 sAERO/)).toBeInTheDocument();
+  });
+
+  it("says nothing extra when the amount is already three figures", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body(acrossBase) })));
+    render(<AllChainsSplitPanel amount={10_000} />);
+    fireEvent.click(screen.getByRole("button", { name: "compare all chains" }));
+    await screen.findByText(/Staying on Base is the best use/, {}, { timeout: 3000 });
+    expect(screen.queryByText(/Worked out for/)).not.toBeInTheDocument();
+  });
+});
+
 describe("ReadingNote", () => {
   afterEach(() => vi.useRealTimers());
   it("counts the seconds while a read runs and says why it takes a while", () => {

@@ -13,3 +13,12 @@ export function parseAmount(text: string): AmountResult {
   if (value > MAX_AMOUNT) return { ok: false, error: "That is more sAERO than exists. Enter a smaller amount." };
   return { ok: true, value };
 }
+
+/**
+ * An amount rounded to three significant figures (12,345 -> 12,300). The all-chains split is cached by its URL, so every distinct typed
+ * amount used to miss the cache; asking for the rounded amount lets nearby amounts share one answer. A figure off by at most 0.5% of
+ * the amount changes the split's dollars per day by about as much, far below the noise in the fee pace.
+ */
+export function roundAmount(value: number): number {
+  return value > 0 ? Number(value.toPrecision(3)) : value;
+}
