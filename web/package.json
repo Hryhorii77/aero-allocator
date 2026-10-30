@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@base-org/account": "^2.5.13",
+    "@coinbase/wallet-sdk": "^4.4.0",
     "@coinbase/x402": "^2.1.0",
     "@tanstack/react-query": "^5.101.2",
     "@vercel/analytics": "^2.0.1",
