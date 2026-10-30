@@ -6,6 +6,6 @@ import { defineConfig } from "vitest/config";
 // path aliasing they need.
 export default defineConfig({
   test: {
-    include: ["scripts/**/*.test.ts", "skills/**/*.test.mjs"],
+    include: ["scripts/**/*.test.ts", "skills/**/*.test.mjs", "packages/**/*.test.mjs"],
   },
 });
