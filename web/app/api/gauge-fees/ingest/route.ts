@@ -5,6 +5,8 @@ import { snapshotWeights } from "@/lib/weight-history-read";
 import { recordDailyHistory } from "@/lib/daily-history-read";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { recordTrackEntry } from "@/lib/track-record-read";
+import { TRACK_CHAIN_ID } from "@/lib/track-record";
 
 export const maxDuration = 60;
 
@@ -35,5 +37,13 @@ export const GET = withApiErrorHandling("gauge-fees-ingest", async (req: Request
     console.error(JSON.stringify({ level: "error", route: "gauge-fees-ingest", step: "daily", message: e instanceof Error ? e.message : String(e) }));
     return null;
   });
-  return NextResponse.json({ chainId, lastBlock: ledger.lastBlock, coverageFrom: ledger.coverageFrom, events: ledger.events.length, updatedAt: ledger.updatedAt, weightSnapshots: snapshots, dailyDays });
+  // Once a day on Base, the recommendation is written down for the track record (it can't be rebuilt later); a failure here must not fail the fee record either.
+  const tracked =
+    chainId === TRACK_CHAIN_ID
+      ? await recordTrackEntry().catch((e) => {
+          console.error(JSON.stringify({ level: "error", route: "gauge-fees-ingest", step: "track-record", message: e instanceof Error ? e.message : String(e) }));
+          return null;
+        })
+      : undefined;
+  return NextResponse.json({ chainId, lastBlock: ledger.lastBlock, coverageFrom: ledger.coverageFrom, events: ledger.events.length, updatedAt: ledger.updatedAt, weightSnapshots: snapshots, dailyDays, ...(tracked !== undefined ? { tracked } : {}) });
 });

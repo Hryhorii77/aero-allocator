@@ -60,7 +60,7 @@ Open http://localhost:3000. Checks, in `web/`: `npx tsc --noEmit`, `npm run lint
 
 History is kept by Vercel Cron: six crons (one per chain, `web/vercel.json`) call `/api/gauge-fees/ingest` every 30 minutes, which
 extends the fee record (4 days), takes a weight snapshot (3 days) and, once a UTC day has finished, adds it to the daily record
-(90 days). All three live in private Vercel Blobs. The route requires `CRON_SECRET` as a bearer token (Vercel Cron sends
+(90 days). On Base the same cron also writes down, once a UTC day, the split the site would recommend for 10,000 sAERO (`track-record-8453.json`), so `/api/track-record` can show later how that advice compared with what the gauges paid. All of these live in private Vercel Blobs. The route requires `CRON_SECRET` as a bearer token (Vercel Cron sends
 it by itself); a deployed site without it refuses every call, so history stays empty until it is set.
 
 ### Environment (`web/`)

@@ -9,6 +9,7 @@ import { JumpBar } from "./jump-bar";
 import { SaeroPositions } from "./saero-positions";
 import { SiteFooter } from "./site-footer";
 import { ThemeToggle } from "./theme-toggle";
+import { TrackRecordPanel } from "./track-record";
 import { UpgradeChecklist, upgradeChecklistVisible } from "./upgrade-checklist";
 import { ConnectButton } from "./wallet";
 import { LEAD } from "./ui";
@@ -44,6 +45,7 @@ export function SaeroPage() {
       </p>
       <GaugeTable />
       <SaeroPositions />
+      <TrackRecordPanel />
       <UpgradeChecklist />
       <ChangelogPanel />
       <SiteFooter />

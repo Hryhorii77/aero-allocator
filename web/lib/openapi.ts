@@ -149,6 +149,15 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
           responses: { "200": jsonBody(ref("AllChainsSplit"), "The best set of chains and the Base-only comparison."), ...errorResponses() },
         },
       },
+      "/api/track-record": {
+        get: {
+          operationId: "trackRecord",
+          summary: "The site's own track record: each day's recommended split, logged before the fact, against what the gauges paid",
+          description:
+            "Every day the site logs the best split it would give for 10,000 sAERO on Base with the dollars per day it predicted, then checks it two days later against what those gauges really paid (from the daily record). Results appear only after 14 checked days; before that the response says how many days are logged and checked. A check on the estimate, not a promise.",
+          responses: { "200": jsonBody(ref("TrackRecord"), "Counts, the results once there are enough days, and the latest days."), ...errorResponses() },
+        },
+      },
       "/api/token-prices": {
         get: {
           operationId: "tokenPrices",
@@ -367,6 +376,40 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             gaugeBase: str("Wei, decimal string: the fixed part of a gauge step."),
             perGauge: str("Wei, decimal string: each gauge adds this to a gauge step."),
             returnCost: str("Wei, decimal string: what the chain keeps when a dispatch returns power to idle."),
+          },
+        },
+        TrackRecord: {
+          type: "object",
+          properties: {
+            chainId: { type: "integer" },
+            amount: num("The amount every logged split is for, in whole sAERO power."),
+            logged: { type: "integer", description: "Days logged so far." },
+            evaluated: { type: "integer", description: "Days whose following two days are recorded, so the split could be checked." },
+            needed: { type: "integer", description: "Checked days needed before results are shown." },
+            results: {
+              type: "object",
+              description: "Present only once `evaluated` reaches `needed`.",
+              properties: {
+                medianRealizedOfPredicted: num("Median of what it paid divided by what was predicted (0.7 = 70%)."),
+                atLeastLow: { type: "integer", description: "Days on which it paid at least the low case." },
+                avgPredictedUsd: num("Average predicted USD per day."),
+                avgRealizedUsd: num("Average USD per day it really paid."),
+              },
+            },
+            rows: {
+              type: "array",
+              description: "The latest days, newest first.",
+              items: {
+                type: "object",
+                properties: {
+                  day: { type: "integer", description: "UTC day number (unix seconds / 86,400)." },
+                  parts: { type: "array", items: { type: "object", properties: { s: str("Pool label."), pct: num("Share of the amount, percent.") } } },
+                  paceUsd: num("Predicted USD per day at the fee pace of the time."),
+                  lowUsd: num("The low case, USD per day."),
+                  realizedUsd: nullable(num("USD per day it really paid; null until both days are recorded.")),
+                },
+              },
+            },
           },
         },
         TokenPrices: { type: "object", properties: { prices: { type: "object", additionalProperties: { type: "number" }, description: "USD price by lowercase token address." } } },
