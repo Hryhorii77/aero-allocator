@@ -136,6 +136,20 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
           responses: { "200": jsonBody({ anyOf: [ref("AllocationFee"), ref("AllocationFeeModel")] }, "The cost in wei, as decimal strings."), ...errorResponses() },
         },
       },
+      "/api/top-gauges": {
+        get: {
+          operationId: "topGauges",
+          summary: "Gauges on one chain ranked by what an amount of sAERO would earn per day in each",
+          description:
+            "The page's table as data: for each of the top gauges, what the amount earns per day after it joins the power already there, the low case, APR when AERO's price is known, the fee and incentive pace, how much history it rests on, steadiness, and an incentive-end note when some incentives stop inside the wait. The amount is rounded to three significant figures. Read-only. Estimates, not financial advice.",
+          parameters: [
+            { name: "amount", in: "query", required: true, description: "Voting power to place, in whole sAERO power (above 0).", schema: { type: "number", exclusiveMinimum: 0 }, example: 10000 },
+            { ...chainParam, required: false, description: "Chain id (default Base, 8453).", example: 8453 },
+            { name: "limit", in: "query", required: false, description: "How many gauges, 1 to 25 (default 10).", schema: { type: "integer", minimum: 1, maximum: 25 }, example: 10 },
+          ],
+          responses: { "200": jsonBody(ref("TopGauges"), "The ranked gauges."), ...errorResponses() },
+        },
+      },
       "/api/all-chains-split": {
         get: {
           operationId: "allChainsSplit",
@@ -376,6 +390,37 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             gaugeBase: str("Wei, decimal string: the fixed part of a gauge step."),
             perGauge: str("Wei, decimal string: each gauge adds this to a gauge step."),
             returnCost: str("Wei, decimal string: what the chain keeps when a dispatch returns power to idle."),
+          },
+        },
+        TopGauges: {
+          type: "object",
+          properties: {
+            chainId: { type: "integer" },
+            amount: num("The amount used (rounded to three significant figures)."),
+            waitHours: num("The wait between allocations of one position, in hours; the low case looks across it."),
+            aeroUsd: nullable(num("AERO's USD price when known.")),
+            generatedAt: num("When the fee figures were read, unix milliseconds."),
+            gauges: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  gauge: str("Gauge address."),
+                  label: str("Pool pair and kind, e.g. USDC/cbZEC · CL100."),
+                  usdPerDay: num("What the amount earns per day in this gauge alone."),
+                  lowUsdPerDay: num("The same at the low case."),
+                  aprPct: nullable(num("Yearly return in percent at AERO's price.")),
+                  feesUsdPerDay: num("Fees to voters per day at the recent pace."),
+                  incentivesUsdPerDay: num("Incentives streaming now, per day."),
+                  weight: num("Power already in the gauge."),
+                  pace: { type: "string", enum: ["thin", "fair", "solid", "spiky"], description: "How much to trust the fee pace." },
+                  historyHours: num("Hours of fee history the pace rests on."),
+                  steady: nullable(str('Paying half-days out of complete half-days ("5/6"), or "incentives" / "incentives (ending)".')),
+                  steadiest: { type: "boolean", description: "Every complete half-day paid (or paid by incentives that run past the wait) and no burst." },
+                  incentivesNote: nullable(str('For example "incentives end in 10 h".')),
+                },
+              },
+            },
           },
         },
         TrackRecord: {

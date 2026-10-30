@@ -1,0 +1,13 @@
+{
+  "name": "aeroallocator-mcp",
+  "version": "0.1.0",
+  "description": "A free MCP server over aeroallocator.app's read-only APIs: where an amount of sAERO earns the most on each Aero chain, the best split across chains, power flows, and the site's own track record. It never signs or sends anything and has no dependencies.",
+  "type": "module",
+  "bin": { "aeroallocator-mcp": "bin/aeroallocator-mcp.mjs" },
+  "files": ["bin", "src", "README.md"],
+  "engines": { "node": ">=22" },
+  "keywords": ["mcp", "model-context-protocol", "aero", "aerodrome", "velodrome", "saero", "defi", "base"],
+  "homepage": "https://aeroallocator.app",
+  "repository": { "type": "git", "url": "git+https://github.com/Hryhorii77/aero-allocator.git", "directory": "packages/mcp" },
+  "license": "MIT"
+}
