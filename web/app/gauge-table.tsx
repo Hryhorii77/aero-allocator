@@ -11,6 +11,7 @@ import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-histo
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
+import { Glossary } from "./glossary";
 import { QuickSplit } from "./quick-split";
 import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
@@ -256,6 +257,7 @@ export function GaugeTable() {
               .
             </p>
           )}
+          <Glossary flowHours={flows?.spanHours} />
           {estimating && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button type="button" aria-pressed={steadyOnly} className={chip(steadyOnly)} onClick={() => { setSteadyOnly((v) => !v); setAll(false); }} title="Gauges whose every complete half-day paid, or that incentives pay past the wait; bursts and gauges with no record yet are left out">
