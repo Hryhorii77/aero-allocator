@@ -1,0 +1,47 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import type { TrackSummary } from "@/lib/track-record";
+import { TrackRecordPanel } from "./track-record";
+
+const base: TrackSummary = { chainId: 8453, amount: 10_000, logged: 5, evaluated: 3, needed: 14, rows: [] };
+const stub = (data: unknown, ok = true) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok, status: ok ? 200 : 500, json: async () => data })));
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("TrackRecordPanel", () => {
+  it("says how far along it is and shows no result before enough days are checked", async () => {
+    stub(base);
+    render(<TrackRecordPanel />);
+    expect(await screen.findByText(/Does the advice hold up/)).toBeInTheDocument();
+    expect(screen.getByText(/Results appear after 14 checked days/)).toBeInTheDocument();
+    expect(screen.getByText(/5 logged, 3 checked/)).toBeInTheDocument();
+    expect(screen.queryByText(/median/)).not.toBeInTheDocument();
+  });
+
+  it("shows the median, the averages and the low-case count once there are enough days, with a day-by-day list", async () => {
+    stub({
+      ...base,
+      logged: 20,
+      evaluated: 16,
+      results: { medianRealizedOfPredicted: 0.62, atLeastLow: 11, avgPredictedUsd: 10.5, avgRealizedUsd: 6.8 },
+      rows: [
+        { day: 20_400, parts: [{ s: "A/B", pct: 60 }, { s: "C/D", pct: 40 }], paceUsd: 10.5, lowUsd: 5, realizedUsd: 6.8 },
+        { day: 20_399, parts: [{ s: "A/B", pct: 100 }], paceUsd: 9, lowUsd: 4, realizedUsd: null },
+      ],
+    });
+    render(<TrackRecordPanel />);
+    expect(await screen.findByText(/median/)).toBeInTheDocument();
+    expect(screen.getByText("62%")).toBeInTheDocument();
+    expect(screen.getByText(/It paid at least the low case on 11 of 16 days/)).toBeInTheDocument();
+    expect(screen.getByText("A/B 60% · C/D 40%")).toBeInTheDocument();
+    expect(screen.getByText("not checked yet")).toBeInTheDocument();
+    expect(screen.getByText(/not a promise about the future/)).toBeInTheDocument();
+  });
+
+  it("renders nothing when the record can't be read", async () => {
+    stub({}, false);
+    const { container } = render(<TrackRecordPanel />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container).toBeEmptyDOMElement();
+  });
+});
