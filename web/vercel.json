@@ -1,4 +1,5 @@
 {
+  "ignoreCommand": "[ \"$VERCEL_ENV\" = \"preview\" ]",
   "crons": [
     {
       "path": "/api/gauge-fees/ingest?chain=8453",
