@@ -36,7 +36,7 @@ describe("openApiSpec", () => {
       expect(item.get.responses["200"], path).toBeDefined();
     }
     expect(Object.keys(spec.paths)).toEqual(
-      expect.arrayContaining(["/api/gauges", "/api/gauge-fees", "/api/gauge-history", "/api/gauge-flows", "/api/allocation-fee", "/api/token-prices", "/api/track-record", "/api/v1/position", "/api/v1/allocate-plan", "/api/v1/cross-chain-plan"]),
+      expect.arrayContaining(["/api/gauges", "/api/gauge-fees", "/api/gauge-history", "/api/gauge-flows", "/api/allocation-fee", "/api/token-prices", "/api/track-record", "/api/top-gauges", "/api/v1/position", "/api/v1/allocate-plan", "/api/v1/cross-chain-plan"]),
     );
   });
 

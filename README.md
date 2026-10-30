@@ -117,6 +117,12 @@ npx skills add Hryhorii77/aero-allocator --full-depth --skill veaero-to-saero-up
 
 Review a skill before you use it: it runs with your agent's permissions.
 
+## Free MCP server (`packages/mcp`)
+
+`aeroallocator-mcp` is a dependency-free MCP server (stdio, Node 22+) over the site's free, read-only APIs: `top_gauges`, `best_split_all_chains`, `power_flows`, `gauge_history`, `allocation_fee` and `track_record`. It never signs or sends anything and needs no key. Once published: `{ "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } }`. See `packages/mcp/README.md`.
+
+Publishing is manual and needs an npm login: `cd packages/mcp && npm publish` (the name was free on 2026-10-30; tests run in the root `npm test`). Until then it can be run from a clone: `node packages/mcp/bin/aeroallocator-mcp.mjs`.
+
 ## Paid API (x402)
 
 Two pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
