@@ -39,9 +39,13 @@ export function aprPct(usdPerDay: number, amount: number, aeroUsd: number | null
   return ((usdPerDay * 365) / (amount * aeroUsd)) * 100;
 }
 
+/** Hours of fee history below which a pace is "thin", and from which it is "solid". */
+export const THIN_UNDER_HOURS = 6;
+export const SOLID_FROM_HOURS = 24;
+
 /** How much to trust a fee pace: a few hours of fee releases can swing a lot, a day or more is steadier. */
 export function paceConfidence(windowHours: number): "thin" | "fair" | "solid" {
-  return windowHours >= 24 ? "solid" : windowHours >= 6 ? "fair" : "thin";
+  return windowHours >= SOLID_FROM_HOURS ? "solid" : windowHours >= THIN_UNDER_HOURS ? "fair" : "thin";
 }
 
 export type PaceLabel = "thin" | "fair" | "solid" | "spiky";
