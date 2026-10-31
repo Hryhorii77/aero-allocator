@@ -68,7 +68,7 @@ export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: Gaug
         Pace is <span className={conf === "solid" ? "text-emerald-400" : conf === "spiky" ? "text-amber-500" : "text-neutral-300"}>{conf}</span>
         {conf === "thin" || conf === "spiky" ? " (a few hours of fees, or a burst: it can fall)" : ""}. An estimate, not a promise. Moving restarts a {waitHours(waitSec)} h wait.
       </p>
-      <a href="#positions" className={`mt-3 flex min-h-11 w-full items-center justify-center text-center ${btn("primary", "md")}`}>
+      <a href="#positions" className={`mt-3 flex w-full items-center justify-center text-center ${btn("primary", "md")}`}>
         allocate from my wallet
       </a>
     </div>

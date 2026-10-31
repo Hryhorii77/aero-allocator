@@ -11,7 +11,7 @@ export function ThemeToggle() {
       onClick={() => setStoredTheme(next)}
       aria-label={`Switch to ${next} mode`}
       title={`Switch to ${next} mode`}
-      className="rounded-lg border border-neutral-700 p-1.5 text-neutral-300 hover:border-neutral-500 hover:text-white"
+      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-neutral-700 p-1.5 text-neutral-300 sm:min-h-0 sm:min-w-0 hover:border-neutral-500 hover:text-white"
     >
       <svg
         width="16"

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { TrackSummary } from "@/lib/track-record";
-import { NOTE, NUM } from "./ui";
+import { LINK, NOTE, NUM } from "./ui";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = (day: number) => new Date(day * 86_400_000).toISOString().slice(0, 10);
@@ -12,23 +13,34 @@ const date = (day: number) => new Date(day * 86_400_000).toISOString().slice(0, 
  * will pay, and checks it two days later against what they did pay. Nothing is shown as a result until 14 days are checked; before that
  * the panel says how far along it is, so an early lucky week can't pass for a record.
  */
-export function TrackRecordPanel() {
+export function TrackRecordPanel({ standalone = false }: { standalone?: boolean } = {}) {
   const [data, setData] = useState<TrackSummary | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
     fetch("/api/track-record")
       .then((r) => (r.ok ? (r.json() as Promise<TrackSummary>) : Promise.reject(new Error(String(r.status)))))
       .then((d) => live && setData(d))
-      .catch(() => {});
+      .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
   }, []);
-  if (!data) return null;
+  // On the home page the panel simply stays away until it has data; on its own page an empty screen would look broken.
+  if (!data) return standalone ? <p className={`mt-4 ${NOTE}`}>{failed ? "Couldn’t load the track record. Try again in a minute." : "Loading the track record…"}</p> : null;
   const r = data.results;
   return (
     <section id="track" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
-      <h2 className="text-base font-semibold text-neutral-100">Does the advice hold up?</h2>
+      {standalone ? (
+        <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Does the advice hold up?</h1>
+      ) : (
+        <h2 className="text-base font-semibold text-neutral-100">
+          Does the advice hold up?{" "}
+          <Link href="/track-record" className={`text-sm font-normal ${LINK}`}>
+            own page
+          </Link>
+        </h2>
+      )}
       <p className={`mt-2 ${NOTE}`}>
         Every day this site writes down the best split it would give for {data.amount.toLocaleString("en-US")} sAERO on Base, before it knows what the gauges will pay. Two days later it checks that
         split against what those gauges really paid.

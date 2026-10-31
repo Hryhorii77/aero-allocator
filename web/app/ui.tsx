@@ -20,7 +20,8 @@
 type Variant = "primary" | "secondary" | "accent" | "warn" | "warnSolid";
 type Size = "sm" | "md";
 
-const BASE = "rounded-lg disabled:opacity-40";
+// 44px tall on phones (Apple's minimum tap target), the compact 32px from `sm` up where a mouse is the usual pointer.
+const BASE = "min-h-11 rounded-lg disabled:opacity-40 sm:min-h-0";
 
 const VARIANT: Record<Variant, string> = {
   primary: "border border-transparent bg-[var(--primary-bg)] text-[var(--primary-text)] hover:bg-[var(--primary-bg-hover)]",
@@ -53,9 +54,9 @@ export function input(invalid = false, extra = ""): string {
   } ${extra}`.trim();
 }
 
-/** Filter chip: sky when selected, quiet neutral otherwise. */
+/** Filter chip: sky when selected, quiet neutral otherwise. 44px tall on phones like btn(). */
 export function chip(active: boolean): string {
-  return `shrink-0 rounded-lg border px-3 py-1.5 text-sm ${
+  return `min-h-11 shrink-0 rounded-lg border px-3 py-1.5 text-sm sm:min-h-0 ${
     active
       ? "border-sky-600 bg-sky-950/40 text-sky-300"
       : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"

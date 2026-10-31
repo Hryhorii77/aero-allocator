@@ -5,7 +5,7 @@ import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContr
 import { base } from "wagmi/chains";
 import { erc20Abi, parseUnits } from "viem";
 import { DISPLAY_PRESET } from "@/lib/protocol";
-import { btn, LINK } from "./ui";
+import { btn, input, LINK } from "./ui";
 
 /** Where tips go: a plain wallet on Base, public by design. */
 export const TIP_ADDRESS = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae" as const;
@@ -166,7 +166,7 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
                       inputMode="decimal"
                       placeholder="other amount, $"
                       aria-label="custom tip amount in USD"
-                      className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-transparent px-2.5 py-1 text-xs text-neutral-200 placeholder:text-neutral-600 focus:border-sky-600 focus:outline-none"
+                      className={input(false, "min-w-0 flex-1")}
                     />
                     <button type="submit" disabled={signing || !customAmount} className={btn("secondary", "sm")}>
                       send

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import type { FacilitatorClient } from "@x402/core/server";
-import { BASE_MAINNET_CAIP2, makeX402Server, paidRoute, x402Status } from "./x402";
+import { BASE_MAINNET_CAIP2, makeX402Server, PAID_RATE_LIMIT_PER_MIN, paidRoute, x402Status } from "./x402";
 
 const PAY_TO = "0x1111111111111111111111111111111111111111";
 const FULL_ENV = { X402_PAYTO_ADDRESS: PAY_TO, CDP_API_KEY_ID: "id", CDP_API_KEY_SECRET: "secret" };
@@ -100,5 +100,50 @@ describe("paidRoute logs why a payment was refused", () => {
     expect(logged).toMatch(/insufficient_funds/);
     expect(logged).not.toContain("0xsig");
     spy.mockRestore();
+  });
+});
+
+describe("paidRoute with one payment sent twice at once", () => {
+  it("gives the answer to only one of them: the facilitator settles a signed authorization once, and the loser gets no body", async () => {
+    const { facilitator, verify } = stubFacilitator();
+    // Like the chain: an EIP-3009 authorization's nonce can be spent once, so the second settle of the same payload fails.
+    const spent = new Set<string>();
+    const settle = vi.fn(async (payload: { payload: { signature: string } }) => {
+      await new Promise((r) => setTimeout(r, 5));
+      const sig = payload.payload.signature;
+      if (spent.has(sig)) return { success: false, errorReason: "invalid_exact_evm_payload_authorization_nonce", transaction: "", network: BASE_MAINNET_CAIP2 };
+      spent.add(sig);
+      return { success: true, transaction: "0xabc", network: BASE_MAINNET_CAIP2, payer: "0x2222222222222222222222222222222222222222" };
+    });
+    (facilitator as unknown as { settle: unknown }).settle = settle;
+    const handler = vi.fn(async () => NextResponse.json({ secretAnswer: 42 }));
+    const wrapped = paidRoute(route, handler, { env: FULL_ENV, server: makeX402Server(facilitator as never) });
+    const challenge = decode((await wrapped(req())).headers.get("PAYMENT-REQUIRED"));
+    const payment = Buffer.from(JSON.stringify({ x402Version: 2, resource: challenge.resource, accepted: challenge.accepts[0], payload: { signature: "0xsig", authorization: {} } })).toString("base64");
+
+    const [a, b] = await Promise.all([wrapped(req({ "PAYMENT-SIGNATURE": payment })), wrapped(req({ "PAYMENT-SIGNATURE": payment }))]);
+    const bodies = await Promise.all([a.text(), b.text()]);
+
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(settle).toHaveBeenCalledTimes(2);
+    expect([a.status, b.status].filter((s) => s === 200)).toHaveLength(1);
+    expect(bodies.filter((t) => t.includes("secretAnswer"))).toHaveLength(1);
+    expect([a.status, b.status]).toContain(402);
+  });
+});
+
+describe("paidRoute rate limit", () => {
+  it("answers 429 past the per-minute limit, before any payment is verified or settled", async () => {
+    const { facilitator, verify, settle } = stubFacilitator();
+    const limited = { ...route, path: "/api/v1/limited" };
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const wrapped = paidRoute(limited, handler, { env: FULL_ENV, server: makeX402Server(facilitator as never) });
+    const call = (h: Record<string, string> = {}) => wrapped(new NextRequest("http://localhost/api/v1/limited?tokenId=1", { headers: { "x-forwarded-for": "203.0.113.9", ...h } }));
+    for (let i = 0; i < PAID_RATE_LIMIT_PER_MIN; i++) expect((await call()).status).toBe(402);
+    const res = await call({ "PAYMENT-SIGNATURE": "anything" });
+    expect(res.status).toBe(429);
+    expect(verify).not.toHaveBeenCalled();
+    expect(settle).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
   });
 });
