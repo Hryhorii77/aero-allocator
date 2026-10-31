@@ -7,9 +7,11 @@
  * who may frame the site, and what <base> and forms may point at. `lib/csp.test.ts` fails when a chain's RPC host is not covered.
  *
  * Found by running it (2026-10-30, production build, connect dialog + WalletConnect window): `fonts.reown.com` needed a `font-src` entry
- * (added), and opening WalletConnect's window runs an `eval` (reported as `script-src eval`, from the wallet library, not our code).
- * Enforcing this policy as it stands would block that eval; that needs either 'unsafe-eval' (a real weakening) or a wallet library that
- * doesn't use it, so the policy stays report-only until that is decided.
+ * (added). Real traffic over the next day (27 reports): every one was `script-src eval`, 16 of them with source "chrome-extension" and 10
+ * with none; a clean Chrome with no extensions produced none (checked 2026-10-31). So the `eval` comes from wallet extensions' injected
+ * scripts, not from our code or WalletConnect (an earlier note here blamed WalletConnect's window: the reports arrived at page load, not at
+ * the click). Enforcing `script-src` as it stands would block that eval in those extensions' page scripts and could degrade them, so the
+ * policy stays report-only; `object-src`, `base-uri`, `form-action` and `frame-ancestors` had no reports and could be enforced on their own.
  */
 export const CSP_REPORT_PATH = "/api/csp-report";
 
