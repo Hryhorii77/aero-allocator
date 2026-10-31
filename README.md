@@ -121,7 +121,7 @@ Review a skill before you use it: it runs with your agent's permissions.
 
 ## Free MCP server (`packages/mcp`)
 
-`aeroallocator-mcp` is a dependency-free MCP server (stdio, Node 22+) over the site's free, read-only APIs: `top_gauges`, `best_split_all_chains`, `power_flows`, `gauge_history`, `allocation_fee` and `track_record`. `top_gauges` also takes `chain: "all"` for every chain ranked and merged. It never signs or sends anything and needs no key. Published on npm (0.1.0, 2026-10-31; 0.2.0, which adds `chain: "all"`, is in the repo and not published yet). Add it to an MCP client with `{ "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } }`. See `packages/mcp/README.md`.
+`aeroallocator-mcp` is a dependency-free MCP server (stdio, Node 22+) over the site's free, read-only APIs: `top_gauges`, `best_split_all_chains`, `power_flows`, `gauge_history`, `allocation_fee` and `track_record`. `top_gauges` also takes `chain: "all"` for every chain ranked and merged. It never signs or sends anything and needs no key. Published on npm (0.2.0, 2026-10-31, which adds `chain: "all"`). Add it to an MCP client with `{ "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } }`. See `packages/mcp/README.md`.
 
 Releases are manual and need the owner's npm login with 2FA: bump `version` in `packages/mcp/package.json`, then `cd packages/mcp && npm publish` (a version can't be re-published; tests run in the root `npm test`). From a clone: `node packages/mcp/bin/aeroallocator-mcp.mjs`.
 
