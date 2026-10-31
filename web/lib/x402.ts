@@ -5,6 +5,10 @@ import { withX402, x402ResourceServer } from "@x402/next";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { facilitator as cdpFacilitatorConfig } from "@coinbase/x402";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { checkRateLimit, rateLimitResponse } from "./rate-limit";
+
+/** Calls a minute per IP on each paid route, per server instance (the Vercel Firewall rules sit in front of this). */
+export const PAID_RATE_LIMIT_PER_MIN = 30;
 
 /** Base mainnet in CAIP-2 form: payments are USDC on Base. */
 export const BASE_MAINNET_CAIP2 = "eip155:8453";
@@ -45,7 +49,8 @@ export interface PaidRoute {
 
 /**
  * Wraps a handler so it needs an x402 payment. Settlement happens only after the handler returns a status below 400, so a bad request,
- * a not-found or a failed read never costs the caller anything. Without payment config the route serves a plain 501.
+ * a not-found or a failed read never costs the caller anything. Without payment config the route serves a plain 501. Each route also
+ * allows PAID_RATE_LIMIT_PER_MIN calls a minute per IP before answering 429, with nothing charged.
  */
 export function paidRoute(
   route: PaidRoute,
@@ -72,7 +77,10 @@ export function paidRoute(
   );
   // A request that carried a payment and still got a 402 was refused by the facilitator (or the payment was malformed). The response says why in
   // its PAYMENT-REQUIRED header, but nothing else records it, so log the reason: a rejected payer otherwise leaves no trace to debug from.
+  // The limit comes before the payment check, so a call turned away with a 429 is never verified, run or charged.
   return async (req: NextRequest) => {
+    const rl = checkRateLimit(req, { key: `paid:${route.path}`, limit: PAID_RATE_LIMIT_PER_MIN, windowMs: 60_000 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
     const res = await wrapped(req);
     if (res.status === 402 && (req.headers.get("payment-signature") || req.headers.get("x-payment"))) logPaymentRejected(route.path, res);
     return res;

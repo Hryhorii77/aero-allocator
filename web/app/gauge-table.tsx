@@ -207,7 +207,7 @@ export function GaugeTable() {
           {fees && data && parsed.ok && (
             <div className="sm:hidden">
               <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />
-              <button type="button" aria-expanded={more} className={`mt-3 min-h-11 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
+              <button type="button" aria-expanded={more} className={`mt-3 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
                 {more ? "hide the details" : "more: explanations, all chains and every gauge"}
               </button>
             </div>

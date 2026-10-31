@@ -5,6 +5,7 @@ import { snapshotWeights } from "@/lib/weight-history-read";
 import { recordDailyHistory } from "@/lib/daily-history-read";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { bearerMatches } from "@/lib/bearer";
 import { recordTrackEntry } from "@/lib/track-record-read";
 import { TRACK_CHAIN_ID } from "@/lib/track-record";
 
@@ -18,7 +19,7 @@ export const GET = withApiErrorHandling("gauge-fees-ingest", async (req: Request
   // Vercel Cron sends CRON_SECRET as a bearer token and anyone else is turned away. A deployed site without the secret refuses
   // everyone instead of leaving the route open (a forgotten setting must not expose it); only local dev and tests run without it.
   const secret = process.env.CRON_SECRET;
-  if (secret ? req.headers.get("authorization") !== `Bearer ${secret}` : process.env.NODE_ENV === "production") {
+  if (secret ? !bearerMatches(req.headers.get("authorization"), secret) : process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const rl = checkRateLimit(req, { key: "gauge-fees-ingest", limit: 12, windowMs: 60_000 });

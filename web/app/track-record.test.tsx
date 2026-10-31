@@ -44,4 +44,21 @@ describe("TrackRecordPanel", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("on its own page says it is loading, then why it failed, instead of rendering nothing", async () => {
+    stub({}, false);
+    render(<TrackRecordPanel standalone />);
+    expect(screen.getByText(/Loading the track record/)).toBeInTheDocument();
+    expect(await screen.findByText(/Couldn.t load the track record/)).toBeInTheDocument();
+  });
+
+  it("uses an h1 on its own page and links to that page from the home-page panel", async () => {
+    stub(base);
+    const { unmount } = render(<TrackRecordPanel standalone />);
+    expect(await screen.findByRole("heading", { level: 1, name: /Does the advice hold up/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "own page" })).not.toBeInTheDocument();
+    unmount();
+    render(<TrackRecordPanel />);
+    expect(await screen.findByRole("link", { name: "own page" })).toHaveAttribute("href", "/track-record");
+  });
 });
