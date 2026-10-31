@@ -423,7 +423,9 @@ export function GaugeTable() {
                     <Fragment key={key}>
                     <tr className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        {/* Same two lines on every row: the name alone, then its labels and "history". Side by side, a long name pushed the
+                            label onto its own line on some rows only, so the column didn't line up. */}
+                        <div>
                           {explorer ? (
                             <a href={`${explorer}/address/${g.pool}`} target="_blank" rel="noreferrer" title="Open the pool contract" className="break-words font-medium text-neutral-100 underline-offset-2 hover:text-sky-300 hover:underline">
                               {g.symbol}
@@ -431,12 +433,19 @@ export function GaugeTable() {
                           ) : (
                             <span className="break-words font-medium text-neutral-100">{g.symbol}</span>
                           )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                           {allMode && lineChain && <span className={`${TAG} text-neutral-300`}>{lineChain.name}</span>}
                           {g.poolType && (
                             <span className={`${TAG} text-neutral-400`} title={g.feePct != null ? `Current fee ${g.feePct.toFixed(2)}%` : undefined}>
                               {g.poolType}
                               {g.feePct != null ? ` · ${g.feePct < 0.1 ? g.feePct.toFixed(3) : g.feePct.toFixed(2)}%` : ""}
                             </span>
+                          )}
+                          {hasFees && (
+                            <button type="button" aria-expanded={openGauge === key} onClick={() => setOpenGauge(openGauge === key ? null : key)} className="text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
+                              {openGauge === key ? "hide history" : "history"}
+                            </button>
                           )}
                         </div>
                         {fresh && (
@@ -450,11 +459,6 @@ export function GaugeTable() {
                           </div>
                         )}
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
-                        {hasFees && (
-                          <button type="button" aria-expanded={openGauge === key} onClick={() => setOpenGauge(openGauge === key ? null : key)} className="mt-0.5 text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
-                            {openGauge === key ? "hide history" : "history"}
-                          </button>
-                        )}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
                           {aprText !== null ? `${aprText} APR · ` : ""}
                           {y ? `fees $${fmt(y.feesUsdPerDay)} · incentives $${fmt(y.incentivesUsdPerDay)} · ` : g.incentivesUsdPerWeek > 0 ? `incentives $${fmt(incPerDay)}/day · ` : ""}
@@ -477,7 +481,7 @@ export function GaugeTable() {
                           <span className="text-neutral-300">{g.sharePct.toFixed(2)}%</span>
                         )}
                       </td>
-                      {showApr && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`} title={y?.spike ? SPIKE_TITLE : undefined}>{aprText === null ? "–" : aprText}</td>}
+                      {showApr && <td className={`hidden whitespace-nowrap px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`} title={y?.spike ? SPIKE_TITLE : undefined}>{aprText === null ? "–" : aprText}</td>}
                       {estimating && <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{y ? `$${fmt(y.feesUsdPerDay)}` : "–"}</td>}
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{incPerDay > 0 ? `$${fmt(incPerDay)}` : "–"}</td>
                       <td className={`hidden px-2 py-2.5 text-right text-neutral-300 sm:table-cell ${NUM}`}>{fmt(g.weight)}</td>
