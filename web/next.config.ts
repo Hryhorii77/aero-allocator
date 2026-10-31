@@ -1,15 +1,22 @@
 import type { NextConfig } from "next";
-import { cspReportOnly } from "./lib/csp";
+import { cspEnforced, cspReportOnly } from "./lib/csp";
 
-// Baseline headers. The Content Security Policy is report-only (see lib/csp.ts): the wallet dialogs, WalletConnect and the inline theme
-// script need a tuned policy, and an enforced wrong one would silently break connecting. Production only: `next dev` needs eval.
+// Baseline headers. The full Content Security Policy is report-only (see lib/csp.ts): the wallet dialogs, WalletConnect and the inline theme
+// script need a tuned policy, and an enforced wrong one would silently break connecting. Only object-src, base-uri, form-action and
+// frame-ancestors are enforced, which no live report ever hit. Production only: `next dev` needs eval, and the phone-layout iframe check
+// (CLAUDE.md, Gotchas) runs against the dev server, where X-Frame-Options is the only framing header to relax.
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-  ...(process.env.NODE_ENV === "production" ? [{ key: "Content-Security-Policy-Report-Only", value: cspReportOnly() }] : []),
+  ...(process.env.NODE_ENV === "production"
+    ? [
+        { key: "Content-Security-Policy", value: cspEnforced() },
+        { key: "Content-Security-Policy-Report-Only", value: cspReportOnly() },
+      ]
+    : []),
 ];
 
 const nextConfig: NextConfig = {

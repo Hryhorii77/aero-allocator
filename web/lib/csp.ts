@@ -12,6 +12,12 @@
  * scripts, not from our code or WalletConnect (an earlier note here blamed WalletConnect's window: the reports arrived at page load, not at
  * the click). Enforcing `script-src` as it stands would block that eval in those extensions' page scripts and could degrade them, so the
  * policy stays report-only; `object-src`, `base-uri`, `form-action` and `frame-ancestors` had no reports and could be enforced on their own.
+ *
+ * Those four are ENFORCED since 2026-10-31 (`cspEnforced`, header `Content-Security-Policy`): 50 reports over the two days before had none
+ * for them (48 `script-src eval` from extensions, 2 `style-src-elem` from Chrome's built-in Google Translate injecting its stylesheet, so
+ * `style-src` can't be enforced as is either). They close plugins, a hijacked `<base>`, forms posting elsewhere and framing (clickjacking on a
+ * page that signs transactions), and none of them touches scripts, connections or the wallet windows. The full policy is still sent
+ * report-only alongside; a browser applies both headers.
  */
 export const CSP_REPORT_PATH = "/api/csp-report";
 
@@ -57,8 +63,20 @@ export function cspDirectives(): Record<string, string[]> {
   };
 }
 
-export function cspReportOnly(): string {
-  return Object.entries(cspDirectives())
+/** The directives enforced for real: no live report ever hit them. Values are taken from `cspDirectives`, so the two headers can't disagree. */
+export const ENFORCED_DIRECTIVES = ["object-src", "base-uri", "form-action", "frame-ancestors"] as const;
+
+const serialize = (d: Record<string, string[]>) =>
+  Object.entries(d)
     .map(([k, v]) => `${k} ${v.join(" ")}`)
     .join("; ");
+
+export function cspReportOnly(): string {
+  return serialize(cspDirectives());
+}
+
+/** The enforced `Content-Security-Policy` value: the four directives above, reporting what they block to the same endpoint. */
+export function cspEnforced(): string {
+  const all = cspDirectives();
+  return serialize(Object.fromEntries([...ENFORCED_DIRECTIVES.map((k) => [k, all[k]]), ["report-uri", all["report-uri"]]]));
 }
