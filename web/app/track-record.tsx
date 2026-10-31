@@ -50,30 +50,33 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
           Results appear after {data.needed} checked days, so a lucky week can&rsquo;t pass for a record. So far: {data.logged} logged, {data.evaluated} checked.
         </p>
       ) : (
-        <>
-          <p className="mt-2 text-sm text-neutral-300">
-            Over {data.evaluated} checked days, the split paid a median{" "}
-            <span className={`text-neutral-100 ${NUM}`}>{Math.round(r.medianRealizedOfPredicted * 100)}%</span> of the figure predicted at the time (on average ${usd(r.avgPredictedUsd)} predicted,{" "}
-            <span className={`text-neutral-100 ${NUM}`}>${usd(r.avgRealizedUsd)}</span> actual, a day). It paid at least the low case on {r.atLeastLow} of {data.evaluated} days.
-          </p>
-          <details className="mt-3 rounded-lg border border-neutral-800 px-3 py-2">
-            <summary className="cursor-pointer select-none text-sm text-neutral-300">Day by day</summary>
-            <ul className="mt-2 divide-y divide-neutral-800/80 text-sm">
-              {data.rows.map((row) => (
-                <li key={row.day} className="py-2">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-neutral-200">{date(row.day)}</span>
-                    <span className={`shrink-0 text-right ${NUM}`}>
-                      <span className="text-neutral-400">${usd(row.paceUsd)} predicted</span> ·{" "}
-                      <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>{row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual`}</span>
-                    </span>
-                  </div>
-                  <div className={`mt-0.5 break-words ${NOTE}`}>{row.parts.map((p) => `${p.s} ${p.pct}%`).join(" · ")}</div>
-                </li>
-              ))}
-            </ul>
-          </details>
-        </>
+        <p className="mt-2 text-sm text-neutral-300">
+          Over {data.evaluated} checked days, the split paid a median{" "}
+          <span className={`text-neutral-100 ${NUM}`}>{Math.round(r.medianRealizedOfPredicted * 100)}%</span> of the figure predicted at the time (on average ${usd(r.avgPredictedUsd)} predicted,{" "}
+          <span className={`text-neutral-100 ${NUM}`}>${usd(r.avgRealizedUsd)}</span> actual, a day). It paid at least the low case on {r.atLeastLow} of {data.evaluated} days.
+        </p>
+      )}
+      {/* The days themselves are shown before the 14-day summary only on the page of their own: each is a dated prediction, so listing them early proves
+          nothing either way but shows the record is being kept. The home panel waits for results, and keeps the list folded. */}
+      {data.rows.length > 0 && (r || standalone) && (
+        <details open={standalone} className="mt-3 rounded-lg border border-neutral-800 px-3 py-2">
+          <summary className="cursor-pointer select-none text-sm text-neutral-300">Day by day</summary>
+          <ul className="mt-2 divide-y divide-neutral-800/80 text-sm">
+            {data.rows.map((row) => (
+              <li key={row.day} className="py-2">
+                {/* Date above the figures on a phone: side by side they overflowed a 360px screen by 70px. */}
+                <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                  <span className="whitespace-nowrap text-neutral-200">{date(row.day)}</span>
+                  <span className={`sm:shrink-0 sm:text-right ${NUM}`}>
+                    <span className="text-neutral-400">${usd(row.paceUsd)} predicted</span> ·{" "}
+                    <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>{row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual`}</span>
+                  </span>
+                </div>
+                <div className={`mt-0.5 break-words ${NOTE}`}>{row.parts.map((p) => `${p.s} ${p.pct}%`).join(" · ")}</div>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       <p className={`mt-2 ${NOTE}`}>
         &ldquo;Actual&rdquo; takes the fees and incentives each gauge really paid on the day of the entry and the next, and gives your amount the share of the gauge it would have had at the end of that
