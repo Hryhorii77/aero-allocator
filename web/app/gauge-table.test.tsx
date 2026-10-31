@@ -196,7 +196,7 @@ describe("GaugeTable", () => {
     await waitFor(() => expect(f.mock.calls.some(([u]) => String(u) === "/api/gauges?chain=1")).toBe(true));
     expect(screen.getByText(/Aero gauges on Ethereum/)).toBeInTheDocument();
     expect(f.mock.calls.some(([u]) => String(u) === "/api/gauge-fees?chain=1")).toBe(true);
-    expect(screen.getByText(/Allocating is Base only for now/)).toBeInTheDocument();
+    expect(screen.getByText(/To allocate here, use “allocate across chains…”/)).toBeInTheDocument();
     expect(screen.getByLabelText("sAERO amount")).toBeInTheDocument();
   });
 

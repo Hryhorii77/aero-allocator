@@ -277,8 +277,8 @@ export function GaugeTable() {
       {!onBase && !allMode && (
         <p className="mt-3 text-sm text-amber-500">
           {hasFees
-            ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. Allocating is Base only for now (Arc isn’t read yet); the cost line under the best split is what Aero charges to send power here.`
-            : `On ${chainName} you can see weights, caps and incentives. Fee estimates aren’t measured here yet, and allocating is Base only for now.`}
+            ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. To allocate here, use “allocate across chains…” on a position below; the cost line under the best split is what Aero charges to send power to ${chainName}.`
+            : `On ${chainName} you can see weights, caps and incentives. Fee estimates aren’t measured here yet. To allocate here, use “allocate across chains…” on a position below.`}
         </p>
       )}
       {hasFees && (
