@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AERO_CHAINS } from "./aero-chains";
-import { cspDirectives, cspReportOnly, CSP_REPORT_PATH, RPC_ORIGINS } from "./csp";
+import { cspDirectives, cspEnforced, cspReportOnly, CSP_REPORT_PATH, ENFORCED_DIRECTIVES, RPC_ORIGINS } from "./csp";
 import { DISPLAY_PRESET } from "./protocol";
 
 const origin = (u: string) => new URL(u).origin;
@@ -38,5 +38,19 @@ describe("content security policy (report-only)", () => {
     const names = v.split("; ").map((x) => x.split(" ")[0]);
     expect(new Set(names).size).toBe(names.length);
     expect(v).toContain("default-src 'self'");
+  });
+});
+
+describe("content security policy (enforced part)", () => {
+  it("enforces exactly the four directives no live report hit, plus reporting, with the same values as the report-only policy", () => {
+    const v = cspEnforced();
+    expect(v).toBe("object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report");
+    const all = cspDirectives();
+    for (const k of ENFORCED_DIRECTIVES) expect(v).toContain(`${k} ${all[k].join(" ")}`);
+  });
+
+  it("never enforces the directives the wallets and extensions still trip (script, style, connect, frames, fonts, images)", () => {
+    const names = cspEnforced().split("; ").map((x) => x.split(" ")[0]);
+    for (const k of ["default-src", "script-src", "style-src", "connect-src", "frame-src", "font-src", "img-src"]) expect(names).not.toContain(k);
   });
 });
