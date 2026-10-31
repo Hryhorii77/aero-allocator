@@ -24,6 +24,8 @@ Chain: Base (8453). Amounts are sAERO voting power.
 - GET ${siteUrl}/api/track-record : the site's own track record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later. Results appear after 14 checked days; before that it reports how many days are logged.
 - GET ${siteUrl}/api/allocation-fee?chain=10&gauges=2 : ETH cost on Base of sending power to another chain (read from Aero's own message adapter).
 
+The same free reads as an MCP server (stdio, Node 22+, no key, never signs): add { "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } } to your MCP client. Its tools are top_gauges, best_split_all_chains, power_flows, gauge_history, allocation_fee and track_record.
+
 ## Paid (x402: USDC on Base, settled only after a successful answer)
 
 A request with no payment gets HTTP 402 with the price and our payout address. Pay with any x402 client, then retry. A request that is rejected (400, 404, 422) is never charged. These need something the free reads can't give: a chain read keyed to one position, or ready-made calldata.
