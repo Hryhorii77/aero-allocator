@@ -10,13 +10,14 @@ import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
 import { formatFlow, topMovers, type Flow, type Flows } from "@/lib/weight-history";
 import { parseAmount } from "@/lib/amount";
 import { AERO_LAUNCH_AT_MS } from "./launch";
-import { AERO_CHAINS, BASE_CHAIN } from "@/lib/aero-chains";
+import { AERO_CHAINS, BASE_CHAIN, chainById } from "@/lib/aero-chains";
+import type { ChainCount } from "@/lib/chain-counts";
 import { Glossary } from "./glossary";
 import { QuickSplit } from "./quick-split";
 import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
-import { btn, chip, H2, input, NOTE, NUM } from "./ui";
+import { btn, chip, H2, input, NOTE, NUM, TAG } from "./ui";
 
 const SHOWN = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -28,7 +29,16 @@ type SortKey = "you" | "fees" | "incentives" | "power" | "steady";
 interface Line {
   g: GaugeRow;
   y: YieldRow | undefined;
+  chainId: number;
 }
+
+/** Every chain's lists, loaded once for the "All networks" view (gauge addresses can repeat across chains, so they stay per chain). */
+interface Multi {
+  lists: GaugeList[];
+  fees: Map<number, GaugeFees>;
+}
+const ALL = "all" as const;
+const lineKey = (l: { chainId: number; g: GaugeRow }) => `${l.chainId}:${l.g.gauge.toLowerCase()}`;
 
 /** What each line sorts by; a gauge with no estimate sorts after every gauge that has one. */
 function sortValue(l: Line, key: SortKey): number {
@@ -62,11 +72,14 @@ function Th({ children, sortKey, active, onSort, className = "" }: { children: s
  */
 export function GaugeTable() {
   const [live, setLive] = useState(false);
-  const [data, setData] = useState<GaugeList | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [oneData, setData] = useState<GaugeList | null>(null);
+  const [oneFailed, setFailed] = useState(false);
   const [all, setAll] = useState(false);
-  const [fees, setFees] = useState<GaugeFees | null>(null);
-  const [feesFailed, setFeesFailed] = useState(false);
+  const [oneFees, setFees] = useState<GaugeFees | null>(null);
+  const [oneFeesFailed, setFeesFailed] = useState(false);
+  const [multi, setMulti] = useState<Multi | null>(null);
+  const [multiFailed, setMultiFailed] = useState(false);
+  const [counts, setCounts] = useState<Map<number, number> | null>(null);
   const [openGauge, setOpenGauge] = useState<string | null>(null);
   const [flows, setFlows] = useState<Flows | null>(null);
   const [amountText, setAmountText] = useState("10000");
@@ -77,19 +90,57 @@ export function GaugeTable() {
   // Gauges Aero has not activated earn nothing and can't be ranked, so they sit behind a button instead of among the real ones.
   const [showInactive, setShowInactive] = useState(false);
 
-  const [chainId, setChainId] = useState<number>(BASE_CHAIN.id);
-  const onBase = chainId === BASE_CHAIN.id;
+  const [sel, setSel] = useState<number | typeof ALL>(BASE_CHAIN.id);
+  const allMode = sel === ALL;
+  // In the "All networks" view the single-chain reads are idle; chainId then only names Base for the panels that stay Base's.
+  const chainId = allMode ? BASE_CHAIN.id : sel;
+  const onBase = !allMode && chainId === BASE_CHAIN.id;
   const cfg = AERO_CHAINS.find((c) => c.id === chainId);
-  const chainName = cfg?.name ?? "";
-  const explorer = cfg?.chain.blockExplorers?.default.url;
-  const hasFees = !!cfg?.feeLogs;
+  const chainName = allMode ? "every network" : cfg?.name ?? "";
+  const hasFees = allMode || !!cfg?.feeLogs;
 
   useEffect(() => {
     setLive(DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);
   }, []);
 
+  // The number on each chain button: gauges that can be ranked there. One small cached read; a button without a number still works.
   useEffect(() => {
     if (!live) return;
+    let cancelled = false;
+    fetch("/api/chain-counts")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { counts?: ChainCount[] }) => !cancelled && Array.isArray(d.counts) && setCounts(new Map(d.counts.map((c) => [c.chainId, c.ranked]))))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [live]);
+
+  // "All networks": every chain's gauges and fees, read once and kept, so switching back and forth doesn't read seven chains again.
+  useEffect(() => {
+    if (!live || !allMode || multi) return;
+    let cancelled = false;
+    const json = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+    Promise.allSettled(AERO_CHAINS.map((c) => Promise.all([json(`/api/gauges?chain=${c.id}`) as Promise<GaugeList>, (json(`/api/gauge-fees?chain=${c.id}`) as Promise<GaugeFees>).catch(() => null)])))
+      .then((res) => {
+        if (cancelled) return;
+        const lists: GaugeList[] = [];
+        const fees = new Map<number, GaugeFees>();
+        res.forEach((r, i) => {
+          if (r.status !== "fulfilled" || !Array.isArray(r.value[0]?.gauges)) return;
+          lists.push({ ...r.value[0], chainId: AERO_CHAINS[i].id });
+          if (r.value[1] && Array.isArray(r.value[1].fees)) fees.set(AERO_CHAINS[i].id, r.value[1]);
+        });
+        if (lists.length === 0) setMultiFailed(true);
+        else setMulti({ lists, fees });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [live, allMode, multi]);
+
+  useEffect(() => {
+    if (!live || allMode) return;
     let cancelled = false;
     setData(null);
     setFailed(false);
@@ -103,11 +154,11 @@ export function GaugeTable() {
     return () => {
       cancelled = true;
     };
-  }, [live, chainId]);
+  }, [live, chainId, allMode]);
 
   // Fee estimates come from a stored record of fee releases and take a few seconds the first time, so they load after the list.
   useEffect(() => {
-    if (!live || !hasFees) return;
+    if (!live || allMode || !hasFees) return;
     let cancelled = false;
     setFees(null);
     setFeesFailed(false);
@@ -118,13 +169,13 @@ export function GaugeTable() {
     return () => {
       cancelled = true;
     };
-  }, [live, chainId, hasFees]);
+  }, [live, chainId, allMode, hasFees]);
 
   // Where power is moving comes from stored snapshots; it is empty for the first hours after they start, and the page works without it.
   useEffect(() => {
-    if (!live) return;
-    let cancelled = false;
     setFlows(null);
+    if (!live || allMode) return;
+    let cancelled = false;
     fetch(`/api/gauge-flows?chain=${chainId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: Flows) => !cancelled && Array.isArray(d.flows) && (d.flows.length > 0 || (d.newIncentives?.length ?? 0) > 0) && setFlows({ ...d, newIncentives: d.newIncentives ?? [] }))
@@ -132,7 +183,25 @@ export function GaugeTable() {
     return () => {
       cancelled = true;
     };
-  }, [live, chainId]);
+  }, [live, chainId, allMode]);
+
+  // The render below reads `data` and `fees` either way: one chain's lists, or every chain's merged for the counts, footnotes and APR.
+  const baseList = multi?.lists.find((l) => l.chainId === BASE_CHAIN.id);
+  const data: GaugeList | null = !allMode
+    ? oneData
+    : multi
+      ? { chainId: 0, generatedAt: Math.max(...multi.lists.map((l) => l.generatedAt)), totalWeight: 0, gauges: multi.lists.flatMap((l) => l.gauges), cooldownSec: baseList?.cooldownSec }
+      : null;
+  const fees: GaugeFees | null = !allMode
+    ? oneFees
+    : multi && multi.fees.size > 0
+      ? (() => {
+          const all = [...multi.fees.values()];
+          return { chainId: 0, generatedAt: Math.max(...all.map((f) => f.generatedAt)), windowHours: (multi.fees.get(BASE_CHAIN.id) ?? all[0]).windowHours, fees: all.flatMap((f) => f.fees), aeroUsd: all.find((f) => f.aeroUsd)?.aeroUsd ?? null };
+        })()
+      : null;
+  const failed = allMode ? multiFailed : oneFailed;
+  const feesFailed = allMode ? !!multi && multi.fees.size === 0 : oneFeesFailed;
 
   const flowByGauge = useMemo(() => new Map((flows?.flows ?? []).map((f) => [f.gauge, f])), [flows]);
   const newByGauge = useMemo(() => new Map((flows?.newIncentives ?? []).map((n) => [n.gauge, n])), [flows]);
@@ -144,12 +213,21 @@ export function GaugeTable() {
   const estimating = hasFees && !!fees && parsed.ok;
   const showApr = estimating && !!fees?.aeroUsd;
   const lines = useMemo<Line[]>(() => {
-    if (!data) return [];
-    const byGauge = new Map((estimating && fees ? rankByUsdPerDay(data.gauges, fees.fees, amount, undefined, { waitSec: data.cooldownSec }) : []).map((y) => [y.gauge.toLowerCase(), y]));
-    const out = data.gauges.map((g) => ({ g, y: byGauge.get(g.gauge.toLowerCase()) }));
+    // Each chain is ranked against its own fees (the same address can be a different gauge on another chain), then the lists are merged.
+    const sources: { chainId: number; list: GaugeList; fees: GaugeFees | null | undefined }[] = allMode
+      ? (multi?.lists ?? []).map((list) => ({ chainId: list.chainId, list, fees: multi?.fees.get(list.chainId) }))
+      : oneData
+        ? [{ chainId, list: oneData, fees: oneFees }]
+        : [];
+    const out = sources.flatMap(({ chainId: id, list, fees: f }) => {
+      // Only Base's list carries the live wait; elsewhere the ranking falls back to the default, as on each chain's own view.
+      const ranked = estimating && f ? rankByUsdPerDay(list.gauges, f.fees, amount, undefined, { waitSec: list.cooldownSec }) : [];
+      const byGauge = new Map(ranked.map((y) => [y.gauge.toLowerCase(), y]));
+      return list.gauges.map((g) => ({ g, y: byGauge.get(g.gauge.toLowerCase()), chainId: id }));
+    });
     const key: SortKey = estimating ? sortKey : "power";
     return out.sort((a, b) => sortValue(b, key) - sortValue(a, key) || b.g.weight - a.g.weight);
-  }, [data, fees, estimating, amount, sortKey]);
+  }, [allMode, multi, oneData, oneFees, chainId, estimating, amount, sortKey]);
   if (!live) return null;
   const rankedCount = lines.filter((l) => l.y).length;
   const steadyCount = lines.filter((l) => l.y && isSteadiest(l.y)).length;
@@ -159,7 +237,12 @@ export function GaugeTable() {
   const pool = showInactive ? [...activeLines, ...inactiveLines] : activeLines;
   const shown = all ? pool : pool.slice(0, SHOWN);
   // With the quick split on screen (phones, once an amount is priced) the rest is folded away until asked for.
-  const fold = estimating && !!data && !more ? "hidden sm:block" : "";
+  const fold = estimating && !!data && !more && !allMode ? "hidden sm:block" : "";
+  const chipCount = (n: number | undefined) => (n === undefined ? null : <>
+        {" "}
+        <span className={`opacity-70 ${NUM}`}>{n}</span>
+      </>);
+  const totalCount = counts && counts.size > 0 ? [...counts.values()].reduce((a, b) => a + b, 0) : undefined;
 
   return (
     <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
@@ -168,13 +251,30 @@ export function GaugeTable() {
         {data ? <span className="font-normal text-neutral-400"> · {data.gauges.length} gauges</span> : ""}
       </h2>
       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="chain">
+        <button type="button" className={chip(allMode)} aria-pressed={allMode} onClick={() => { setMultiFailed(false); setSel(ALL); }} title="Every network in one list">
+          All networks{chipCount(totalCount)}
+        </button>
         {AERO_CHAINS.map((c) => (
-          <button key={c.id} type="button" className={chip(c.id === chainId)} aria-pressed={c.id === chainId} onClick={() => setChainId(c.id)}>
+          <button
+            key={c.id}
+            type="button"
+            className={chip(!allMode && c.id === chainId)}
+            aria-pressed={!allMode && c.id === chainId}
+            onClick={() => setSel(c.id)}
+            title={counts?.has(c.id) ? `${counts.get(c.id)} gauges on ${c.name} can be ranked (activated, at least ${fmt(MIN_RANK_WEIGHT)} power)` : undefined}
+          >
             {c.name}
+            {chipCount(counts?.get(c.id))}
           </button>
         ))}
       </div>
-      {!onBase && (
+      {allMode && (
+        <p className={`mt-3 ${NOTE}`}>
+          Every network in one list, each gauge ranked against its own chain. Sending power to a chain other than Base costs a one-off ETH fee that
+          this list leaves out; &ldquo;compare all chains&rdquo; below weighs it and gives the best split over every network.
+        </p>
+      )}
+      {!onBase && !allMode && (
         <p className="mt-3 text-sm text-amber-500">
           {hasFees
             ? `On ${chainName} you can see weights, caps, incentives and the $/day ranking. Allocating is Base only for now (Arc isn’t read yet); the cost line under the best split is what Aero charges to send power here.`
@@ -204,7 +304,7 @@ export function GaugeTable() {
           )}
           {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
-          {fees && data && parsed.ok && (
+          {fees && data && parsed.ok && !allMode && (
             <div className="sm:hidden">
               <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />
               <button type="button" aria-expanded={more} className={`mt-3 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
@@ -213,7 +313,7 @@ export function GaugeTable() {
             </div>
           )}
           <div className={fold}>
-            {fees && data && parsed.ok && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
+            {fees && data && parsed.ok && !allMode && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
             {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
           </div>
         </div>
@@ -304,7 +404,11 @@ export function GaugeTable() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map(({ g, y }) => {
+                {shown.map((line) => {
+                  const { g, y } = line;
+                  const key = lineKey(line);
+                  const lineChain = chainById(line.chainId);
+                  const explorer = lineChain?.chain.blockExplorers?.default.url;
                   const conf = y ? paceLabel(y) : null;
                   const steady = y ? steadyLabel(y) : null;
                   const fresh = newByGauge.get(g.gauge.toLowerCase());
@@ -316,7 +420,7 @@ export function GaugeTable() {
                   const aprText = apr === null ? null : aprLow !== null && aprLow < apr ? `${fmtApr(aprLow)}–${fmtApr(apr)}` : fmtApr(apr);
                   const flow: Flow | undefined = flowByGauge.get(g.gauge.toLowerCase());
                   return (
-                    <Fragment key={g.gauge}>
+                    <Fragment key={key}>
                     <tr className="border-b border-neutral-800/60 align-top last:border-0">
                       <td className="min-w-0 px-2 py-2.5">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -327,8 +431,9 @@ export function GaugeTable() {
                           ) : (
                             <span className="break-words font-medium text-neutral-100">{g.symbol}</span>
                           )}
+                          {allMode && lineChain && <span className={`${TAG} text-neutral-300`}>{lineChain.name}</span>}
                           {g.poolType && (
-                            <span className="whitespace-nowrap rounded-md border border-neutral-700 px-1.5 py-0.5 text-xs text-neutral-400" title={g.feePct != null ? `Current fee ${g.feePct.toFixed(2)}%` : undefined}>
+                            <span className={`${TAG} text-neutral-400`} title={g.feePct != null ? `Current fee ${g.feePct.toFixed(2)}%` : undefined}>
                               {g.poolType}
                               {g.feePct != null ? ` · ${g.feePct < 0.1 ? g.feePct.toFixed(3) : g.feePct.toFixed(2)}%` : ""}
                             </span>
@@ -346,8 +451,8 @@ export function GaugeTable() {
                         )}
                         {!g.activated && <div className="text-xs text-amber-500">not activated</div>}
                         {hasFees && (
-                          <button type="button" aria-expanded={openGauge === g.gauge} onClick={() => setOpenGauge(openGauge === g.gauge ? null : g.gauge)} className="mt-0.5 text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
-                            {openGauge === g.gauge ? "hide history" : "history"}
+                          <button type="button" aria-expanded={openGauge === key} onClick={() => setOpenGauge(openGauge === key ? null : key)} className="mt-0.5 text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
+                            {openGauge === key ? "hide history" : "history"}
                           </button>
                         )}
                         <div className="mt-0.5 text-xs leading-relaxed text-neutral-500 sm:hidden">
@@ -389,10 +494,10 @@ export function GaugeTable() {
                         </td>
                       )}
                     </tr>
-                    {openGauge === g.gauge && (
+                    {openGauge === key && (
                       <tr className="border-b border-neutral-800/60 last:border-0">
                         <td colSpan={10} className="px-2 pb-3 pt-0">
-                          <GaugeHistoryPanel chainId={chainId} gauge={g.gauge} />
+                          <GaugeHistoryPanel chainId={line.chainId} gauge={g.gauge} />
                         </td>
                       </tr>
                     )}

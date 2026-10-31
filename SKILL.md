@@ -1,6 +1,6 @@
 ---
 name: aero-allocator
-description: "Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), a sAERO position's stay / switch / allocate advice, and the unsigned allocate() transaction. Free read APIs plus two pay-per-call x402 endpoints (USDC on Base). Non-custodial: never holds keys, signs or sends. Estimates, not financial advice. A legacy MCP server for the retired weekly veAERO vote is kept in the repo."
+description: "Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), a sAERO position's stay / switch / allocate advice, and the unsigned allocate() transaction. Free read APIs plus three pay-per-call x402 endpoints (USDC on Base). Non-custodial: never holds keys, signs or sends. Estimates, not financial advice. Also an MCP server (npx aeroallocator-mcp) over the free reads."
 metadata:
   emoji: ✈️
   homepage: https://aeroallocator.app
@@ -21,13 +21,15 @@ Everything is read-only or unsigned. The site and APIs never hold keys, sign or 
 - `/api/gauges?chain=8453` — every Aero gauge on a chain with weight, caps and incentives per week (chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain, 5042 Arc). The Base list also carries `cooldownSec`, the live wait between allocations of one position.
 - `/api/gauge-fees?chain=8453` — estimated fees per day per gauge from on-chain fee releases, with `windowHours` of history, a `steady` count and, when the recent pace is a burst far above the gauge's usual level, `spike`.
 - `/api/gauge-history?chain=8453&gauge=0x…` — one gauge's fees per 6 hours, its weight snapshots and a 90-day `daily` record.
+- `/api/top-gauges?chain=8453&amount=10000&limit=10` — the page's table as data: the gauges ranked by what the amount earns per day in each, with the low case, pace, steadiness and incentive-end notes. `chain=all` ranks every chain against its own fees and merges them (each row carries its `chainId`); the ETH to reach a chain other than Base is not counted there, `all-chains-split` weighs it.
 - `/api/gauge-flows?chain=8453` — which gauges are gaining or losing share of the allocation weight, and which just got incentives.
 - `/api/all-chains-split?amount=100000&days=30` — the best split over every chain, after the ETH each extra chain costs.
 - `/api/allocation-fee?chain=10&gauges=2` — the ETH cost on Base of sending power to another chain.
+- `/api/track-record` — the site's own record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later (results after 14 checked days).
 
 ## Paid (x402, USDC on Base, settled only after a successful answer)
 
-A request with no payment gets HTTP 402 with the price and payout address; pay with any x402 client and retry. No account, no API key. A call that is rejected (400/404/422) is never charged. Both are listed in Coinbase's x402 Bazaar (and so agentic.market) since their first settled payments on 2026-10-26; search it for "sAERO position" or "sAERO allocate transaction", or use the URLs here and in llms.txt.
+A request with no payment gets HTTP 402 with the price and payout address; pay with any x402 client and retry. No account, no API key. A call that is rejected (400/404/422) is never charged. All three are listed in Coinbase's x402 Bazaar (and so agentic.market): `position` and `allocate-plan` since their first settled payments on 2026-10-26, `cross-chain-plan` since its first on 2026-10-28; search it for "sAERO position" or "sAERO allocate transaction", or use the URLs here and in llms.txt.
 
 **`GET /api/v1/position?tokenId=<id>` or `?address=0x…` ($0.05) — where does this sAERO position stand?**
 Power, lock, idle vs allocated power, when it can next be re-allocated, what it earns per day now versus the best split of Base gauges for its own size (fees plus incentives, after its own dilution), and a `stay` / `switch` / `allocate` / `unknown` recommendation. A switch is only recommended when it beats staying by 5% and $0.05/day and rests on at least 6 hours of fee history.
@@ -61,6 +63,7 @@ const data = await res.json();
 ## Example prompts
 
 - "Which Aero gauges pay the most per day for 10,000 sAERO right now, and how steady is each one's fee pace?"
+- "Across every Aero chain, which gauges pay the most for 10,000 sAERO, and is any other chain worth its ETH fee?"
 - "Should sAERO position #15308 stay where it is or move? Show what staying costs per day."
 - "Give me the unsigned allocate() transaction for the best split of position #15308 across at most 4 gauges." (the owner signs and sends it from their own wallet)
 
@@ -71,11 +74,12 @@ const data = await res.json();
 - Every allocation replaces the position's whole Base distribution and restarts the wait before the next change, so a small gain is not worth moving for.
 - Not investment advice.
 
-## Legacy: weekly-vote MCP server (kept, not the live product)
+## MCP server
 
-The repo also contains the MCP server and engine built for the weekly veAERO vote on Aerodrome (Base) / Velodrome (Optimism), which Aero retired on 2026-10-22. Its tools (`predict_demand`, `recommend_allocation`, `prepare_vote_calldata`, `scan_pools`, `pool_history`, and the bribe and LP tools) still run, but `prepare_vote_calldata` targets the classic `Voter.vote()` that no longer exists, so do not use it to act on Aero. It has no sAERO tools. The web app imports only its `config` and `prices` modules. See the README for its tools and the forecast model.
+The same free reads as six MCP tools (`top_gauges`, which also takes `chain: "all"`, `best_split_all_chains`, `power_flows`, `gauge_history`, `allocation_fee`, `track_record`). Zero dependencies, stdio, Node 22+, no key, never signs:
 
 ```bash
-git clone https://github.com/Hryhorii77/aero-allocator && cd aero-allocator && npm install
-claude mcp add aero-allocator -- npx tsx $(pwd)/src/index.ts
+claude mcp add aeroallocator -- npx -y aeroallocator-mcp
 ```
+
+or `{ "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } }` in any MCP client. The weekly-vote MCP server this repo used to hold was removed on 2026-10-28 with the weekly vote itself (it is in git history).

@@ -351,4 +351,59 @@ describe("GaugeTable", () => {
       expect(screen.getByRole("button", { name: "hide not activated" })).toHaveAttribute("aria-pressed", "true");
     });
   });
+
+  it("puts a count of rankable gauges on each chain button and the total on All networks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () =>
+          url === "/api/chain-counts"
+            ? { counts: [{ chainId: 8453, ranked: 125 }, { chainId: 1, ranked: 16 }] }
+            : url.includes("gauge-fees")
+              ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [] }
+              : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges },
+      })),
+    );
+    render(<GaugeTable />);
+    expect(await screen.findByRole("button", { name: "Base 125" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Ethereum 16" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All networks 141" })).toBeInTheDocument();
+    // A chain the count read left out still has its button, with no number.
+    expect(screen.getByRole("button", { name: "Arc" })).toBeInTheDocument();
+  });
+
+  it("All networks ranks each chain against its own fees, merges them with a chain label, and keeps a shared address apart", async () => {
+    // The same gauge address on Base and Ethereum: two different gauges, each earning what its own chain's fees say.
+    const shared = (sym: string, weight: number) => [{ gauge: "0xaa", pool: "0xpa", symbol: sym, weight, sharePct: 50, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 }];
+    const f = vi.fn(async (url: string) => {
+      const id = Number(new URL(url, "http://x").searchParams.get("chain") ?? 0);
+      if (url.startsWith("/api/gauge-fees")) {
+        const usd = id === 8453 ? 1000 : id === 1 ? 4000 : 0;
+        return { ok: true, json: async () => ({ chainId: id, generatedAt: 0, windowHours: 24, fees: usd ? [{ gauge: "0xaa", feesUsdPerDay: usd, windowHours: 24 }] : [] }) };
+      }
+      if (url.startsWith("/api/gauges")) {
+        const list = id === 8453 ? shared("BASE/USDC", 1_000_000) : id === 1 ? shared("ETH/USDC", 1_000_000) : [];
+        return { ok: true, json: async () => ({ chainId: id, generatedAt: 0, totalWeight: 1, gauges: list }) };
+      }
+      return { ok: false, status: 404 };
+    });
+    vi.stubGlobal("fetch", f);
+    render(<GaugeTable />);
+    fireEvent.click(await screen.findByRole("button", { name: /^All networks/ }));
+    expect(await screen.findByText("ETH/USDC")).toBeInTheDocument();
+    expect(screen.getByText("BASE/USDC")).toBeInTheDocument();
+    expect(screen.getByText(/Where your sAERO earns the most on every network/)).toBeInTheDocument();
+    // Every chain's lists were read for this view.
+    for (const id of [8453, 1, 10, 42161, 57073, 4663, 5042]) expect(f.mock.calls.some(([u]) => String(u) === `/api/gauges?chain=${id}`)).toBe(true);
+    // Ethereum's gauge earns 4x Base's, so it ranks first; each row carries its chain.
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("ETH/USDC");
+    expect(rows[0]).toHaveTextContent("Ethereum");
+    expect(rows[1]).toHaveTextContent("BASE/USDC");
+    expect(rows[1]).toHaveTextContent("Base");
+    // The single-chain best split card is Base's alone, so it isn't shown here; the note points at the cross-chain panel.
+    expect(screen.getByText(/this list leaves out/)).toBeInTheDocument();
+  });
 });
+

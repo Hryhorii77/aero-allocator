@@ -11,6 +11,12 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const chainProp = { type: "integer", enum: CHAIN_IDS, description: `Chain id: ${Object.entries(CHAINS).map(([id, n]) => `${n} ${id}`).join(", ")}. Default 8453 (Base).` };
 const amountProp = { type: "number", exclusiveMinimum: 0, maximum: MAX_AMOUNT, description: "Voting power to place, in whole sAERO power (above 0)." };
 
+// top_gauges also takes "all": every chain ranked against its own fees and merged (the site's "All networks" view).
+const chainOrAllProp = {
+  anyOf: [{ type: "integer", enum: CHAIN_IDS }, { type: "string", enum: ["all"] }],
+  description: `${chainProp.description} Or "all": every chain ranked against its own fees and merged, each row with its chainId (the ETH to reach a chain other than Base is not counted; use best_split_all_chains for that).`,
+};
+
 class ArgError extends Error {}
 
 function amount(a) {
@@ -27,16 +33,20 @@ function chain(a, required = false) {
   return a.chain;
 }
 
+function chainOrAll(a) {
+  return a.chain === "all" ? "all" : chain(a);
+}
+
 export const TOOLS = [
   {
     name: "top_gauges",
     description:
-      "The gauges on one Aero chain ranked by what an amount of sAERO would earn per day in each, after it joins the power already there. Each row has the low case, the fee and incentive pace, how much history it rests on (thin / fair / solid / spiky), steadiness, and a note when incentives end inside the 47-hour wait. Read-only; estimates, not advice.",
-    inputSchema: { type: "object", properties: { amount: amountProp, chain: chainProp, limit: { type: "integer", minimum: 1, maximum: 25, description: "How many gauges (default 10)." } }, required: ["amount"] },
+      "The gauges on one Aero chain, or on every chain at once (chain \"all\"), ranked by what an amount of sAERO would earn per day in each, after it joins the power already there. Each row has the low case, the fee and incentive pace, how much history it rests on (thin / fair / solid / spiky), steadiness, and a note when incentives end inside the 47-hour wait. Read-only; estimates, not advice.",
+    inputSchema: { type: "object", properties: { amount: amountProp, chain: chainOrAllProp, limit: { type: "integer", minimum: 1, maximum: 25, description: "How many gauges (default 10)." } }, required: ["amount"] },
     request: (a) => {
       const limit = a.limit === undefined ? 10 : a.limit;
       if (!Number.isInteger(limit) || limit < 1 || limit > 25) throw new ArgError("limit must be a whole number from 1 to 25");
-      return { path: "/api/top-gauges", params: { amount: amount(a), chain: chain(a), limit } };
+      return { path: "/api/top-gauges", params: { amount: amount(a), chain: chainOrAll(a), limit } };
     },
   },
   {

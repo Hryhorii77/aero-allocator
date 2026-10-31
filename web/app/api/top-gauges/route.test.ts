@@ -34,4 +34,28 @@ describe("GET /api/top-gauges", () => {
     expect(body.chainId).toBe(8453);
     expect(body.gauges[0].label).toBe("A/B · CL100");
   });
+
+  it("chain=all reads every chain, merges them best first with each row's chainId, and lists a chain it couldn't read", async () => {
+    gauges.mockReset();
+    fees.mockReset();
+    const row = { gauge: G1, pool: G1, symbol: "A/B", weight: 200_000, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0, poolType: "CL100" };
+    gauges.mockImplementation(async (id: number) => {
+      if (id === 5042) throw new Error("arc down");
+      return { chainId: id, generatedAt: 0, totalWeight: 1, gauges: [row] };
+    });
+    fees.mockImplementation(async (id: number) => ({ chainId: id, generatedAt: 1, windowHours: 40, fees: [{ gauge: G1, feesUsdPerDay: id === 10 ? 500 : 100, windowHours: 40 }] }));
+    const res = await call("amount=10000&chain=all&limit=3");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.chainId).toBe("all");
+    expect(body.gauges).toHaveLength(3);
+    expect(body.gauges[0].chainId).toBe(10);
+    expect(body.skipped).toEqual([5042]);
+    expect(gauges).toHaveBeenCalledTimes(7);
+  });
+
+  it("still rejects a chain that is neither a known id nor all", async () => {
+    expect((await call("amount=100&chain=everything")).status).toBe(400);
+  });
 });
+

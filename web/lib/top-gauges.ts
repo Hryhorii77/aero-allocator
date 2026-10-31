@@ -8,6 +8,8 @@ export const DEFAULT_LIMIT = 10;
 export const MAX_LIMIT = 25;
 
 export interface TopGauge {
+  /** The chain the gauge is on (the same address can be a different gauge on another chain). */
+  chainId: number;
   gauge: string;
   label: string;
   /** What `amount` would earn per day in this gauge alone, after it joins the power already there. */
@@ -30,7 +32,8 @@ export interface TopGauge {
 }
 
 export interface TopGauges {
-  chainId: number;
+  /** The chain asked for, or "all" for every chain merged (see `topGaugesAllChains`). */
+  chainId: number | "all";
   amount: number;
   /** Hours of the wait between allocations the low case looks across. */
   waitHours: number;
@@ -64,6 +67,7 @@ export function topGauges(
       const s = steadyLabel(y);
       const g = byGauge.get(y.gauge.toLowerCase());
       return {
+        chainId,
         gauge: y.gauge,
         label: g ? gaugeLabel(g) : y.symbol,
         usdPerDay: Number(y.usdPerDay.toFixed(4)),
@@ -81,3 +85,35 @@ export function topGauges(
     }),
   };
 }
+
+export interface ChainInput {
+  chainId: number;
+  gauges: GaugeRow[];
+  fees: GaugeFees;
+  /** Only Base's list carries the live wait; other chains fall back to the default, as on the page. */
+  cooldownSec?: number;
+}
+
+/**
+ * The page's "All networks" table as data: each chain ranked against its own fees, then merged, best first. The one-off ETH a chain other
+ * than Base costs to reach is NOT counted here (all-chains-split weighs it). `skipped` lists chains that couldn't be read.
+ */
+export function topGaugesAllChains(chains: ChainInput[], skipped: number[], amount: number, limit: number, nowSec: number, baseChainId: number): TopGauges & { skipped: number[] } {
+  const n = Math.max(1, Math.min(limit, MAX_LIMIT));
+  // The top n of the union is inside the union of each chain's top n.
+  const per = chains.map((c) => topGauges(c.chainId, c.gauges, c.fees, amount, n, c.cooldownSec, nowSec));
+  const base = per.find((t) => t.chainId === baseChainId);
+  return {
+    chainId: "all",
+    amount,
+    waitHours: base?.waitHours ?? waitHours(DEFAULT_COOLDOWN_SEC),
+    aeroUsd: base?.aeroUsd ?? per.find((t) => t.aeroUsd !== null)?.aeroUsd ?? null,
+    generatedAt: Math.max(0, ...per.map((t) => t.generatedAt)),
+    gauges: per
+      .flatMap((t) => t.gauges)
+      .sort((a, b) => b.usdPerDay - a.usdPerDay)
+      .slice(0, n),
+    skipped,
+  };
+}
+

@@ -16,7 +16,7 @@ Claude Code: `claude mcp add aeroallocator -- npx -y aeroallocator-mcp`
 
 | Tool | What it answers |
 |---|---|
-| `top_gauges` | The gauges on a chain ranked by what an amount earns per day after it joins the power already there, with the low case, pace (thin / fair / solid / spiky), steadiness and incentive-end notes. |
+| `top_gauges` | The gauges on a chain (or on every chain at once with `chain: "all"`) ranked by what an amount earns per day after it joins the power already there, with the low case, pace (thin / fair / solid / spiky), steadiness and incentive-end notes. |
 | `best_split_all_chains` | The best split of an amount over every Aero chain after the one-off ETH each extra chain costs, next to Base alone. |
 | `power_flows` | Which gauges are gaining or losing share of a chain's allocation weight, and which got new incentives. |
 | `gauge_history` | One gauge's recent fees, weight and steadiness, and up to 90 days of daily records. |

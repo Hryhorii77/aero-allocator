@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { callTool, DEFAULT_BASE_URL, TOOLS } from "./tools.mjs";
 
-export const SERVER_INFO = { name: "aeroallocator-mcp", version: "0.1.0" };
+// The version lives only in package.json (npm always ships it), so a release bumps one place.
+const PKG = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+export const SERVER_INFO = { name: PKG.name, version: PKG.version };
 /** Protocol versions this server speaks, newest first; the client's is echoed when it is one of them. */
 export const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 

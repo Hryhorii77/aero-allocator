@@ -63,5 +63,8 @@ export function chip(active: boolean): string {
   }`;
 }
 
+/** A small outlined label inside a table cell (pool kind and fee, the chain in the "All networks" view). Not a control: nothing to press. */
+export const TAG = "whitespace-nowrap rounded-md border border-neutral-700 px-1.5 py-0.5 text-xs";
+
 /** Every text link: sky, underlined on hover. (Pool names in the tables are row labels, not links in this sense.) */
 export const LINK = "text-sky-400 underline-offset-2 hover:text-sky-300 hover:underline";

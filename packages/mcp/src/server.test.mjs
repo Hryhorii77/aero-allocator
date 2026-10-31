@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
@@ -81,6 +82,12 @@ describe("tools (against a stub of the site)", () => {
     expect(out[0].result.isError).toBeUndefined();
   });
 
+  it("top_gauges passes chain \"all\" through, for every chain ranked and merged", async () => {
+    const out = await session([{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "top_gauges", arguments: { amount: 10000, chain: "all" } } }]);
+    const body = JSON.parse(out[0].result.content[0].text);
+    expect(body).toEqual({ path: "/api/top-gauges", query: { amount: "10000", chain: "all", limit: "10" } });
+  });
+
   it("defaults to Base and ten gauges, and only sends parameters it was given", async () => {
     asked.length = 0;
     await callTool("top_gauges", { amount: 5 }, { baseUrl });
@@ -96,6 +103,7 @@ describe("tools (against a stub of the site)", () => {
       ["top_gauges", { amount: -1 }],
       ["top_gauges", { amount: "10" }],
       ["top_gauges", { amount: 5, chain: 999 }],
+      ["top_gauges", { amount: 5, chain: "everything" }],
       ["top_gauges", { amount: 5, limit: 99 }],
       ["best_split_all_chains", { amount: 5, days: 365 }],
       ["gauge_history", { gauge: "0x123" }],
@@ -143,7 +151,7 @@ describe("the launcher", () => {
         c.stdout.on("data", (d) => (o += d));
         c.on("close", () => resolve(o));
       });
-    expect(await run("--version")).toContain("0.1.0");
+    expect(await run("--version")).toContain(JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
     const help = await run("--help");
     expect(help).toContain("npx");
     for (const t of TOOLS) expect(help).toContain(t.name);

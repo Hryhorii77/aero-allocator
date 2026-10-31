@@ -1,6 +1,6 @@
 ---
 name: saero-allocator-automator
-description: "Keep a sAERO position on the Aero gauges that pay the most, without churning it. Once the 47-hour wait is over, check the position, decide with fixed rules (switch only for a real, steady gain, never for a one-off fee burst), fetch the unsigned allocate() transaction, check it, and hand it to the owner's wallet. Uses aeroallocator.app (two pay-per-call x402 endpoints, USDC on Base). Never signs or sends anything itself. Estimates, not financial advice."
+description: "Keep a sAERO position on the Aero gauges that pay the most, without churning it. Once the 47-hour wait is over, check the position, decide with fixed rules (switch only for a real, steady gain, never for a one-off fee burst), fetch the unsigned allocate() transaction, check it, and hand it to the owner's wallet. Uses aeroallocator.app (pay-per-call x402 endpoints, USDC on Base: position and allocate-plan, and cross-chain-plan to act across chains). Never signs or sends anything itself. Estimates, not financial advice."
 metadata:
   emoji: ✈️
   homepage: https://aeroallocator.app
@@ -28,7 +28,7 @@ Aero (the merged Aerodrome and Velodrome) lets a sAERO position be re-allocated 
 5. **Check the plan** (`checkPlan` in `scripts/decide.mjs`), then give `transaction` to the owner's wallet layer to simulate again, show, and sign from `sendFrom`.
 6. **Record the time you sent it.** The position cannot be changed again until the wait ends; do not re-plan before then.
 
-Optional, read-only: `GET /api/all-chains-split?amount=<power>&days=<n>` (free) says whether spreading the position over other chains would beat Base alone after the one-off ETH each extra chain costs. This loop only moves power on Base; to act on a cross-chain split, `GET /api/v1/cross-chain-plan?tokenId=…` ($0.25) returns the ordered unsigned steps, and the same checks apply (the owner confirms each one, nothing is signed here).
+Optional, read-only: `GET /api/top-gauges?chain=all&amount=<power>` (free) ranks every chain's gauges side by side (no cross-chain fee counted), and `GET /api/all-chains-split?amount=<power>&days=<n>` (free) says whether spreading the position over other chains would beat Base alone after the one-off ETH each extra chain costs. This loop only moves power on Base; to act on a cross-chain split, `GET /api/v1/cross-chain-plan?tokenId=…` ($0.25) returns the ordered unsigned steps, and the same checks apply (the owner confirms each one, nothing is signed here).
 
 `scripts/run.mjs` does steps 1 to 5 in one pass and prints the unsigned transaction. `--dry` shows the free data and the prices and pays nothing.
 
