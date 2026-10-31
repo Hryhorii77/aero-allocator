@@ -4,7 +4,7 @@ import { eventsWithin, RETAIN_DAYS, type Ledger } from "./fee-ledger";
 import { usdOf } from "./fee-history";
 import { feeChain, loadPrices } from "./gauge-fees-read";
 import { nextDayToRecord, rollupDays, type Release } from "./daily-history";
-import { loadDailyHistory, saveDailyHistory } from "./daily-history-store";
+import { loadDailyHistoryForUpdate, saveDailyHistory } from "./daily-history-store";
 import { loadWeightHistory } from "./weight-history-store";
 
 /**
@@ -14,7 +14,10 @@ import { loadWeightHistory } from "./weight-history-store";
  */
 export async function recordDailyHistory(chainId: number, ledger: Ledger, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
   const cfg = feeChain(chainId);
-  const history = await loadDailyHistory(chainId);
+  // This record can't be rebuilt from the chain, so a failed read must never be treated as "no record yet" and written over. Skip this run.
+  const read = await loadDailyHistoryForUpdate(chainId);
+  if (read.state === "error") throw new Error("daily history could not be read; not writing over it");
+  const history = read.state === "ok" ? read.value : null;
   const headSec = Math.floor(ledger.updatedAt / 1000);
   const coverageFromSec = headSec - (ledger.lastBlock - ledger.coverageFrom) * cfg.blockSec;
   if (nextDayToRecord(history, coverageFromSec, nowSec) === null) return history?.points.length ?? 0;
@@ -34,6 +37,6 @@ export async function recordDailyHistory(chainId: number, ledger: Ledger, nowSec
   }));
 
   const next = rollupDays(history, chainId, releases, coverageFromSec, await loadWeightHistory(chainId), nowSec);
-  if (next && next !== history) await saveDailyHistory(next);
+  if (next && next !== history) await saveDailyHistory(next, read);
   return next?.points.length ?? 0;
 }
