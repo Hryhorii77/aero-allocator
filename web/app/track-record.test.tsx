@@ -61,4 +61,19 @@ describe("TrackRecordPanel", () => {
     render(<TrackRecordPanel />);
     expect(await screen.findByRole("link", { name: "own page" })).toHaveAttribute("href", "/track-record");
   });
+
+  it("lists the logged days before results only on its own page, open, with each still marked not checked", async () => {
+    const early = { ...base, logged: 1, evaluated: 0, rows: [{ day: 20_757, parts: [{ s: "WETH/LCAP · CL200", pct: 74.03 }, { s: "cbETH/WETH · CL1", pct: 25.97 }], paceUsd: 5.24, lowUsd: 4.2, realizedUsd: null }] };
+    stub(early);
+    const { unmount, container } = render(<TrackRecordPanel standalone />);
+    expect(await screen.findByText("WETH/LCAP · CL200 74.03% · cbETH/WETH · CL1 25.97%")).toBeInTheDocument();
+    expect(screen.getByText("not checked yet")).toBeInTheDocument();
+    expect(screen.getByText(/\$5\.24 predicted/)).toBeInTheDocument();
+    expect(container.querySelector("details")).toHaveAttribute("open");
+    expect(screen.queryByText(/median/)).not.toBeInTheDocument();
+    unmount();
+    render(<TrackRecordPanel />);
+    expect(await screen.findByText(/1 logged, 0 checked/)).toBeInTheDocument();
+    expect(screen.queryByText("Day by day")).not.toBeInTheDocument();
+  });
 });
