@@ -21,4 +21,8 @@ describe("llmsTxt", () => {
     expect(t).toMatch(/never charged/);
     expect(t).toMatch(/never hold keys, sign or send/);
   });
+  it("gives the npx line for the MCP package, before the paid section", () => {
+    expect(t).toContain('"args": ["-y", "aeroallocator-mcp"]');
+    expect(t.indexOf("aeroallocator-mcp")).toBeLessThan(t.indexOf("## Paid"));
+  });
 });
