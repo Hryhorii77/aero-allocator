@@ -53,12 +53,24 @@ describe("saveIfUnchanged", () => {
     expect(put.mock.calls[0][2]).not.toHaveProperty("ifMatch");
   });
 
-  it("reports a conflict when another run wrote first, and a plain failure otherwise", async () => {
+  it("reports a conflict when another run wrote first (the ETag moved on), and a plain failure otherwise", async () => {
     put.mockRejectedValueOnce(new BlobPreconditionFailedError());
+    get.mockResolvedValueOnce(found(JSON.stringify({ version: 1, items: [9] }), '"newer"'));
     expect(await saveIfUnchanged("x.json", {}, { state: "ok", value: {}, etag: '"old"' }, "t")).toBe("conflict");
+    expect(put).toHaveBeenCalledTimes(1);
     put.mockRejectedValueOnce(new Error("This blob already exists, use `allowOverwrite: true` if you want to overwrite it."));
     expect(await saveIfUnchanged("x.json", {}, { state: "missing" }, "t")).toBe("conflict");
     put.mockRejectedValueOnce(new BlobServiceNotAvailable());
     expect(await saveIfUnchanged("x.json", {}, { state: "ok", value: {}, etag: '"e1"' }, "t")).toBe("failed");
+  });
+
+  it("saves anyway when the refusal was spurious: nobody wrote (same ETag on a fresh read), so the record can't silently stop", async () => {
+    put.mockRejectedValueOnce(new BlobPreconditionFailedError()).mockResolvedValueOnce({});
+    get.mockResolvedValueOnce(found(JSON.stringify({ version: 1, items: [1] }), '"e1"'));
+    expect(await saveIfUnchanged("x.json", { version: 1, items: [1, 2] }, { state: "ok", value: {}, etag: '"e1"' }, "t")).toBe("saved");
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(put.mock.calls[1][2]).toMatchObject({ allowOverwrite: true });
+    expect(put.mock.calls[1][2]).not.toHaveProperty("ifMatch");
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("etag-mismatch"));
   });
 });

@@ -30,20 +30,41 @@ export async function loadForUpdate<T>(path: string, valid: (x: unknown) => x is
   }
 }
 
+const putJson = (path: string, value: unknown, cond: { allowOverwrite: boolean; ifMatch?: string }) =>
+  put(path, JSON.stringify(value), { access: "private", addRandomSuffix: false, contentType: "application/json", ...cond });
+
 /** Saves only over the version that was read (or only if there was none), never after a failed read. */
 export async function saveIfUnchanged(path: string, value: unknown, read: Exclude<Loaded<unknown>, { state: "error" }>, tag: string): Promise<SaveResult> {
   try {
-    await put(path, JSON.stringify(value), {
-      access: "private",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      ...(read.state === "ok" ? { allowOverwrite: true, ifMatch: read.etag } : { allowOverwrite: false }),
-    });
+    await putJson(path, value, read.state === "ok" ? { allowOverwrite: true, ifMatch: read.etag } : { allowOverwrite: false });
     return "saved";
   } catch (e) {
     // Another run wrote first (changed ETag, or the file appeared since we saw none). Its write stands; the next cron run picks up from it.
     const conflict = e instanceof BlobPreconditionFailedError || (read.state === "missing" && e instanceof Error && /already exists/i.test(e.message));
-    log(tag, conflict ? "save-conflict" : "save-failed", e);
-    return conflict ? "conflict" : "failed";
+    if (!conflict) {
+      log(tag, "save-failed", e);
+      return "failed";
+    }
+    // Safety net: the ETag comes from the blob's read URL and the condition is checked by the API. If those two ever disagreed on its form,
+    // every save would be refused and the record would silently stop. So on a refused overwrite, read again: an unchanged ETag means nobody
+    // else wrote and the refusal was spurious, so log it loudly and save without the condition (the read just succeeded, so this never
+    // writes over a record it couldn't read). A real overlap changes the ETag and stays refused.
+    if (read.state === "ok") {
+      const again = await getBlob(path, { access: "private", useCache: false }).catch(() => undefined);
+      if (again && again.statusCode === 200 && again.blob.etag === read.etag) {
+        await again.stream?.cancel().catch(() => {});
+        log(tag, "etag-mismatch", e);
+        try {
+          await putJson(path, value, { allowOverwrite: true });
+          return "saved";
+        } catch (e2) {
+          log(tag, "save-failed", e2);
+          return "failed";
+        }
+      }
+      await again?.stream?.cancel().catch(() => {});
+    }
+    log(tag, "save-conflict", e);
+    return "conflict";
   }
 }
