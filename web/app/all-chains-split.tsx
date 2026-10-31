@@ -35,7 +35,7 @@ export function ReadingNote() {
 }
 
 /**
- * The table above is one chain at a time. This tries every set of chains for the amount and shows the one that earns the most after
+ * The table ranks single gauges (one chain, or every chain side by side with no fees counted). This tries every set of chains for the amount and shows the one that earns the most after
  * the one-off ETH each extra chain costs to reach, next to Base alone. It reads only public data and sends nothing.
  */
 export function AllChainsSplitPanel({ amount }: { amount: number }) {
@@ -69,7 +69,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
         <button type="button" className={btn("secondary", "sm")} onClick={() => setOpen(true)}>
           compare all chains
         </button>
-        <span className={`ml-2 ${NOTE}`}>The table is one chain at a time. This finds the best split over every chain at once.</span>
+        <span className={`ml-2 ${NOTE}`}>The best split over every chain at once, after the one-off ETH fee each extra chain costs.</span>
       </div>
     );
   }

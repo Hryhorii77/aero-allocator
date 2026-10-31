@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GaugeRow } from "./gauges";
-import { MAX_LIMIT, topGauges } from "./top-gauges";
+import { MAX_LIMIT, topGauges, topGaugesAllChains } from "./top-gauges";
 
 const g = (n: number, weight: number, extra: Partial<GaugeRow> = {}): GaugeRow => ({
   gauge: `0x${n.toString(16).padStart(40, "0")}` as `0x${string}`,
@@ -59,3 +59,23 @@ describe("topGauges", () => {
     expect(out.gauges.some((x) => x.label.startsWith("P98/"))).toBe(false);
   });
 });
+
+describe("topGaugesAllChains", () => {
+  it("ranks each chain against its own fees, merges best first with each row's chain, and keeps a shared address apart", () => {
+    // Gauge 1 exists on both chains: on Ethereum it pays 4x, so it must rank first and still appear once per chain.
+    const base = { chainId: 8453, gauges: [g(1, 1_000_000), g(2, 1_000_000)], fees: feesOf([fee(1, 100), fee(2, 300)], 0.5), cooldownSec: 169_200 };
+    const eth = { chainId: 1, gauges: [g(1, 1_000_000)], fees: { ...feesOf([fee(1, 400)]), chainId: 1 } };
+    const out = topGaugesAllChains([base, eth], [5042], 10_000, 10, NOW, 8453);
+    expect(out.chainId).toBe("all");
+    expect(out.gauges.map((r) => [r.chainId, r.label])).toEqual([
+      [1, "P1/USDC · CL100"],
+      [8453, "P2/USDC · CL100"],
+      [8453, "P1/USDC · CL100"],
+    ]);
+    expect(out.skipped).toEqual([5042]);
+    expect(out.aeroUsd).toBe(0.5);
+    expect(out.waitHours).toBe(47);
+    expect(topGaugesAllChains([base, eth], [], 10_000, 2, NOW, 8453).gauges).toHaveLength(2);
+  });
+});
+

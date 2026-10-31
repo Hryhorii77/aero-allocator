@@ -49,7 +49,7 @@ const paymentInfo = (priceUsd: number, payTo: string | undefined) => ({
 });
 
 /**
- * The OpenAPI description served at /openapi.json: the free reads and the two paid x402 routes, with the real request parameters, the
+ * The OpenAPI description served at /openapi.json: the free reads and the three paid x402 routes, with the real request parameters, the
  * response shapes, and the 402 behaviour. Prices come from the routes' own constants so this can't drift from what is charged. `payTo`
  * is the public payout address (also in every 402 challenge); it is left out when the deployment has none configured.
  */
@@ -139,12 +139,20 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
       "/api/top-gauges": {
         get: {
           operationId: "topGauges",
-          summary: "Gauges on one chain ranked by what an amount of sAERO would earn per day in each",
+          summary: "Gauges on one chain, or on every chain merged, ranked by what an amount of sAERO would earn per day in each",
           description:
             "The page's table as data: for each of the top gauges, what the amount earns per day after it joins the power already there, the low case, APR when AERO's price is known, the fee and incentive pace, how much history it rests on, steadiness, and an incentive-end note when some incentives stop inside the wait. The amount is rounded to three significant figures. Read-only. Estimates, not financial advice.",
           parameters: [
             { name: "amount", in: "query", required: true, description: "Voting power to place, in whole sAERO power (above 0).", schema: { type: "number", exclusiveMinimum: 0 }, example: 10000 },
-            { ...chainParam, required: false, description: "Chain id (default Base, 8453).", example: 8453 },
+            {
+              name: "chain",
+              in: "query",
+              required: false,
+              description:
+                "Chain id (default Base, 8453), or \"all\": every chain ranked against its own fees and merged, each row with its chainId. The one-off ETH to reach a chain other than Base is not counted there; /api/all-chains-split weighs it.",
+              schema: { anyOf: [chainParam.schema, { type: "string", enum: ["all"] }] },
+              example: 8453,
+            },
             { name: "limit", in: "query", required: false, description: "How many gauges, 1 to 25 (default 10).", schema: { type: "integer", minimum: 1, maximum: 25 }, example: 10 },
           ],
           responses: { "200": jsonBody(ref("TopGauges"), "The ranked gauges."), ...errorResponses() },
@@ -395,7 +403,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
         TopGauges: {
           type: "object",
           properties: {
-            chainId: { type: "integer" },
+            chainId: { anyOf: [{ type: "integer" }, { type: "string", enum: ["all"] }], description: "The chain asked for, or \"all\" for every chain ranked against its own fees and merged." },
             amount: num("The amount used (rounded to three significant figures)."),
             waitHours: num("The wait between allocations of one position, in hours; the low case looks across it."),
             aeroUsd: nullable(num("AERO's USD price when known.")),
@@ -405,6 +413,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
               items: {
                 type: "object",
                 properties: {
+                  chainId: { type: "integer", description: "The chain the gauge is on (the same address can be a different gauge on another chain)." },
                   gauge: str("Gauge address."),
                   label: str("Pool pair and kind, e.g. USDC/cbZEC · CL100."),
                   usdPerDay: num("What the amount earns per day in this gauge alone."),
@@ -421,6 +430,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                 },
               },
             },
+            skipped: { type: "array", items: { type: "integer" }, description: "chain=all only: chains left out because they could not be read just now." },
           },
         },
         TrackRecord: {
