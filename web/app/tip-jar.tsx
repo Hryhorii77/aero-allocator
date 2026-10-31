@@ -28,7 +28,7 @@ export function parseTipAmount(text: string): string | null {
  * nothing is gated behind it. Tips are USDC on Base whichever protocol this
  * deployment shows, so sending needs the wallet to be on Base.
  */
-export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
+export function TipJar({ placement = "down", compact = false, align = "left" }: { placement?: "down" | "up"; compact?: boolean; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [custom, setCustom] = useState("");
@@ -84,15 +84,17 @@ export function TipJar({ placement = "down" }: { placement?: "down" | "up" }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-label={compact ? "leave a tip" : undefined}
+        title={compact ? "Leave a tip (USDC on Base)" : undefined}
         className={btn("accent")}
       >
-        ♥ leave a tip
+        {compact ? "♥ tip" : "♥ leave a tip"}
       </button>
       {open && (
         <div
           role="dialog"
           aria-label="tip the developer"
-          className={`absolute left-0 z-20 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-neutral-700 bg-neutral-900 p-4 shadow-xl ${
+          className={`absolute ${align === "right" ? "right-0" : "left-0"} z-20 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-neutral-700 bg-neutral-900 p-4 shadow-xl ${
             placement === "up" ? "bottom-full mb-2" : "mt-2"
           }`}
         >

@@ -9,6 +9,7 @@ import { JumpBar } from "./jump-bar";
 import { SaeroPositions } from "./saero-positions";
 import { SiteFooter } from "./site-footer";
 import { ThemeToggle } from "./theme-toggle";
+import { TipJar } from "./tip-jar";
 import { TrackRecordPanel } from "./track-record";
 import { UpgradeChecklist, upgradeChecklistVisible } from "./upgrade-checklist";
 import { ConnectButton } from "./wallet";
@@ -32,6 +33,11 @@ export function SaeroPage() {
             {DISPLAY_PRESET.appName.replace(/ Allocator$/, "")} <span className="text-sky-400">Allocator</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* From `sm` up only: on a phone a third button wraps the sticky header onto two rows (and the panel would open off-screen), and the
+                footer's tip jar is a short scroll away. Its panel opens leftward from the header's right edge. */}
+            <div className="hidden sm:block">
+              <TipJar compact align="right" />
+            </div>
             <ThemeToggle />
             <ConnectButton />
           </div>
