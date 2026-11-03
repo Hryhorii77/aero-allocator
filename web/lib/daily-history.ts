@@ -12,7 +12,7 @@ export const RETAIN_DAILY_DAYS = 90;
 export interface DailyPoint {
   /** UTC day number: unix seconds / 86,400, rounded down. */
   d: number;
-  /** Fees released to voters per gauge that day, USD (cents), aligned with DailyHistory.gauges. */
+  /** Fees released to voters per gauge that day, in USD rounded to the cent (3793.91 is $3,793.91, not cents), aligned with DailyHistory.gauges. */
   f: number[];
   /** Weight per gauge at the last snapshot of the day, whole tokens. Empty when no snapshot was taken that day. */
   w: number[];
