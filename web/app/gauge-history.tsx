@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { GaugeHistory } from "@/lib/gauge-fees-read";
 import { formatFlow } from "@/lib/weight-history";
 import { NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 const W = 320;
 const H = 84;
@@ -23,9 +24,8 @@ export function GaugeHistoryPanel({ chainId, gauge }: { chainId: number; gauge: 
   useEffect(() => {
     let cancelled = false;
     setState("loading");
-    fetch(`/api/gauge-history?chain=${chainId}&gauge=${gauge}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: GaugeHistory) => {
+    fetchJson<GaugeHistory>(`/api/gauge-history?chain=${chainId}&gauge=${gauge}`)
+      .then((d) => {
         if (cancelled) return;
         setData(d);
         setState("done");

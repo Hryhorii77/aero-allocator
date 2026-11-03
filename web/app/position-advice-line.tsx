@@ -8,6 +8,7 @@ import { analysePosition } from "@/lib/position-advice";
 import { DEFAULT_COOLDOWN_SEC, type SaeroPosition } from "@/lib/saero";
 import { readCurrent } from "./saero-allocate";
 import { NOTE } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 /**
  * One line under a position: what it earns where it sits, what the best split would earn, and so what staying costs per day. The
@@ -21,8 +22,8 @@ export function PositionAdviceLine({ position, onCost }: { position: SaeroPositi
     let cancelled = false;
     (async () => {
       const [g, f] = await Promise.all([
-        fetch("/api/gauges").then((r) => (r.ok ? (r.json() as Promise<GaugeList>) : Promise.reject(new Error(String(r.status))))),
-        fetch("/api/gauge-fees").then((r) => (r.ok ? (r.json() as Promise<GaugeFees>) : Promise.reject(new Error(String(r.status))))),
+        fetchJson<GaugeList>("/api/gauges"),
+        fetchJson<GaugeFees>("/api/gauge-fees"),
       ]);
       const symbolOf = (a: string) => {
         const x = g.gauges.find((y) => y.gauge.toLowerCase() === a.toLowerCase());

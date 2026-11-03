@@ -21,6 +21,7 @@ import { horizonText } from "./all-chains-split";
 import { equalShares, readCurrent, type CurrentPick } from "./saero-allocate";
 import { SaeroManageChains } from "./saero-manage-chains";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 /** Gas limit for the send: what the simulation needs plus 30%, because a plain estimate sits right at the edge where the cross-chain dispatch runs out of gas (seen on a fork of Base). */
 const GAS_HEADROOM = 130n;
@@ -104,7 +105,7 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
     (async () => {
       const { wagmiConfig } = await import("@/lib/wagmi");
       const [splitRes, amounts, current] = await Promise.all([
-        fetch(`/api/all-chains-split?amount=${position.votingPower}`).then((r) => (r.ok ? (r.json() as Promise<AllChainsSplit>) : Promise.reject(new Error(String(r.status))))),
+        fetchJson<AllChainsSplit>(`/api/all-chains-split?amount=${position.votingPower}`),
         readContracts(wagmiConfig, {
           allowFailure: false,
           contracts: others.map((c) => ({ address: SAERO.voter, abi: saeroVoterAbi, functionName: "allocationChainAmounts" as const, args: [position.tokenId, BigInt(c.id)] as const, chainId: base.id })),
@@ -137,8 +138,8 @@ export function SaeroAllocateChains({ position, cooldownReady, onAllocated }: { 
         const books: ChainBook[] = await Promise.all(
           shares.map(async (sh) => {
             const [g, f] = await Promise.all([
-              fetch(`/api/gauges?chain=${sh.chainId}`).then((r) => (r.ok ? (r.json() as Promise<GaugeList>) : Promise.reject(new Error(String(r.status))))),
-              fetch(`/api/gauge-fees?chain=${sh.chainId}`).then((r) => (r.ok ? (r.json() as Promise<GaugeFees>) : Promise.reject(new Error(String(r.status))))),
+              fetchJson<GaugeList>(`/api/gauges?chain=${sh.chainId}`),
+              fetchJson<GaugeFees>(`/api/gauge-fees?chain=${sh.chainId}`),
             ]);
             const amount = (position.votingPower * sh.hundredths) / 10_000;
             const rows = rankByUsdPerDay(g.gauges, f.fees, amount);

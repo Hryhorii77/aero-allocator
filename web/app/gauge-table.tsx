@@ -19,6 +19,7 @@ import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
 import { TopAllocatorsPanel } from "./top-allocators";
 import { btn, chip, H2, input, NOTE, NUM, TAG } from "./ui";
+import { fetchJson, fetchJsonOrNull } from "@/lib/fetch-json";
 
 const SHOWN = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -108,9 +109,8 @@ export function GaugeTable() {
   useEffect(() => {
     if (!live) return;
     let cancelled = false;
-    fetch("/api/chain-counts")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: { counts?: ChainCount[] }) => !cancelled && Array.isArray(d.counts) && setCounts(new Map(d.counts.map((c) => [c.chainId, c.ranked]))))
+    fetchJson<{ counts?: ChainCount[] }>("/api/chain-counts")
+      .then((d) => !cancelled && Array.isArray(d.counts) && setCounts(new Map(d.counts.map((c) => [c.chainId, c.ranked]))))
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -121,8 +121,7 @@ export function GaugeTable() {
   useEffect(() => {
     if (!live || !allMode || multi) return;
     let cancelled = false;
-    const json = (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
-    Promise.allSettled(AERO_CHAINS.map((c) => Promise.all([json(`/api/gauges?chain=${c.id}`) as Promise<GaugeList>, (json(`/api/gauge-fees?chain=${c.id}`) as Promise<GaugeFees>).catch(() => null)])))
+    Promise.allSettled(AERO_CHAINS.map((c) => Promise.all([fetchJson<GaugeList>(`/api/gauges?chain=${c.id}`), fetchJsonOrNull<GaugeFees>(`/api/gauge-fees?chain=${c.id}`)])))
       .then((res) => {
         if (cancelled) return;
         const lists: GaugeList[] = [];
@@ -148,9 +147,8 @@ export function GaugeTable() {
     setAll(false);
     setShowInactive(false);
     setOpenGauge(null);
-    fetch(`/api/gauges?chain=${chainId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: GaugeList) => !cancelled && setData(d))
+    fetchJson<GaugeList>(`/api/gauges?chain=${chainId}`)
+      .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
@@ -163,9 +161,8 @@ export function GaugeTable() {
     let cancelled = false;
     setFees(null);
     setFeesFailed(false);
-    fetch(`/api/gauge-fees?chain=${chainId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: GaugeFees) => !cancelled && setFees(d))
+    fetchJson<GaugeFees>(`/api/gauge-fees?chain=${chainId}`)
+      .then((d) => !cancelled && setFees(d))
       .catch(() => !cancelled && setFeesFailed(true));
     return () => {
       cancelled = true;
@@ -177,9 +174,8 @@ export function GaugeTable() {
     setFlows(null);
     if (!live || allMode) return;
     let cancelled = false;
-    fetch(`/api/gauge-flows?chain=${chainId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: Flows) => !cancelled && Array.isArray(d.flows) && (d.flows.length > 0 || (d.newIncentives?.length ?? 0) > 0) && setFlows({ ...d, newIncentives: d.newIncentives ?? [] }))
+    fetchJson<Flows>(`/api/gauge-flows?chain=${chainId}`)
+      .then((d) => !cancelled && Array.isArray(d.flows) && (d.flows.length > 0 || (d.newIncentives?.length ?? 0) > 0) && setFlows({ ...d, newIncentives: d.newIncentives ?? [] }))
       .catch(() => {});
     return () => {
       cancelled = true;

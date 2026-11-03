@@ -8,6 +8,7 @@ import { setPresetSplit } from "@/lib/preset-split";
 import { bestSplit, splitRate } from "@/lib/split";
 import { priceCopy, type TopAllocators } from "@/lib/top-allocators";
 import { btn, NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const big = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n)));
@@ -26,8 +27,7 @@ export function TopAllocatorsPanel({ gauges, fees, amount, cooldownSec }: { gaug
   useEffect(() => {
     if (!open || got) return;
     let live = true;
-    fetch("/api/top-allocators")
-      .then((r) => (r.ok ? (r.json() as Promise<TopAllocators>) : Promise.reject(new Error(String(r.status)))))
+    fetchJson<TopAllocators>("/api/top-allocators")
       .then((d) => live && setGot(Array.isArray(d.allocators) ? d : "failed"))
       .catch(() => live && setGot("failed"));
     return () => {

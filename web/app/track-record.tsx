@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { TrackSummary } from "@/lib/track-record";
 import { LINK, NOTE, NUM, TAG } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = (day: number) => new Date(day * 86_400_000).toISOString().slice(0, 10);
@@ -18,8 +19,7 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
-    fetch("/api/track-record")
-      .then((r) => (r.ok ? (r.json() as Promise<TrackSummary>) : Promise.reject(new Error(String(r.status)))))
+    fetchJson<TrackSummary>("/api/track-record")
       .then((d) => live && setData(d))
       .catch(() => live && setFailed(true));
     return () => {
