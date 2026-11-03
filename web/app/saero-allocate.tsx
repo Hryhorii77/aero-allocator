@@ -14,6 +14,7 @@ import { AllocateError, allocateAbi, allocateArgs, explainAllocateError, MAX_GAU
 import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi, waitHours, type SaeroPosition } from "@/lib/saero";
 import { getPresetSplit, getServerPresetSplit, setPresetSplit, subscribePresetSplit, type PresetSplit } from "@/lib/preset-split";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 const CHOICES = 10;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -107,8 +108,8 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
     if (!open || rows) return;
     let cancelled = false;
     Promise.all([
-      fetch("/api/gauges").then((r) => (r.ok ? (r.json() as Promise<GaugeList>) : Promise.reject(new Error(String(r.status))))),
-      fetch("/api/gauge-fees").then((r) => (r.ok ? (r.json() as Promise<GaugeFees>) : Promise.reject(new Error(String(r.status))))),
+      fetchJson<GaugeList>("/api/gauges"),
+      fetchJson<GaugeFees>("/api/gauge-fees"),
     ])
       .then(async ([g, f]) => {
         if (cancelled) return;

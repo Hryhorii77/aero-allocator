@@ -12,6 +12,7 @@ import { gaugeLabel } from "@/lib/gauges";
 import { ago } from "@/lib/ago";
 import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
 import { NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 /** "27%" for ordinary figures, "1.2k%" for the absurd ones a tiny gauge can show. */
 export const fmtApr = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k%` : `${n.toFixed(n < 10 ? 1 : 0)}%`);
@@ -32,9 +33,8 @@ function CrossChainNote({ chainId, gauges, chainName }: { chainId: number; gauge
   useEffect(() => {
     let live = true;
     setFee(null);
-    fetch(`/api/allocation-fee?chain=${chainId}&gauges=${gauges}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j: CrossChainFee) => live && setFee(j))
+    fetchJson<CrossChainFee>(`/api/allocation-fee?chain=${chainId}&gauges=${gauges}`)
+      .then((j) => live && setFee(j))
       .catch(() => live && setFee("failed"));
     return () => {
       live = false;

@@ -15,6 +15,7 @@ import { pendingLeftMs } from "@/lib/pending-lock";
 import { cooldownState, formatDuration } from "@/lib/saero";
 import { bestSplit, splitRate } from "@/lib/split";
 import { btn, NOTE, NUM } from "./ui";
+import { fetchJsonOrNull } from "@/lib/fetch-json";
 
 const E18 = 10n ** 18n;
 const eth = (wei: bigint) => Number(formatEther(wei)).toPrecision(2);
@@ -59,8 +60,8 @@ export function SaeroManageChains({ tokenId, owner, byChain, power, busy, nonce,
           const amount = byChain[c.id];
           const [leaf, g, f] = await Promise.all([
             readLeafChain(c.id, tokenId).catch(() => null),
-            fetch(`/api/gauges?chain=${c.id}`).then((r) => (r.ok ? (r.json() as Promise<GaugeList>) : null)).catch(() => null),
-            fetch(`/api/gauge-fees?chain=${c.id}`).then((r) => (r.ok ? (r.json() as Promise<GaugeFees>) : null)).catch(() => null),
+            fetchJsonOrNull<GaugeList>(`/api/gauges?chain=${c.id}`),
+            fetchJsonOrNull<GaugeFees>(`/api/gauge-fees?chain=${c.id}`),
           ]);
           const label = new Map((g?.gauges ?? []).map((x) => [x.gauge.toLowerCase(), gaugeLabel(x)]));
           const chainPower = Number(amount / (E18 / 1000n)) / 1000;
@@ -69,7 +70,7 @@ export function SaeroManageChains({ tokenId, owner, byChain, power, busy, nonce,
           const best = split ? split.parts.map((p) => ({ gauge: String(p.gauge), symbol: p.symbol, pct: p.pct })) : null;
           const current = leaf && leaf.total > 0n ? leaf.gauges.map((x) => ({ symbol: label.get(x.gauge.toLowerCase()) ?? `${x.gauge.slice(0, 6)}…`, pct: Number((x.amount * 10_000n) / leaf.total) / 100, gauge: x.gauge })) : [];
           const same = !!best && current.length === best.length && best.every((b) => current.some((x) => (x as { gauge: string }).gauge.toLowerCase() === b.gauge.toLowerCase() && Math.abs(x.pct - b.pct) < 0.5));
-          const quote = (n: number) => fetch(`/api/allocation-fee?chain=${c.id}&gauges=${n}`).then((r) => (r.ok ? (r.json() as Promise<CrossChainFee>) : null)).catch(() => null);
+          const quote = (n: number) => fetchJsonOrNull<CrossChainFee>(`/api/allocation-fee?chain=${c.id}&gauges=${n}`);
           const [quoteOne, quoteBest] = await Promise.all([quote(1), best && best.length !== 1 ? quote(best.length) : null]);
           return { chainId: c.id, name: c.name, amount, leaf, current, best, same, quoteOne, quoteBest: best?.length === 1 ? quoteOne : quoteBest };
         }),

@@ -5,6 +5,7 @@ import type { AllChainsSplit } from "@/lib/all-chains-read";
 import { ago } from "@/lib/ago";
 import { roundAmount } from "@/lib/amount";
 import { btn, chip, NOTE, NUM } from "./ui";
+import { fetchJson } from "@/lib/fetch-json";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const HORIZONS: Array<{ label: string; days?: number }> = [{ label: "the wait" }, { label: "7 days", days: 7 }, { label: "30 days", days: 30 }];
@@ -52,8 +53,7 @@ export function AllChainsSplitPanel({ amount }: { amount: number }) {
     if (!open) return;
     let live = true;
     const t = setTimeout(() => {
-      fetch(`/api/all-chains-split?amount=${asked}${days ? `&days=${days}` : ""}`)
-        .then((r) => (r.ok ? (r.json() as Promise<AllChainsSplit>) : Promise.reject(new Error(String(r.status)))))
+      fetchJson<AllChainsSplit>(`/api/all-chains-split?amount=${asked}${days ? `&days=${days}` : ""}`)
         .then((data) => live && setGot({ key, data }))
         .catch(() => live && setGot("failed"));
     }, 600);
