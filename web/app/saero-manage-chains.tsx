@@ -13,7 +13,7 @@ import { gaugeLabel, type GaugeList } from "@/lib/gauges";
 import { readLeafChain, type LeafChainState } from "@/lib/leaf-read";
 import { pendingLeftMs } from "@/lib/pending-lock";
 import { cooldownState, formatDuration } from "@/lib/saero";
-import { bestSplit } from "@/lib/split";
+import { bestSplit, splitRate } from "@/lib/split";
 import { btn, NOTE, NUM } from "./ui";
 
 const E18 = 10n ** 18n;
@@ -65,7 +65,7 @@ export function SaeroManageChains({ tokenId, owner, byChain, power, busy, nonce,
           const label = new Map((g?.gauges ?? []).map((x) => [x.gauge.toLowerCase(), gaugeLabel(x)]));
           const chainPower = Number(amount / (E18 / 1000n)) / 1000;
           const ranked = g && f ? rankByUsdPerDay(g.gauges, f.fees, chainPower) : [];
-          const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), chainPower, 4);
+          const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), chainPower, 4);
           const best = split ? split.parts.map((p) => ({ gauge: String(p.gauge), symbol: p.symbol, pct: p.pct })) : null;
           const current = leaf && leaf.total > 0n ? leaf.gauges.map((x) => ({ symbol: label.get(x.gauge.toLowerCase()) ?? `${x.gauge.slice(0, 6)}…`, pct: Number((x.amount * 10_000n) / leaf.total) / 100, gauge: x.gauge })) : [];
           const same = !!best && current.length === best.length && best.every((b) => current.some((x) => (x as { gauge: string }).gauge.toLowerCase() === b.gauge.toLowerCase() && Math.abs(x.pct - b.pct) < 0.5));

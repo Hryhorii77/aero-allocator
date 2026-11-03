@@ -4,7 +4,7 @@ import type { GaugeFees } from "./gauge-fees-read";
 import { paceConfidence, rankByUsdPerDay, type YieldRow } from "./gauge-yield";
 import { cooldownState, waitHours, type CooldownState, type SaeroPosition } from "./saero";
 import { currentLowUsdPerDay, projectRange } from "./projection";
-import { bestSplit, currentUsdPerDay, type Split } from "./split";
+import { bestSplit, currentUsdPerDay, type Split, splitRate } from "./split";
 
 /** Where a position sits on Base now: a gauge and its share (0-100) of the amount booked on Base. */
 export interface CurrentGauge {
@@ -88,7 +88,7 @@ export function analysePosition(args: {
   const gauges = list.gauges.map((g) => ({ ...g, weight: Math.max(0, g.weight - (own.get(g.gauge.toLowerCase()) ?? 0)) }));
   const ranked = rankByUsdPerDay(gauges, fees.fees, power, undefined, { nowSec, waitSec: cooldownSec });
   const best = bestSplit(
-    ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })),
+    ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })),
     power,
     args.maxGauges ?? 6,
   );

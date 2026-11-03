@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestSplit } from "./split";
+import { bestSplit, splitRate } from "./split";
 
 const g = (n: number, rate: number, weight: number) => ({ gauge: `0x${n.toString(16).padStart(40, "0")}` as `0x${string}`, symbol: `P${n}`, rate, weight });
 
@@ -61,3 +61,25 @@ describe("currentUsdPerDay", () => {
     expect(r.unmeasured).toEqual(["P2"]);
   });
 });
+
+describe("splitRate", () => {
+  it("counts a gauge whose fee pace is a burst at its usual level, and every other gauge at its pace plus incentives", () => {
+    expect(splitRate({ feesUsdPerDay: 1000, incentivesUsdPerDay: 50 })).toBe(1050);
+    expect(splitRate({ feesUsdPerDay: 1000, incentivesUsdPerDay: 50, spike: { typicalUsdPerDay: 200 } })).toBe(250);
+    // Never above the pace, even if the "usual" level somehow were.
+    expect(splitRate({ feesUsdPerDay: 100, incentivesUsdPerDay: 0, spike: { typicalUsdPerDay: 300 } })).toBe(100);
+  });
+
+  it("keeps a split off a pool whose pace is only a burst (the 2026-11-01 case)", () => {
+    // A: $5,000/day right now but usually $1,250 (a burst). B: a steady $1,500/day. Both hold 1M power.
+    const A = { gauge: g(1, 0, 0).gauge, symbol: "A", feesUsdPerDay: 5000, incentivesUsdPerDay: 0, spike: { typicalUsdPerDay: 1250 }, weight: 1_000_000 };
+    const B = { gauge: g(2, 0, 0).gauge, symbol: "B", feesUsdPerDay: 1500, incentivesUsdPerDay: 0, weight: 1_000_000 };
+    const rows = [A, B];
+    const onPace = bestSplit(rows.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), 10_000)!;
+    const onUsual = bestSplit(rows.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: splitRate(r), weight: r.weight })), 10_000)!;
+    expect(onPace.parts[0].symbol).toBe("A"); // the old rule chased the burst
+    expect(onUsual.parts.map((p) => p.symbol)).toEqual(["B"]);
+    expect(onUsual.usdPerDay).toBeCloseTo((1500 * 10_000) / 1_010_000, 6);
+  });
+});
+

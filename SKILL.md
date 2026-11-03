@@ -70,7 +70,7 @@ const data = await res.json();
 ## Safety
 
 - Read-only by construction: the APIs return data and unsigned calldata only.
-- Fee figures are a recent pace, not a promise. A gauge whose pace is a one-off burst is marked `spike`, and its APR is best read as a range from its usual level up to the burst.
+- Fee figures are a recent pace, not a promise. A gauge whose pace is a one-off burst is marked `spike`, and its APR is best read as a range from its usual level up to the burst; the best split, `position` advice and `allocate-plan` rank it at its usual level, not the burst.
 - Every allocation replaces the position's whole Base distribution and restarts the wait before the next change, so a small gain is not worth moving for.
 - Not investment advice.
 

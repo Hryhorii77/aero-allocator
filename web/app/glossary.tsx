@@ -20,7 +20,7 @@ export function glossaryTerms(flowHours?: number): Array<{ term: string; meaning
     },
     {
       term: "spiky",
-      meaning: `The recent fees are at least ${SPIKE_RATIO} times the gauge's usual level, so it is probably a one-off burst. The range shows the usual level as the low end.`,
+      meaning: `The recent fees are at least ${SPIKE_RATIO} times the gauge's usual level, so it is probably a one-off burst. The best split counts it at its usual level, and the range shown for it starts there.`,
     },
     {
       term: "steady 5/6",

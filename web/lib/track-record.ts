@@ -5,7 +5,7 @@ import { rankByUsdPerDay } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 import { gaugeLabel } from "./gauges";
 import { projectRange } from "./projection";
-import { bestSplit } from "./split";
+import { bestSplit, splitRate } from "./split";
 
 // A forward-only track record. Once a day, shortly after 00:00 UTC, the site logs the split it would recommend for TRACK_AMOUNT sAERO
 // on Base, with the dollars per day it predicted (today's pace) and its low case. Two finished days later the log is compared with what
@@ -31,7 +31,17 @@ export interface TrackEntry {
   /** Predicted USD per day at today's fee pace, and the low case. */
   paceUsd: number;
   lowUsd: number;
+  /** The ranking rule that chose the split (RANK_RULE); absent on entries made before rules were numbered, which are rule 1. */
+  rule?: number;
 }
+
+/**
+ * The ranking rule `recommend` uses now. 1: splits ranked on each gauge's recent fee pace, bursts included. 2 (from 2026-11-04): a gauge
+ * whose pace is a burst is ranked at its usual level (`splitRate`). Results are counted only for entries of the current rule, so the record
+ * measures the model that is running; older entries stay listed, marked.
+ */
+export const RANK_RULE = 2;
+export const ruleOf = (e: Pick<TrackEntry, "rule">) => e.rule ?? 1;
 
 export interface TrackLog {
   version: 1;
@@ -45,7 +55,7 @@ export const inLogWindow = (nowSec: number) => nowSec % DAY_SEC < LOG_WITHIN_SEC
 /** The recommendation as it stands now, or null when nothing can be ranked. */
 export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, waitSec?: number, amount = TRACK_AMOUNT): TrackEntry | null {
   const ranked = rankByUsdPerDay(gauges, fees.fees, amount, undefined, { nowSec, waitSec });
-  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
+  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), amount);
   if (!split) return null;
   const range = projectRange(ranked, split);
   return {
@@ -55,6 +65,7 @@ export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, w
     parts: split.parts.map((p) => ({ g: p.gauge.toLowerCase(), s: p.symbol, pct: p.pct })),
     paceUsd: Number(range.paceUsdPerDay.toFixed(4)),
     lowUsd: Number(range.lowUsdPerDay.toFixed(4)),
+    rule: RANK_RULE,
   };
 }
 
@@ -98,14 +109,19 @@ export interface TrackRow {
   paceUsd: number;
   lowUsd: number;
   realizedUsd: number | null;
+  /** The ranking rule that chose this split; only RANK_RULE days count toward the results. */
+  rule: number;
 }
 
 export interface TrackSummary {
   chainId: number;
   amount: number;
-  /** Entries logged so far, and how many have both days recorded. */
+  /** Entries of the current rule logged so far, and how many have both days recorded. */
   logged: number;
   evaluated: number;
+  /** The rule now running, and how many listed entries were made under an earlier one (shown, never counted). */
+  rule: number;
+  earlierRule: number;
   /** Evaluated days needed before results are shown. */
   needed: number;
   /** Set only once `evaluated` reaches `needed`. */
@@ -129,9 +145,19 @@ const median = (xs: number[]) => {
 
 export function summarize(log: TrackLog | null, daily: DailyHistory | null, rowsShown = 21): TrackSummary {
   const entries = log?.entries ?? [];
-  const rows: TrackRow[] = entries.map((e) => ({ day: e.day, parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })), paceUsd: e.paceUsd, lowUsd: e.lowUsd, realizedUsd: realizedUsdPerDay(e, daily) }));
-  const done = rows.filter((r): r is TrackRow & { realizedUsd: number } => r.realizedUsd !== null && r.paceUsd > 0);
-  const summary: TrackSummary = { chainId: TRACK_CHAIN_ID, amount: TRACK_AMOUNT, logged: entries.length, evaluated: done.length, needed: MIN_DAYS_TO_SHOW, rows: rows.slice(-rowsShown).reverse() };
+  const rows: TrackRow[] = entries.map((e) => ({ day: e.day, parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })), paceUsd: e.paceUsd, lowUsd: e.lowUsd, realizedUsd: realizedUsdPerDay(e, daily), rule: ruleOf(e) }));
+  const current = rows.filter((r) => r.rule === RANK_RULE);
+  const done = current.filter((r): r is TrackRow & { realizedUsd: number } => r.realizedUsd !== null && r.paceUsd > 0);
+  const summary: TrackSummary = {
+    chainId: TRACK_CHAIN_ID,
+    amount: TRACK_AMOUNT,
+    logged: current.length,
+    evaluated: done.length,
+    needed: MIN_DAYS_TO_SHOW,
+    rule: RANK_RULE,
+    earlierRule: rows.length - current.length,
+    rows: rows.slice(-rowsShown).reverse(),
+  };
   if (done.length >= MIN_DAYS_TO_SHOW) {
     summary.results = {
       medianRealizedOfPredicted: Number(median(done.map((r) => r.realizedUsd / r.paceUsd)).toFixed(3)),
