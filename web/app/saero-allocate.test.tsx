@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const OWNER = "0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae";
 const account = vi.hoisted(() => ({ address: undefined as string | undefined, chainId: 8453 as number | undefined }));
@@ -18,6 +18,7 @@ vi.mock("@/lib/wagmi", () => ({ wagmiConfig: {} }));
 
 import { equalShares, SaeroAllocate } from "./saero-allocate";
 import type { SaeroPosition } from "@/lib/saero";
+import { getPresetSplit, setPresetSplit } from "@/lib/preset-split";
 
 const g = (n: number) => `0x${n.toString(16).padStart(40, "0")}`;
 const position: SaeroPosition = {
@@ -159,4 +160,38 @@ describe("SaeroAllocate", () => {
     render(<SaeroAllocate position={{ ...position, parkedRaw: 0n, onBaseRaw: 0n }} cooldownReady />);
     expect(screen.getByText(/other chains/)).toBeInTheDocument();
   });
+
+  it("starts from a copied split, adds its gauges, sends exactly that split, and can go back to the best split", async () => {
+    sim.simulateContract.mockResolvedValue({});
+    const thin = g(9); // not among the listed gauges
+    setPresetSplit({ from: "position #10426", parts: [{ gauge: g(2), pct: 60 }, { gauge: thin, pct: 40 }] });
+    render(<SaeroAllocate position={position} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    expect(await screen.findByText(/Starting from position #10426.s Base split/)).toBeInTheDocument();
+    expect(screen.getByLabelText("share of P2")).toHaveValue("60");
+    expect(screen.getByLabelText(`share of ${thin.slice(0, 6)}…`)).toHaveValue("40");
+    expect(screen.getByText(/Shares add up to 100%/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "allocate" }));
+    await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));
+    const sent = write.writeContract.mock.calls[0][0].args[2][0].gauges.map((x: { gauge: string }) => x.gauge.toLowerCase());
+    expect(sent.sort()).toEqual([g(2), thin].sort());
+
+    fireEvent.click(screen.getByRole("button", { name: "use the best split instead" }));
+    expect(screen.queryByText(/Starting from position/)).toBeNull();
+    expect(screen.getByLabelText("share of P1")).toHaveValue("100");
+    expect(getPresetSplit()).toBeNull();
+  });
+
+  it("picks up a split copied while the panel is already open", async () => {
+    setPresetSplit(null);
+    render(<SaeroAllocate position={position} cooldownReady />);
+    fireEvent.click(screen.getByRole("button", { name: /allocate…/ }));
+    await screen.findByText(/Shares add up to 100%/);
+    expect(screen.getByLabelText("share of P1")).toHaveValue("100");
+    act(() => setPresetSplit({ from: "position #621", parts: [{ gauge: g(3), pct: 100 }] }));
+    expect(await screen.findByText(/Starting from position #621/)).toBeInTheDocument();
+    expect(screen.getByLabelText("share of P3")).toHaveValue("100");
+    setPresetSplit(null);
+  });
 });
+
