@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { readContract, readContracts, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
@@ -12,6 +12,7 @@ import { analysePosition } from "@/lib/position-advice";
 import type { Split } from "@/lib/split";
 import { AllocateError, allocateAbi, allocateArgs, explainAllocateError, MAX_GAUGES, planAllocation } from "@/lib/allocate";
 import { DEFAULT_COOLDOWN_SEC, SAERO, saeroLeafAbi, waitHours, type SaeroPosition } from "@/lib/saero";
+import { getPresetSplit, getServerPresetSplit, setPresetSplit, subscribePresetSplit, type PresetSplit } from "@/lib/preset-split";
 import { BODY, btn, chip, input as inputCls, LINK, NOTE, NUM } from "./ui";
 
 const CHOICES = 10;
@@ -57,6 +58,22 @@ export async function readCurrent(tokenId: bigint, symbolOf: (g: string) => stri
  * day, lets you pick and weight them, then simulates the transaction on-chain before asking your wallet to sign.
  * Aero's allocate() replaces the whole Base distribution and starts a 47-hour wait before the next change.
  */
+/** The rows with any gauge of the copied split that isn't listed yet added (priced when the ranking has it, otherwise "no estimate"). */
+function withPresetRows(rows: YieldRow[], preset: PresetSplit | null, all: YieldRow[], symbolOf: (g: string) => string): YieldRow[] {
+  if (!preset) return rows;
+  const have = new Set(rows.map((r) => r.gauge.toLowerCase()));
+  const add = preset.parts
+    .filter((p) => !have.has(p.gauge.toLowerCase()))
+    .map((p) => all.find((r) => r.gauge.toLowerCase() === p.gauge.toLowerCase()) ?? { gauge: p.gauge as Address, symbol: symbolOf(p.gauge), feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 0, windowHours: 0 });
+  return [...rows, ...add];
+}
+
+/** The copied shares keyed by the rows' own gauge spelling, so the inputs line up with the listed rows. */
+function presetPct(preset: PresetSplit, rows: YieldRow[]): Record<string, string> {
+  const spelled = new Map(rows.map((r) => [r.gauge.toLowerCase(), r.gauge]));
+  return Object.fromEntries(preset.parts.map((p) => [spelled.get(p.gauge.toLowerCase()) ?? p.gauge, String(p.pct)]));
+}
+
 export function SaeroAllocate({ position, cooldownReady, onAllocated }: { position: SaeroPosition; cooldownReady: boolean; onAllocated?: () => void }) {
   const { chainId, address } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -67,8 +84,12 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
   const reverted = receipt?.status === "reverted";
   // Once it lands, the page re-reads the position so the card shows the new allocation and the new wait.
   useEffect(() => {
-    if (confirmed) onAllocated?.();
+    if (!confirmed) return;
+    setPresetSplit(null);
+    onAllocated?.();
   }, [confirmed]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A split copied elsewhere on the page ("use this split" on a top allocator) to start from instead of the best split.
+  const preset = useSyncExternalStore(subscribePresetSplit, getPresetSplit, getServerPresetSplit);
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<YieldRow[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -79,6 +100,8 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
   const [pct, setPct] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [bestPct, setBestPct] = useState<Record<string, string>>({});
+  const [usingPreset, setUsingPreset] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || rows) return;
@@ -111,18 +134,38 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
         const extra = cur
           .filter((c) => !ranked.some((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()))
           .map((c) => all.find((r) => r.gauge.toLowerCase() === c.gauge.toLowerCase()) ?? { gauge: c.gauge, symbol: c.symbol, feesUsdPerDay: 0, incentivesUsdPerDay: 0, usdPerDay: 0, sharePct: 0, weight: 0, windowHours: 0 });
-        setRows([...ranked, ...extra]);
-        if (split) setPct(Object.fromEntries(split.parts.map((p) => [p.gauge, String(p.pct)])));
-        else {
-          const eq = equalShares(Math.min(3, ranked.length));
-          setPct(Object.fromEntries(ranked.slice(0, eq.length).map((r, i) => [r.gauge, String(eq[i])])));
-        }
+        const best: Record<string, string> = split
+          ? Object.fromEntries(split.parts.map((p) => [p.gauge, String(p.pct)]))
+          : (() => {
+              const eq = equalShares(Math.min(3, ranked.length));
+              return Object.fromEntries(ranked.slice(0, eq.length).map((r, i) => [r.gauge, String(eq[i])]));
+            })();
+        setBestPct(best);
+        const start = getPresetSplit();
+        setRows(withPresetRows([...ranked, ...extra], start, all, symbolOf));
+        if (start) {
+          setPct(presetPct(start, [...ranked, ...extra, ...all]));
+          setUsingPreset(start.from);
+        } else setPct(best);
       })
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
   }, [open, rows, position]);
+
+  // A split copied while the panel is already open replaces the shares (the owner still checks them before signing). Adjusting state when
+  // a value changes, during render, is React's own pattern for this; an effect would render the old shares first.
+  const [seenPreset, setSeenPreset] = useState(preset);
+  if (preset !== seenPreset) {
+    setSeenPreset(preset);
+    if (preset && rows) {
+      const next = withPresetRows(rows, preset, rows, (a) => `${a.slice(0, 6)}…`);
+      setRows(next);
+      setPct(presetPct(preset, next));
+      setUsingPreset(preset.from);
+    }
+  }
 
   const picks = useMemo(
     () =>
@@ -216,6 +259,22 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
         </p>
       )}
       {current && current.length === 0 && <p className={`mt-3 ${NOTE}`}>Nothing is allocated to gauges on Base yet.</p>}
+      {usingPreset && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-sm text-sky-300">
+          <span>Starting from {usingPreset}&rsquo;s Base split. Check the shares before you sign.</span>
+          <button
+            type="button"
+            className={chip(false)}
+            onClick={() => {
+              setPresetSplit(null);
+              setUsingPreset(null);
+              setPct(bestPct);
+            }}
+          >
+            use the best split instead
+          </button>
+        </div>
+      )}
       {failed && <p className="mt-2 text-sm text-rose-400">Couldn&rsquo;t load gauges. Try again in a moment.</p>}
       {!rows && !failed && <p className={`mt-3 ${NOTE}`}>Loading gauges…</p>}
       {rows && (

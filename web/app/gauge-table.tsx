@@ -17,6 +17,7 @@ import { QuickSplit } from "./quick-split";
 import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
+import { TopAllocatorsPanel } from "./top-allocators";
 import { btn, chip, H2, input, NOTE, NUM, TAG } from "./ui";
 
 const SHOWN = 10;
@@ -315,6 +316,7 @@ export function GaugeTable() {
           <div className={fold}>
             {fees && data && parsed.ok && !allMode && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
             {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
+            {fees && data && parsed.ok && onBase && <TopAllocatorsPanel gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />}
           </div>
         </div>
       )}
