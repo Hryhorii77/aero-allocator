@@ -7,7 +7,7 @@ import type { GaugeRow } from "@/lib/gauges";
 import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { aprPct, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { projectRange } from "@/lib/projection";
-import { bestSplit } from "@/lib/split";
+import { bestSplit, splitRate } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
 import { ago } from "@/lib/ago";
 import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
@@ -61,7 +61,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }:
   const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount, undefined, { waitSec: cooldownSec }), [gauges, fees, amount, cooldownSec]);
   const split = useMemo(
-    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount),
+    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), amount),
     [ranked, amount],
   );
   if (!(amount > 0)) return <p className="mt-2 text-sm text-amber-500">Enter an amount above zero.</p>;
@@ -84,7 +84,7 @@ export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }:
           label={gain >= 0.5 ? "more than putting it all in the top gauge" : "as putting it all in the top gauge"}
         />
         <Card value={`$${usd2((split.usdPerDay * lockHours) / 24)}`} label={`over the ${lockHours} h lock before you can move it`} />
-        <Card value={conf} label={spiky ? "a gauge in this split is releasing far more fees than usual right now; the range below counts it at its usual level" : `how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
+        <Card value={conf} label={spiky ? "a gauge in this split is releasing far more fees than usual right now; the split and its range count it at its usual level, not the burst" : `how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
       </div>
       <p className="mt-3 text-sm text-neutral-300">
         Best split:{" "}

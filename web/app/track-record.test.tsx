@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { TrackSummary } from "@/lib/track-record";
 import { TrackRecordPanel } from "./track-record";
 
-const base: TrackSummary = { chainId: 8453, amount: 10_000, logged: 5, evaluated: 3, needed: 14, rows: [] };
+const base: TrackSummary = { chainId: 8453, amount: 10_000, logged: 5, evaluated: 3, needed: 14, rule: 2, earlierRule: 0, rows: [] };
 const stub = (data: unknown, ok = true) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok, status: ok ? 200 : 500, json: async () => data })));
 
 afterEach(() => vi.unstubAllGlobals());
@@ -25,8 +25,8 @@ describe("TrackRecordPanel", () => {
       evaluated: 16,
       results: { medianRealizedOfPredicted: 0.62, atLeastLow: 11, avgPredictedUsd: 10.5, avgRealizedUsd: 6.8 },
       rows: [
-        { day: 20_400, parts: [{ s: "A/B", pct: 60 }, { s: "C/D", pct: 40 }], paceUsd: 10.5, lowUsd: 5, realizedUsd: 6.8 },
-        { day: 20_399, parts: [{ s: "A/B", pct: 100 }], paceUsd: 9, lowUsd: 4, realizedUsd: null },
+        { day: 20_400, parts: [{ s: "A/B", pct: 60 }, { s: "C/D", pct: 40 }], paceUsd: 10.5, lowUsd: 5, realizedUsd: 6.8, rule: 2 },
+        { day: 20_399, parts: [{ s: "A/B", pct: 100 }], paceUsd: 9, lowUsd: 4, realizedUsd: null, rule: 2 },
       ],
     });
     render(<TrackRecordPanel />);
@@ -63,7 +63,7 @@ describe("TrackRecordPanel", () => {
   });
 
   it("lists the logged days before results only on its own page, open, with each still marked not checked", async () => {
-    const early = { ...base, logged: 1, evaluated: 0, rows: [{ day: 20_757, parts: [{ s: "WETH/LCAP · CL200", pct: 74.03 }, { s: "cbETH/WETH · CL1", pct: 25.97 }], paceUsd: 5.24, lowUsd: 4.2, realizedUsd: null }] };
+    const early = { ...base, logged: 1, evaluated: 0, rows: [{ day: 20_757, parts: [{ s: "WETH/LCAP · CL200", pct: 74.03 }, { s: "cbETH/WETH · CL1", pct: 25.97 }], paceUsd: 5.24, lowUsd: 4.2, realizedUsd: null, rule: 2 }] };
     stub(early);
     const { unmount, container } = render(<TrackRecordPanel standalone />);
     expect(await screen.findByText("WETH/LCAP · CL200 74.03% · cbETH/WETH · CL1 25.97%")).toBeInTheDocument();
@@ -75,5 +75,12 @@ describe("TrackRecordPanel", () => {
     render(<TrackRecordPanel />);
     expect(await screen.findByText(/1 logged, 0 checked/)).toBeInTheDocument();
     expect(screen.queryByText("Day by day")).not.toBeInTheDocument();
+  });
+
+  it("marks rows chosen under an earlier ranking rule and says they are not counted", async () => {
+    stub({ ...base, logged: 0, evaluated: 0, earlierRule: 1, rows: [{ day: 20_758, parts: [{ s: "WETH/MORPHO · CL200", pct: 100 }], paceUsd: 5.26, lowUsd: 1.25, realizedUsd: 1.5, rule: 1 }] });
+    render(<TrackRecordPanel standalone />);
+    expect(await screen.findByText("earlier rule")).toBeInTheDocument();
+    expect(screen.getByText(/don.t count toward the results/)).toBeInTheDocument();
   });
 });

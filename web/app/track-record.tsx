@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { TrackSummary } from "@/lib/track-record";
-import { LINK, NOTE, NUM } from "./ui";
+import { LINK, NOTE, NUM, TAG } from "./ui";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = (day: number) => new Date(day * 86_400_000).toISOString().slice(0, 10);
@@ -66,7 +66,10 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
               <li key={row.day} className="py-2">
                 {/* Date above the figures on a phone: side by side they overflowed a 360px screen by 70px. */}
                 <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-                  <span className="whitespace-nowrap text-neutral-200">{date(row.day)}</span>
+                  <span className="whitespace-nowrap text-neutral-200">
+                    {date(row.day)}
+                    {row.rule !== data.rule && <span className={`ml-2 ${TAG} text-neutral-400`} title="Chosen under an earlier ranking rule: shown, not counted in the results">earlier rule</span>}
+                  </span>
                   <span className={`sm:shrink-0 sm:text-right ${NUM}`}>
                     <span className="text-neutral-400">${usd(row.paceUsd)} predicted</span> ·{" "}
                     <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>{row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual`}</span>
@@ -77,6 +80,13 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
             ))}
           </ul>
         </details>
+      )}
+      {data.earlierRule > 0 && (
+        <p className={`mt-2 ${NOTE}`}>
+          Days marked &ldquo;earlier rule&rdquo; were chosen before 2026-11-04, when the split still ranked a pool by a burst of fees (the two checked
+          ones paid far less than predicted). Since then a pool whose fees are a burst is ranked at its usual level. Those days stay listed but
+          don&rsquo;t count toward the results.
+        </p>
       )}
       <p className={`mt-2 ${NOTE}`}>
         &ldquo;Actual&rdquo; takes the fees and incentives each gauge really paid on the day of the entry and the next, and gives your amount the share of the gauge it would have had at the end of that

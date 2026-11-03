@@ -441,6 +441,8 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             logged: { type: "integer", description: "Days logged so far." },
             evaluated: { type: "integer", description: "Days whose following two days are recorded, so the split could be checked." },
             needed: { type: "integer", description: "Checked days needed before results are shown." },
+            rule: { type: "integer", description: "The ranking rule now running. 2 (from 2026-11-04): a gauge whose fee pace is a burst is ranked at its usual level. logged, evaluated and results count only entries of this rule." },
+            earlierRule: { type: "integer", description: "Listed entries chosen under an earlier rule: shown in rows, never counted." },
             results: {
               type: "object",
               description: "Present only once `evaluated` reaches `needed`.",
@@ -462,6 +464,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                   paceUsd: num("Predicted USD per day at the fee pace of the time."),
                   lowUsd: num("The low case, USD per day."),
                   realizedUsd: nullable(num("USD per day it really paid; null until both days are recorded.")),
+                  rule: { type: "integer", description: "The ranking rule that chose this split." },
                 },
               },
             },

@@ -1,13 +1,14 @@
 import type { Address } from "viem";
-import { bestSplit, type SplitPart } from "./split";
+import { bestSplit, type SplitPart, splitRate } from "./split";
 import { BASE_CHAIN } from "./aero-chains";
 import { paceConfidence } from "./gauge-yield";
+import type { Spike } from "./fee-history";
 
 /** What one chain offers an amount: its ranked gauges (from `rankByUsdPerDay`, so thin, light and unpriced gauges are already out). */
 export interface ChainBook {
   chainId: number;
   name: string;
-  rows: Array<{ gauge: string; symbol: string; feesUsdPerDay: number; incentivesUsdPerDay: number; weight: number; windowHours: number; spike?: unknown }>;
+  rows: Array<{ gauge: string; symbol: string; feesUsdPerDay: number; incentivesUsdPerDay: number; weight: number; windowHours: number; spike?: Spike }>;
 }
 
 export interface ChainShare {
@@ -48,7 +49,7 @@ function evaluate(books: ChainBook[], amount: number, days: number, feeUsd: (cha
       const k = key(b.chainId, r.gauge);
       spikeOf.set(k, !!r.spike);
       hoursOf.set(k, r.windowHours);
-      return { gauge: k as unknown as Address, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight };
+      return { gauge: k as unknown as Address, symbol: r.symbol, rate: splitRate(r), weight: r.weight };
     }),
   );
   const split = bestSplit(pool, amount);

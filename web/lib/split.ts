@@ -23,6 +23,15 @@ export interface Split {
 const MIN_PART_PCT = 1;
 
 /**
+ * What a gauge pays per day for ranking and pricing a split: fees plus incentives, with a gauge whose recent fee pace is a burst (`spike`,
+ * at least SPIKE_RATIO times its usual level) counted at its usual level instead. Bursts fade, and ranking on them put whole splits on a
+ * pool that had just had one (2026-11-01: WETH/MORPHO, $5.26 a day predicted, $1.50 paid, near its $1.25 low case). The table still
+ * shows the burst, labelled "spiky"; only the advice stops chasing it. Never above the pace.
+ */
+export const splitRate = (r: Pick<YieldRow, "feesUsdPerDay" | "incentivesUsdPerDay" | "spike">): number =>
+  (r.spike ? Math.min(r.feesUsdPerDay, r.spike.typicalUsdPerDay) : r.feesUsdPerDay) + r.incentivesUsdPerDay;
+
+/**
  * Splits `amount` across gauges to earn the most per day. A gauge pays `rate` USD/day (fees + incentives) to everyone in it, so
  * putting `a` into a gauge that already holds `weight` earns rate * a / (weight + a): each extra dollar of power earns less than the
  * last. The best split equalises the marginal return across the gauges used (water-filling), found by bisection on that marginal
@@ -103,7 +112,7 @@ export function currentUsdPerDay(
       unmeasured.push(c.symbol);
       continue;
     }
-    usd += ((r.feesUsdPerDay + r.incentivesUsdPerDay) * own) / (r.weight + own);
+    usd += (splitRate(r) * own) / (r.weight + own);
   }
   return { usd, unmeasured };
 }

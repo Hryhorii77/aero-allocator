@@ -1,4 +1,4 @@
-import { bestSplit } from "./split";
+import { bestSplit, splitRate } from "./split";
 import type { ChainBook, ChainShare } from "./all-chains-split";
 
 export interface CustomShare {
@@ -57,11 +57,11 @@ export function customChainSplit(shares: CustomShare[], power: number, books: Ch
       if (unknown) return { error: `A gauge you picked on ${s.name} has no fee estimate yet, so it can't be planned.` };
       parts = picked.map(({ c, row }) => {
         const a = (amount * c.hundredths) / 10_000;
-        const rate = row!.feesUsdPerDay + row!.incentivesUsdPerDay;
+        const rate = splitRate(row!);
         return { symbol: row!.symbol, gauge: c.gauge, pctOfChain: c.hundredths / 100, usdPerDay: (rate * a) / (row!.weight + a) };
       });
     } else {
-      const split = bestSplit(rows.map((r) => ({ gauge: r.gauge as never, symbol: r.symbol, rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount, 4);
+      const split = bestSplit(rows.map((r) => ({ gauge: r.gauge as never, symbol: r.symbol, rate: splitRate(r), weight: r.weight })), amount, 4);
       if (!split) return { error: `No gauge on ${s.name} has a fee estimate yet, so a share there can't be planned.` };
       parts = split.parts.map((p) => ({ symbol: p.symbol, gauge: String(p.gauge), pctOfChain: p.pct, usdPerDay: p.usdPerDay }));
     }

@@ -5,7 +5,7 @@ import { DISPLAY_PRESET } from "@/lib/protocol";
 import { gaugeLabel, getGauges } from "@/lib/gauges";
 import { getGaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay } from "@/lib/gauge-yield";
-import { bestSplit } from "@/lib/split";
+import { bestSplit, splitRate } from "@/lib/split";
 import { BASE_CHAIN } from "@/lib/aero-chains";
 import { shareAmount } from "@/lib/share-amount";
 
@@ -44,7 +44,7 @@ function card(c: Palette, big: string, sub: string, foot: string, maxAge: number
 async function saeroCard(c: Palette, amount: number) {
   const [list, fees] = await Promise.all([getGauges(BASE_CHAIN.id), getGaugeFees(BASE_CHAIN.id)]);
   const ranked = rankByUsdPerDay(list.gauges, fees.fees, amount);
-  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount);
+  const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), amount);
   const sAero = `${amount.toLocaleString("en-US")} sAERO`;
   if (!split) return noNumberCard(c, 300);
   // The footer line shares its row with the site name and fits about 38 characters: as many gauges as fit, then "+N more".

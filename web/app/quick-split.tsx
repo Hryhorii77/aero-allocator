@@ -7,7 +7,7 @@ import { gaugeLabel } from "@/lib/gauges";
 import { aprPct, incentiveEndText, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { projectRange } from "@/lib/projection";
 import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
-import { bestSplit } from "@/lib/split";
+import { bestSplit, splitRate } from "@/lib/split";
 import { btn, NOTE, NUM } from "./ui";
 import { fmtApr } from "./allocation-desk";
 
@@ -25,7 +25,7 @@ export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: Gaug
   const [mountedMs] = useState(() => Date.now());
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount, undefined, { waitSec }), [gauges, fees, amount, waitSec]);
   const split = useMemo(
-    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: r.feesUsdPerDay + r.incentivesUsdPerDay, weight: r.weight })), amount, QUICK_PARTS),
+    () => bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), amount, QUICK_PARTS),
     [ranked, amount],
   );
   if (!(amount > 0) || !split) return null;

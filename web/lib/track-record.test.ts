@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC, rollupDays } from "./daily-history";
-import { addEntry, inLogWindow, MIN_DAYS_TO_SHOW, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type TrackEntry, type TrackLog } from "./track-record";
+import { addEntry, inLogWindow, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type TrackEntry, type TrackLog } from "./track-record";
 import type { GaugeRow } from "./gauges";
 
 const G1 = "0x00000000000000000000000000000000000000a1";
 const G2 = "0x00000000000000000000000000000000000000a2";
 const gauge = (g: string, weight: number): GaugeRow => ({ gauge: g as `0x${string}`, pool: "0x1" as `0x${string}`, symbol: g.slice(-2), weight, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 });
-const entry = (day: number, o: Partial<TrackEntry> = {}): TrackEntry => ({ t: day * 86_400 + 600, day, amount: 10_000, parts: [{ g: G1, s: "A", pct: 100 }], paceUsd: 10, lowUsd: 5, ...o });
+const entry = (day: number, o: Partial<TrackEntry> = {}): TrackEntry => ({ t: day * 86_400 + 600, day, amount: 10_000, parts: [{ g: G1, s: "A", pct: 100 }], paceUsd: 10, lowUsd: 5, rule: RANK_RULE, ...o });
 // A daily record with fees in USD, weights in tokens and incentives in USD/week, as rollupDays writes it.
 const daily = (points: Array<{ d: number; f: number[]; w: number[]; i: number[] }>): DailyHistory => ({ version: 1, chainId: 8453, gauges: [G1, G2], seen: [1, 1], points });
 
@@ -20,6 +20,17 @@ describe("recommend", () => {
     expect(e!.parts.reduce((s, p) => s + p.pct, 0)).toBeCloseTo(100, 2);
     expect(e!.paceUsd).toBeGreaterThan(0);
     expect(e!.lowUsd).toBeLessThanOrEqual(e!.paceUsd);
+  });
+  it("marks the entry with the ranking rule now running, and ranks a spiking gauge at its usual level", () => {
+    const now = 1_000 * 86_400 + 300;
+    const fees = { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [
+      { gauge: G1 as `0x${string}`, feesUsdPerDay: 5000, windowHours: 40, spike: { typicalUsdPerDay: 100 } },
+      { gauge: G2 as `0x${string}`, feesUsdPerDay: 900, windowHours: 40 },
+    ] };
+    const e = recommend([gauge(G1, 200_000), gauge(G2, 200_000)], fees, now)!;
+    expect(e.rule).toBe(RANK_RULE);
+    expect(e.parts[0].g).toBe(G2.toLowerCase());
+    expect(e.parts.find((p) => p.g === G1.toLowerCase())?.pct ?? 0).toBeLessThan(50);
   });
   it("is null when nothing can be ranked", () => {
     expect(recommend([gauge(G1, 200_000)], { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [] }, 1)).toBeNull();
@@ -86,6 +97,17 @@ describe("summarize", () => {
     expect(s.results?.atLeastLow).toBe(MIN_DAYS_TO_SHOW);
     expect(s.results?.avgRealizedUsd).toBeCloseTo(100, 4);
     expect(s.rows[0].day).toBe(MIN_DAYS_TO_SHOW - 1); // newest first
+  });
+  it("counts only entries of the current rule toward the results, and says how many earlier-rule entries it lists", () => {
+    const { log, d } = days(MIN_DAYS_TO_SHOW, 1_000);
+    const older = { ...log!, entries: log!.entries.map((e, k) => (k < 3 ? { ...e, rule: undefined } : { ...e, rule: RANK_RULE })) };
+    const s = summarize(older, d);
+    expect(s.rule).toBe(RANK_RULE);
+    expect(s.earlierRule).toBe(3);
+    expect(s.logged).toBe(MIN_DAYS_TO_SHOW - 3);
+    expect(s.evaluated).toBe(MIN_DAYS_TO_SHOW - 3);
+    expect(s.results).toBeUndefined(); // 14 days logged, but 3 were under the old rule
+    expect(s.rows.filter((r) => r.rule === 1)).toHaveLength(3);
   });
   it("counts an entry as not evaluated while its days are not recorded, and survives no data at all", () => {
     const { log } = days(3, 1_000);
