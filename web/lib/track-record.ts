@@ -84,7 +84,9 @@ export function realizedUsdPerDay(entry: TrackEntry, daily: DailyHistory | null)
       const inc = i === undefined ? undefined : point.i[i];
       if (fees === undefined || weight === undefined || inc === undefined) return null;
       const amt = (entry.amount * part.pct) / 100;
-      total += (fees / 100 + inc / 7) * (amt / (weight + amt));
+      // The daily record holds fees in USD (rounded to the cent) and incentives in USD per week. Until 2026-11-03 this divided fees by 100
+      // as if they were cents, so every "actual" figure was 100 times too small (the WETH/MORPHO day showed $0.015 for a real $1.50).
+      total += (fees + inc / 7) * (amt / (weight + amt));
     }
   }
   return total / 2;

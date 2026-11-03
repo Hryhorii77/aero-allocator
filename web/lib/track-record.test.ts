@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DailyHistory } from "./daily-history";
+import { DAY_SEC, rollupDays } from "./daily-history";
 import { addEntry, inLogWindow, MIN_DAYS_TO_SHOW, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type TrackEntry, type TrackLog } from "./track-record";
 import type { GaugeRow } from "./gauges";
 
@@ -7,7 +8,7 @@ const G1 = "0x00000000000000000000000000000000000000a1";
 const G2 = "0x00000000000000000000000000000000000000a2";
 const gauge = (g: string, weight: number): GaugeRow => ({ gauge: g as `0x${string}`, pool: "0x1" as `0x${string}`, symbol: g.slice(-2), weight, sharePct: 1, capPerWeek: 1, activated: true, incentivesUsdPerWeek: 0, incentivesUsdPer1k: 0 });
 const entry = (day: number, o: Partial<TrackEntry> = {}): TrackEntry => ({ t: day * 86_400 + 600, day, amount: 10_000, parts: [{ g: G1, s: "A", pct: 100 }], paceUsd: 10, lowUsd: 5, ...o });
-// A daily record with fees in cents, weights in tokens and incentives in USD/week.
+// A daily record with fees in USD, weights in tokens and incentives in USD/week, as rollupDays writes it.
 const daily = (points: Array<{ d: number; f: number[]; w: number[]; i: number[] }>): DailyHistory => ({ version: 1, chainId: 8453, gauges: [G1, G2], seen: [1, 1], points });
 
 describe("recommend", () => {
@@ -46,11 +47,11 @@ describe("realizedUsdPerDay", () => {
   it("averages the entry's own day and the next: (fees + incentives per day) times the share of the gauge's weight", () => {
     // Day 5: fees $400, weight 90,000, incentives $70/week ($10/day): (400 + 10) x 10,000/100,000 = 41
     // Day 6: fees $200, weight 190,000, no incentives: 200 x 10,000/200,000 = 10. Average 25.5.
-    const d = daily([{ d: 5, f: [40_000, 0], w: [90_000, 0], i: [70, 0] }, { d: 6, f: [20_000, 0], w: [190_000, 0], i: [0, 0] }]);
+    const d = daily([{ d: 5, f: [400, 0], w: [90_000, 0], i: [70, 0] }, { d: 6, f: [200, 0], w: [190_000, 0], i: [0, 0] }]);
     expect(realizedUsdPerDay(entry(5), d)).toBeCloseTo(25.5, 6);
   });
   it("sums the parts of a split by their own share of the amount", () => {
-    const d = daily([{ d: 5, f: [10_000, 10_000], w: [40_000, 90_000], i: [0, 0] }, { d: 6, f: [10_000, 10_000], w: [40_000, 90_000], i: [0, 0] }]);
+    const d = daily([{ d: 5, f: [100, 100], w: [40_000, 90_000], i: [0, 0] }, { d: 6, f: [100, 100], w: [40_000, 90_000], i: [0, 0] }]);
     const e = entry(5, { parts: [{ g: G1, s: "A", pct: 50 }, { g: G2, s: "B", pct: 50 }] });
     // 100 x 5,000/45,000 + 100 x 5,000/95,000
     expect(realizedUsdPerDay(e, d)).toBeCloseTo(100 * (5000 / 45000) + 100 * (5000 / 95000), 6);
@@ -70,7 +71,7 @@ describe("summarize", () => {
     return { log, d: daily(points) };
   };
   it("shows no results before enough days are evaluated, but says how many it has", () => {
-    const { log, d } = days(MIN_DAYS_TO_SHOW - 1, 100_000);
+    const { log, d } = days(MIN_DAYS_TO_SHOW - 1, 1_000);
     const s = summarize(log, d);
     expect(s.logged).toBe(MIN_DAYS_TO_SHOW - 1);
     expect(s.evaluated).toBe(MIN_DAYS_TO_SHOW - 1);
@@ -78,7 +79,7 @@ describe("summarize", () => {
   });
   it("reports the median of realized over predicted and how often the low case was met, once there are enough days", () => {
     // fees $1,000/day, weight 90,000, share 0.1 -> realized $100/day against a predicted $10: ratio 10; low case $5 always met.
-    const { log, d } = days(MIN_DAYS_TO_SHOW, 100_000);
+    const { log, d } = days(MIN_DAYS_TO_SHOW, 1_000);
     const s = summarize(log, d);
     expect(s.evaluated).toBe(MIN_DAYS_TO_SHOW);
     expect(s.results?.medianRealizedOfPredicted).toBe(10);
@@ -87,8 +88,25 @@ describe("summarize", () => {
     expect(s.rows[0].day).toBe(MIN_DAYS_TO_SHOW - 1); // newest first
   });
   it("counts an entry as not evaluated while its days are not recorded, and survives no data at all", () => {
-    const { log } = days(3, 100_000);
+    const { log } = days(3, 1_000);
     expect(summarize(log, null).evaluated).toBe(0);
     expect(summarize(null, null)).toMatchObject({ logged: 0, evaluated: 0, rows: [] });
   });
 });
+
+describe("realizedUsdPerDay reads the record the real writer makes", () => {
+  it("counts a $3,793.91 day as dollars: the units of rollupDays and realizedUsdPerDay agree", () => {
+    // The WETH/MORPHO entry of 2026-11-01 (day 20758) with its real figures: fees $3,793.91 and $1,903.85, weight 19,066,276 and 18,878,891.
+    const D = 20_758;
+    const at = (d: number, h: number) => d * DAY_SEC + h * 3600;
+    const releases = [{ gauge: G1, releases: [{ t: at(D - 1, 1), usd: 1 }, { t: at(D, 12), usd: 3793.91 }, { t: at(D + 1, 12), usd: 1903.85 }] }];
+    const weights = { version: 1 as const, chainId: 8453, gauges: [G1], points: [{ t: at(D, 23), w: [19_066_276], i: [0] }, { t: at(D + 1, 23), w: [18_878_891], i: [0] }] };
+    const record = rollupDays(null, 8453, releases, at(D - 1, 0), weights, at(D + 2, 1))!;
+    const got = realizedUsdPerDay(entry(D), record)!;
+    const want = (3793.91 * 10_000) / (19_066_276 + 10_000) / 2 + (1903.85 * 10_000) / (18_878_891 + 10_000) / 2;
+    expect(got).toBeCloseTo(want, 6);
+    expect(got).toBeGreaterThan(1.4); // about $1.50 a day, not the $0.015 the cents bug showed
+    expect(got).toBeLessThan(1.6);
+  });
+});
+
