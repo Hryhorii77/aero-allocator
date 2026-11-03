@@ -18,6 +18,7 @@ import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
 import { TopAllocatorsPanel } from "./top-allocators";
+import { AutopilotComparePanel } from "./autopilot-compare";
 import { btn, chip, H2, input, NOTE, NUM, TAG } from "./ui";
 import { fetchJson, fetchJsonOrNull } from "@/lib/fetch-json";
 
@@ -311,6 +312,7 @@ export function GaugeTable() {
           )}
           <div className={fold}>
             {fees && data && parsed.ok && !allMode && <AllocationDesk gauges={data.gauges} fees={fees} amount={amount} chainName={chainName} cooldownSec={data.cooldownSec} />}
+            {fees && data && parsed.ok && onBase && <AutopilotComparePanel gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />}
             {fees && data && parsed.ok && <AllChainsSplitPanel amount={amount} />}
             {fees && data && parsed.ok && onBase && <TopAllocatorsPanel gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />}
           </div>
