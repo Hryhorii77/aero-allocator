@@ -16,6 +16,8 @@ export interface TopAllocator {
   onBase: number;
   /** The Base split: each gauge's share of the position's Base allocation, in percent with two decimals, adding up to exactly 100. */
   parts: Array<{ gauge: string; pct: number }>;
+  /** True when the position is one of Aero Autopilot's pools (its owner was made by Autopilot's factory). */
+  autopilot?: boolean;
 }
 
 export interface TopAllocators {

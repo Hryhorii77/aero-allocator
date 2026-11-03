@@ -7,7 +7,7 @@ import { gaugeLabel, type GaugeRow } from "@/lib/gauges";
 import { setPresetSplit } from "@/lib/preset-split";
 import { bestSplit, splitRate } from "@/lib/split";
 import { priceCopy, type TopAllocators } from "@/lib/top-allocators";
-import { btn, NOTE, NUM } from "./ui";
+import { btn, NOTE, NUM, TAG } from "./ui";
 import { fetchJson } from "@/lib/fetch-json";
 
 const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,7 +83,9 @@ export function TopAllocatorsPanel({ gauges, fees, amount, cooldownSec }: { gaug
                 <li key={a.tokenId} className="py-2.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span className="text-sm text-neutral-100">
-                      #{a.tokenId} <span className={`text-neutral-400 ${NUM}`}>· {big(a.power)} power ({share.toFixed(1)}% of all) · {Math.round(onBasePct)}% on Base</span>
+                      #{a.tokenId}
+                      {a.autopilot && <span className={`ml-1.5 ${TAG} text-sky-300`} title="One of Aero Autopilot's pooled positions: many depositors, allocated by Aero's keeper">Aero Autopilot</span>}{" "}
+                      <span className={`text-neutral-400 ${NUM}`}>· {big(a.power)} power ({share.toFixed(1)}% of all) · {Math.round(onBasePct)}% on Base</span>
                     </span>
                     {priced && (
                       <span className={`text-sm ${NUM}`}>
