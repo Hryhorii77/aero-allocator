@@ -295,6 +295,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             },
             poolType: str('"CL100" (concentrated liquidity, by tick spacing), "stable" or "volatile"; may be empty.'),
             feePct: nullable(num("Current fee of a concentrated-liquidity pool in percent; null for classic pools.")),
+            mevTax: { type: "boolean", const: true, description: "Present (true) when swaps that bid a high priority fee pay this pool Aero's MEV tax, read from the chain. Absent otherwise." },
           },
         },
         GaugeFees: {

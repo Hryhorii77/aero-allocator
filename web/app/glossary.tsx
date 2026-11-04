@@ -40,6 +40,11 @@ export function glossaryTerms(flowHours?: number): Array<{ term: string; meaning
       meaning:
         "The pool type. CL and a number is a concentrated-liquidity pool: the number is its tick spacing (small for pairs that move together, larger for volatile ones) and the percent next to it is its current fee. Volatile and stable are the classic pools.",
     },
+    {
+      term: "MEV tax",
+      meaning:
+        "Aero's pilot, live on OP's concentrated pools since November 2026: a swap that bids a high priority fee to get in first (usually a bot) pays the pool up to 10% extra, and that extra is part of the fees the gauge pays out. Ordinary swaps pay nothing more. The fee pace already counts it, but Aero is still tuning it, so the pace can move when the settings change. The tag is read from the chain, so it appears on any pool where Aero switches the tax on.",
+    },
   ];
 }
 

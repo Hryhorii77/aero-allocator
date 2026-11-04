@@ -442,6 +442,11 @@ export function GaugeTable() {
                               {g.feePct != null ? ` · ${g.feePct < 0.1 ? g.feePct.toFixed(3) : g.feePct.toFixed(2)}%` : ""}
                             </span>
                           )}
+                          {g.mevTax && (
+                            <span className={`${TAG} text-neutral-400`} title="Aero's MEV tax pilot: swaps that bid a high priority fee pay this pool up to 10% extra, which goes into its fees">
+                              MEV tax
+                            </span>
+                          )}
                           {hasFees && (
                             <button type="button" aria-expanded={openGauge === key} onClick={() => setOpenGauge(openGauge === key ? null : key)} className="text-xs text-neutral-500 underline-offset-2 hover:text-sky-300 hover:underline">
                               {openGauge === key ? "hide history" : "history"}
