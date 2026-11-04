@@ -183,8 +183,11 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
       "/api/token-prices": {
         get: {
           operationId: "tokenPrices",
-          summary: "USD prices for up to 12 Base token addresses",
-          parameters: [{ name: "tokens", in: "query", required: true, description: "Comma-separated Base token addresses (up to 12).", schema: { type: "string" }, example: BASE_USDC }],
+          summary: "USD prices for up to 12 token addresses on one Aero chain",
+          parameters: [
+            { name: "tokens", in: "query", required: true, description: "Comma-separated token addresses on that chain (up to 12).", schema: { type: "string" }, example: BASE_USDC },
+            { name: "chain", in: "query", required: false, description: "The chain id: 8453 (Base, the default), 1, 10, 42161, 57073, 4663 or 5042.", schema: { type: "integer", default: 8453 } },
+          ],
           responses: { "200": jsonBody(ref("TokenPrices"), "Prices by lowercase address."), ...errorResponses() },
         },
       },

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { getPrices } from "@/lib/prices";
+import { getChainPrices } from "@/lib/chain-prices";
+import { BASE_CHAIN, chainById } from "@/lib/aero-chains";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -8,7 +10,7 @@ export const maxDuration = 30;
 
 const MAX_TOKENS = 12;
 
-// USD prices for a few Base token addresses (the fee tokens of gauges), so the page can value a position's earned fees in the browser
+// USD prices for a few token addresses on one Aero chain (`chain`, Base when left out) (the fee tokens of gauges), so the page can value a position's earned fees in the browser
 // without sending the position or the wallet anywhere: only public token addresses go in. Unpriced tokens are simply left out.
 export const GET = withApiErrorHandling("token-prices", async (req: Request) => {
   const rl = checkRateLimit(req, { key: "token-prices", limit: 30, windowMs: 60_000 });
@@ -18,7 +20,11 @@ export const GET = withApiErrorHandling("token-prices", async (req: Request) => 
   if (tokens.length === 0 || tokens.length > MAX_TOKENS || tokens.some((t) => !isAddress(t))) {
     return NextResponse.json({ error: `tokens must be 1-${MAX_TOKENS} comma-separated addresses` }, { status: 400 });
   }
-  const found = await getPrices(tokens).catch(() => new Map());
+  const rawChain = new URL(req.url).searchParams.get("chain");
+  const cfg = rawChain === null ? BASE_CHAIN : chainById(Number(rawChain));
+  if (!cfg) return NextResponse.json({ error: "chain must be an Aero chain id" }, { status: 400 });
+  const found: Map<string, { priceUsd: number } | null> =
+    cfg.id === BASE_CHAIN.id ? await getPrices(tokens).catch(() => new Map()) : await getChainPrices(cfg.llama, tokens as `0x${string}`[]).catch(() => new Map());
   const prices: Record<string, number> = {};
   for (const t of tokens) {
     const p = found.get(t);

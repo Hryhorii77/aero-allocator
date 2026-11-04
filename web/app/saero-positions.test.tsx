@@ -138,7 +138,7 @@ describe("SaeroPositions", () => {
     expect(screen.queryByRole("button", { name: /allocate|return/i })).not.toBeInTheDocument();
   });
 
-  it("flags an operator set on a position, and offers the earned-fees button", async () => {
+  it("flags an operator set on a position, and offers the earnings button", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) => (functionName === "balanceOf" ? 1n : 169_200));
     read.readContracts
       .mockResolvedValueOnce([9n])
@@ -155,7 +155,7 @@ describe("SaeroPositions", () => {
     fireEvent.click(screen.getByRole("button", { name: "read" }));
     expect(await screen.findByText("#9")).toBeInTheDocument();
     expect(screen.getByText(/An operator \(0xC6bc…985B\) is set on this position/)).toHaveTextContent(/Autopilot/);
-    expect(screen.getByRole("button", { name: "show fees earned so far" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "show earnings so far" })).toBeInTheDocument();
   });
 
   it("explains that each position has its own wait, and that an existing one can't be split", async () => {
