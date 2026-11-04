@@ -28,6 +28,10 @@
     {
       "path": "/api/gauge-fees/ingest?chain=5042",
       "schedule": "2,32 * * * *"
+    },
+    {
+      "path": "/api/reminders/send",
+      "schedule": "0,15,30,45 * * * *"
     }
   ]
 }

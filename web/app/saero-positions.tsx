@@ -24,6 +24,7 @@ import { SITE_URL } from "@/lib/site";
 import { totalCostText } from "@/lib/opportunity";
 import { EarnedFees } from "./earned-fees";
 import { PositionAdviceLine } from "./position-advice-line";
+import { NotifyButton } from "./notify-button";
 import { PositionShare } from "./position-share";
 import { SaeroAllocate } from "./saero-allocate";
 import { SaeroAllocateChains } from "./saero-allocate-chains";
@@ -273,6 +274,7 @@ export function SaeroPositions() {
                       <>
                         {" · "}
                         <ReminderButton tokenId={p.tokenId} readyAtSec={cd.readyAtSec} waitHours={lockHours} />
+                        <NotifyButton tokenId={p.tokenId} readyAtSec={cd.readyAtSec} />
                       </>
                     )}
                   </span>
