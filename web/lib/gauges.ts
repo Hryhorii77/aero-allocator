@@ -1,4 +1,5 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from "viem";
+import { readMevTaxedPools } from "./mev-tax";
 import { RPC_URL, RPC_URL_FALLBACK } from "./rpc-config";
 import { AERO_CHAINS, BASE_CHAIN, chainById, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
@@ -117,6 +118,8 @@ export interface GaugeRow {
   poolType?: string;
   /** Current fee of a concentrated-liquidity pool in percent (they move with volatility); null for classic pools. */
   feePct?: number | null;
+  /** Swaps that pay a high priority fee pay this pool an extra MEV tax (Aero's pilot, OP from 2026-11; lib/mev-tax.ts). Absent otherwise. */
+  mevTax?: true;
 }
 
 /** "WETH/USDC · CL100": the pair plus its kind, so same-named gauges can be told apart. */
@@ -143,7 +146,7 @@ export interface GaugeList {
 
 /** Turns raw per-gauge reads into rows, heaviest first, with each gauge's share of the total. */
 export function buildGaugeRows(
-  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number; incentivePrograms?: ActiveIncentive[]; poolType?: string; feePct?: number | null }>,
+  raw: Array<{ gauge: Address; pool: Address; symbol: string; point: GaugePoint; capPerSec: bigint; activated: boolean; incentivesUsdPerWeek?: number; incentivePrograms?: ActiveIncentive[]; poolType?: string; feePct?: number | null; mevTax?: boolean }>,
   nowSec: number,
 ): { rows: GaugeRow[]; totalWeight: number } {
   const weights = raw.map((r) => gaugeWeight(r.point, nowSec));
@@ -162,6 +165,7 @@ export function buildGaugeRows(
       ...(r.incentivePrograms?.length ? { incentivePrograms: r.incentivePrograms } : {}),
       poolType: r.poolType ?? "",
       feePct: r.feePct ?? null,
+      ...(r.mevTax ? { mevTax: true as const } : {}),
     }))
     .sort((a, b) => b.weight - a.weight);
   return { rows, totalWeight };
@@ -244,6 +248,11 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
   const prices = incentiveTokens.length ? await getChainPrices(cfg.llama, incentiveTokens) : new Map();
   const priceOf = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
 
+  const taxed = await readMevTaxedPools(
+    c,
+    pools.map((pool, i) => ({ pool, concentrated: kindOf(i).poolType.startsWith("CL") })),
+  );
+
   const raw = gauges.map((gauge, i) => {
     const state = per[i * 3 + 2] as readonly [bigint, bigint, number, boolean, boolean, bigint, bigint, bigint, { bias: bigint; slope: bigint; ts: number; permanentStakeBalance: bigint }];
     return {
@@ -256,6 +265,7 @@ export async function readGauges(cfg: AeroChain, nowSec = Math.floor(Date.now() 
       incentivesUsdPerWeek: activeIncentiveUsdPerWeek(byGauge[i], nowSec, priceOf),
       incentivePrograms: activeIncentives(byGauge[i], nowSec, priceOf),
       ...kindOf(i),
+      mevTax: taxed.has(pools[i].toLowerCase()),
     };
   });
   const { rows, totalWeight } = buildGaugeRows(raw, nowSec);

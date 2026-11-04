@@ -9,7 +9,7 @@ describe("Glossary", () => {
     const { container } = render(<Glossary />);
     expect(container.querySelector("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("What do these words mean?"));
-    for (const t of ["You earn / day", "thin, fair, solid pace", "spiky", "steady 5/6", "incentives, incentives (ending)", "Power flow", "CL100, volatile, stable"]) {
+    for (const t of ["You earn / day", "thin, fair, solid pace", "spiky", "steady 5/6", "incentives, incentives (ending)", "Power flow", "CL100, volatile, stable", "MEV tax"]) {
       expect(screen.getByText(t)).toBeInTheDocument();
     }
   });
