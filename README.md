@@ -73,6 +73,7 @@ it by itself); a deployed site without it refuses every call, so history stays e
 | `NEXT_PUBLIC_SITE_URL` | `https://aeroallocator.app` | Public address, for the link-preview image |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | unset | Free [Reown Cloud](https://cloud.reown.com) project id (the domain must be on its allowlist). Enables WalletConnect; without it that connector is left out because its relay socket would hang the tab |
 | `X402_PAYTO_ADDRESS`, `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET` | for the paid routes | See [Paid API (x402)](#paid-api-x402) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | for "notify me" | The key pair for the "your wait is over" browser notifications; make one with `node web/scripts/vapid-keys.mjs`. Without them the button is hidden and `/api/reminders` answers 501. Also needs `BLOB_READ_WRITE_TOKEN` and `CRON_SECRET` (the `/api/reminders/send` cron, every 15 minutes). Changing the keys cuts off reminders already set |
 
 ### Deploying to Vercel
 

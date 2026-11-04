@@ -25,7 +25,11 @@ const nextConfig: NextConfig = {
   // makes the build trace it into those functions, so that import resolves.
   serverExternalPackages: ["@x402/extensions"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The notification service worker (public/sw.js): always re-checked, so a fix reaches every browser on its next visit.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] },
+    ];
   },
   async redirects() {
     return [
