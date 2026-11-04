@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const prices = vi.hoisted(() => ({ getPrices: vi.fn() }));
 vi.mock("@/lib/prices", () => ({ getPrices: prices.getPrices }));
+const chainPrices = vi.hoisted(() => ({ getChainPrices: vi.fn() }));
+vi.mock("@/lib/chain-prices", () => ({ getChainPrices: chainPrices.getChainPrices }));
 
 import { GET } from "./route";
 
@@ -33,5 +35,12 @@ describe("GET /api/token-prices", () => {
     const res = await GET(req(`?tokens=${USDC}`));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ prices: {} });
+  });
+  it("prices another Aero chain's tokens with that chain's slug, and refuses a chain that isn't Aero's", async () => {
+    chainPrices.getChainPrices.mockResolvedValueOnce(new Map([[OTHER.toLowerCase(), { priceUsd: 2, decimals: 18 }]]));
+    const res = await GET(req(`?chain=10&tokens=${OTHER}`));
+    expect(await res.json()).toEqual({ prices: { [OTHER.toLowerCase()]: 2 } });
+    expect(chainPrices.getChainPrices).toHaveBeenCalledWith("optimism", [OTHER.toLowerCase()]);
+    expect((await GET(req(`?chain=999&tokens=${OTHER}`))).status).toBe(400);
   });
 });

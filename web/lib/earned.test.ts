@@ -30,3 +30,24 @@ describe("summariseEarned", () => {
     expect(summariseEarned([{ gauge: G1, token0: USDC, token1: ZEC, amount0: 1n, amount1: 1n }], new Map(), {}).lines).toEqual([]);
   });
 });
+
+describe("summariseAmounts and chains", () => {
+  it("drops dust that would print as zero", async () => {
+    const { summariseAmounts } = await import("./earned");
+    const AERO = "0x940181a94A35A4569E4529A3CDfB74e38FD98631" as const;
+    const m = new Map([[AERO.toLowerCase(), { decimals: 18, symbol: "AERO" }]]);
+    expect(summariseAmounts([{ token: AERO, amount: 10n ** 9n }], m, { [AERO.toLowerCase()]: 0.8 }).lines).toEqual([]);
+    expect(summariseAmounts([{ token: AERO, amount: 10n ** 15n }], m, { [AERO.toLowerCase()]: 0.8 }).lines).toHaveLength(1);
+  });
+  it("keeps chains with anything unclaimed, largest first, and says 'at least' when programs were left out", async () => {
+    const { chainTotal, combineChains } = await import("./earned");
+    const empty = { lines: [], totalUsd: 0, unpriced: false };
+    const some = (usd: number) => ({ lines: [{ token: USDC, symbol: "USDC", amount: usd, usd }], totalUsd: usd, unpriced: false });
+    const all = combineChains([chainTotal(8453, "Base", some(1), some(2)), chainTotal(10, "OP", empty, empty), chainTotal(1, "Ethereum", some(5), empty)], ["Arc"], false);
+    expect(all.chains.map((c) => [c.name, c.totalUsd])).toEqual([["Ethereum", 5], ["Base", 3]]);
+    expect(all.totalUsd).toBe(8);
+    expect(all.atLeast).toBe(false);
+    expect(all.skipped).toEqual(["Arc"]);
+    expect(combineChains([chainTotal(8453, "Base", some(1), empty)], [], true).atLeast).toBe(true);
+  });
+});
