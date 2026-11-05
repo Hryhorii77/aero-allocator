@@ -3,7 +3,7 @@ import { DISPLAY_PRESET } from "./protocol";
 import { getPrices } from "./prices";
 import { RPC_URL, RPC_URL_FALLBACK } from "./rpc-config";
 import { AERO_TOKEN } from "./saero";
-import { BASE_CHAIN, chainById, lookbackBlocks, type AeroChain } from "./aero-chains";
+import { BASE_CHAIN, blockTime, chainById, lookbackBlocks, type AeroChain } from "./aero-chains";
 import { getChainPrices } from "./chain-prices";
 import { client, getGauges, registryAbi } from "./gauges";
 import { feePace, readFeeEvents, type LogReader } from "./gauge-fees";
@@ -100,9 +100,10 @@ export async function updateFeeLedger(chainId = BASE_CHAIN.id, force = false): P
     allowFailure: false,
     contracts: gauges.map((g) => ({ address: cfg.registry, abi: registryAbi, functionName: "gaugeToRewards", args: [g] }) as const),
   });
-  const range = planRange(ledger, head, lookbackBlocks(cfg, MAX_LOOKBACK_BLOCKS));
+  const bt = blockTime(cfg);
+  const range = planRange(ledger, head, lookbackBlocks(cfg, MAX_LOOKBACK_BLOCKS, head, bt));
   const events = range.from <= head ? await readFeeEvents(lc as unknown as LogReader, rewards, range.from, head, 4, { span: cfg.logSpan, addresses: cfg.logAddresses }) : [];
-  ledger = appendEvents(ledger, events, { from: range.from, to: head, reset: range.reset }, Date.now(), cfg.blockSec);
+  ledger = appendEvents(ledger, events, { from: range.from, to: head, reset: range.reset }, Date.now(), bt);
   memo.set(chainId, ledger);
   await saveLedger(ledger, chainId);
   return ledger;
@@ -114,6 +115,7 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
   let ledger = (await loadLedger(chainId)) ?? memo.get(chainId) ?? null;
   if (!ledger || Date.now() - ledger.updatedAt > STALE_AFTER_MS) ledger = await updateFeeLedger(chainId, true);
   const head = await logClient(cfg).getBlockNumber();
+  const bt = blockTime(cfg);
 
   const list = await getGauges(chainId);
   const gauges = list.gauges.map((g) => g.gauge);
@@ -147,16 +149,16 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
 
   const fees: GaugeFee[] = [];
   gauges.forEach((g, i) => {
-    const events = eventsWithin(ledger, rewards[i], head, undefined, cfg.blockSec);
-    const pace = feePace(events, pend.get(g) ?? [], head, price, cfg.blockSec);
+    const events = eventsWithin(ledger, rewards[i], head, undefined, bt);
+    const pace = feePace(events, pend.get(g) ?? [], head, price, bt);
     if (!pace) return;
     // Steadiness looks back over everything the record keeps, not just the 2-day pace window: three half-days need more than 48 h.
-    const buckets = feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, cfg.blockSec), head, price, cfg.blockSec, nowSec, STEADY_BUCKET_HOURS);
+    const buckets = feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, bt), head, price, bt, nowSec, STEADY_BUCKET_HOURS);
     const steady = steadiness(buckets);
     const spike = spikeOf(buckets, pace.usdPerDay);
     fees.push({ gauge: g, feesUsdPerDay: pace.usdPerDay, windowHours: pace.windowSec / 3600, ...(steady ? { steady } : {}), ...(spike ? { spike } : {}) });
   });
-  return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, cfg.blockSec), fees, aeroUsd: await aeroPriceUsd() };
+  return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, bt), fees, aeroUsd: await aeroPriceUsd() };
 }
 
 // Share one result per chain for a few minutes; the work is the multicalls and pricing, the history comes from the record.
@@ -204,14 +206,15 @@ export async function readGaugeHistory(chainId: number, gauge: string, nowSec = 
   let steady: Steadiness | null = null;
   if (ledger) {
     const head = BigInt(ledger.lastBlock);
+    const bt = blockTime(cfg);
     const rewards = await client(cfg).readContract({ address: cfg.registry, abi: registryAbi, functionName: "gaugeToRewards", args: [row.gauge] });
-    const events = eventsWithin(ledger, rewards, head, RETAIN_DAYS, cfg.blockSec);
+    const events = eventsWithin(ledger, rewards, head, RETAIN_DAYS, bt);
     const tokens = [...new Set(events.map((e) => e.token))];
     const prices = await loadPrices(cfg, tokens);
     const price = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
     const at = Math.floor(ledger.updatedAt / 1000);
-    fees = feeBuckets(events, head, price, cfg.blockSec, at, CHART_BUCKET_HOURS);
-    steady = steadiness(feeBuckets(events, head, price, cfg.blockSec, at, STEADY_BUCKET_HOURS));
+    fees = feeBuckets(events, head, price, bt, at, CHART_BUCKET_HOURS);
+    steady = steadiness(feeBuckets(events, head, price, bt, at, STEADY_BUCKET_HOURS));
   }
   const idx = wh ? wh.gauges.indexOf(row.gauge.toLowerCase()) : -1;
   const weights = wh && idx >= 0 ? wh.points.map((p) => ({ t: p.t, weight: p.w[idx] ?? 0 })) : [];

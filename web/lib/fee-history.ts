@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import { secondsBetween, type BlockTimeLike } from "./block-time";
 import type { FeeEvent } from "./gauge-fees";
 
 // Fee releases of one gauge cut into fixed stretches of time, for a small history chart and a "how steady is this gauge" figure.
@@ -45,7 +46,7 @@ export function feeBuckets(
   events: Ev[],
   headBlock: bigint,
   price: (t: Address) => TokenPrice,
-  blockSec: number,
+  blockSec: BlockTimeLike,
   nowSec: number,
   bucketHours: number,
 ): FeeBucket[] {
@@ -54,7 +55,7 @@ export function feeBuckets(
   const later = events.filter((e) => e.blockNumber > first);
   if (later.length === 0) return [];
   const width = bucketHours * 3600;
-  const timeOf = (b: bigint) => nowSec - Number(headBlock - b) * blockSec;
+  const timeOf = (b: bigint) => nowSec - secondsBetween(blockSec, b, headBlock);
   const startAt = timeOf(first);
   const out: FeeBucket[] = [];
   for (let i = 1; ; i++) {

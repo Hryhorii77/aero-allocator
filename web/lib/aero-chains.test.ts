@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AERO_CHAINS, BASE_CHAIN, chainById, lookbackBlocks } from "./aero-chains";
+import { AERO_CHAINS, BASE_CHAIN, blockTime, chainById, lookbackBlocks } from "./aero-chains";
 import { FACTORY_REGISTRY_BASE } from "./gauges";
 
 describe("AERO_CHAINS", () => {
@@ -38,6 +38,8 @@ describe("AERO_CHAINS", () => {
     expect(lookbackBlocks(chainById(57073)!, 9_500n)).toBe(86_400n);
     expect(lookbackBlocks(chainById(42161)!, 9_500n)).toBe(BigInt(Math.round(86_400 / 0.295)));
     expect(lookbackBlocks(chainById(5042)!, 9_500n)).toBe(BigInt(Math.round(86_400 / 0.507)));
-    expect(lookbackBlocks(chainById(8453)!, 9_500n)).toBe(9_500n);
+    expect(lookbackBlocks(chainById(8453)!, 9_500n)).toBe(90_000n); // 5 h of 0.2 s blocks
+    // From a head 1 h after the switch: 18,000 new blocks, then 4 h of 2 s blocks.
+    expect(lookbackBlocks(chainById(8453)!, 9_500n, 53_556_127n + 18_000n, blockTime(chainById(8453)!))).toBe(18_000n + 7_200n);
   });
 });
