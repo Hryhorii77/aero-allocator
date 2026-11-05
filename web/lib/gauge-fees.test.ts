@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { blockRanges, chunk, feePace, feesUsdPerDay, withRetry } from "./gauge-fees";
 
 const price = (t: string) => (t === "0xweth" ? { priceUsd: 2000, decimals: 18 } : t === "0xusdc" ? { priceUsd: 1, decimals: 6 } : null);
@@ -89,5 +89,55 @@ describe("readFeeEvents limits", () => {
     expect(r.calls).toHaveLength(6);
     expect(Math.max(...r.calls.map((c) => c.n))).toBe(5);
     expect(Math.max(...r.calls.map((c) => Number(c.span)))).toBe(10_000);
+  });
+
+  /** A node that refuses more than `maxSpan` blocks or `maxAddrs` addresses the way viem reports it, and logs one event per query. */
+  const capped = (maxSpan: bigint, maxAddrs = 100, details = `block range is too large, max ${maxSpan}`) => {
+    const calls: Array<{ n: number; span: bigint; ok: boolean }> = [];
+    return {
+      calls,
+      getLogs: async (a: { address: `0x${string}`[]; fromBlock: bigint; toBlock: bigint }) => {
+        const span = a.toBlock - a.fromBlock + 1n;
+        const ok = span <= maxSpan && a.address.length <= maxAddrs;
+        calls.push({ n: a.address.length, span, ok });
+        if (!ok) throw Object.assign(new Error("RPC Request failed."), { shortMessage: "RPC Request failed.", details });
+        return [{ address: a.address[0], blockNumber: a.fromBlock, args: { _gauge: a.address[0], _token: a.address[0], _amount: 1n } }];
+      },
+    };
+  };
+
+  it("halves a refused range, keeps the smaller span for the rest, and still covers every block", async () => {
+    const { readFeeEvents } = await import("./gauge-fees");
+    const r = capped(2_000n);
+    const out = await readFeeEvents(r as never, [addr(1)], 0n, 89_999n, 1, { span: 45_000 });
+    const good = r.calls.filter((c) => c.ok);
+    expect(good.reduce((s, c) => s + c.span, 0n)).toBe(90_000n); // every block read once
+    expect(out).toHaveLength(good.length);
+    expect(r.calls.filter((c) => !c.ok).length).toBeLessThanOrEqual(6); // a few refusals, not one per query
+  });
+
+  it("halves the addresses when the range is already small", async () => {
+    const { readFeeEvents } = await import("./gauge-fees");
+    const r = capped(10_000n, 3, "A maximum of 3 addresses is allowed");
+    await readFeeEvents(r as never, Array.from({ length: 10 }, (_, i) => addr(i + 1)), 0n, 999n, 1, { addresses: 10 });
+    const good = r.calls.filter((c) => c.ok);
+    expect(good.reduce((s, c) => s + c.n, 0)).toBe(10);
+  });
+
+  it("does not split on a rate limit or an outage: retries, then fails", async () => {
+    const { readFeeEvents } = await import("./gauge-fees");
+    vi.useFakeTimers();
+    try {
+      for (const details of ["request limit reached", "fetch failed"]) {
+        const r = capped(0n, 100, details);
+        const p = readFeeEvents(r as never, [addr(1)], 0n, 9_999n, 1).catch((e) => e);
+        await vi.runAllTimersAsync();
+        expect(await p).toBeInstanceOf(Error);
+        expect(r.calls).toHaveLength(4); // the usual retries, all at the full span
+        expect(new Set(r.calls.map((c) => c.span))).toEqual(new Set([10_000n]));
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
