@@ -1,5 +1,6 @@
 import { arbitrum, arc, base, ink, mainnet, optimism, robinhood } from "viem/chains";
 import type { Address, Chain } from "viem";
+import { blockSecondsBefore, type BlockTime } from "./block-time";
 
 // Aero's leaf deployments, from Dromos-Labs/metadex-public deployment-addresses/leaf-<chain>.json (read
 // 2026-10-23). The leaf voter has the same address everywhere; each chain has its own FactoryRegistry. Arc (5042) was added
@@ -19,6 +20,11 @@ export interface AeroChain {
   llama: string;
   /** Seconds per block (average; measured over an hour on 2026-10-23, since Arbitrum runs slower than its nominal 0.25 s). */
   blockSec: number;
+  /**
+   * The block time before a switch, when the chain changed it: blocks below `untilBlock` took `sec` seconds each, so spans that cross it
+   * count each side at its own rate (`blockTime`). The fee record keeps 4 days of block numbers, so drop this once the switch is older.
+   */
+  blockSecBefore?: { untilBlock: number; sec: number };
   /** Whether fee pace is measured here (from the stored record of NotifyFeesAmount events). */
   feeLogs: boolean;
   /**
@@ -35,16 +41,26 @@ export interface AeroChain {
   backfillHours?: number;
 }
 
-/** Blocks a first run or a long gap reaches back on this chain. */
-export function lookbackBlocks(cfg: AeroChain, fallback: bigint): bigint {
-  return cfg.backfillHours ? BigInt(Math.round((cfg.backfillHours * 3600) / cfg.blockSec)) : fallback;
+/** The chain's block time for turning block spans into seconds, with any change of rate (`blockSecBefore`). */
+export function blockTime(cfg: AeroChain): BlockTime {
+  return cfg.blockSecBefore ? { sec: cfg.blockSec, before: cfg.blockSecBefore } : { sec: cfg.blockSec };
+}
+
+/** Blocks a first run or a long gap reaches back on this chain, counted back from `head` at the block time `bt` (which may have a switch). */
+export function lookbackBlocks(cfg: AeroChain, fallback: bigint, head?: bigint, bt: BlockTime = blockTime(cfg)): bigint {
+  if (!cfg.backfillHours) return fallback;
+  if (head === undefined) return BigInt(Math.round((cfg.backfillHours * 3600) / cfg.blockSec));
+  return head - BigInt(blockSecondsBefore(bt, head, cfg.backfillHours * 3600));
 }
 
 // viem's Arc definition has no Multicall3 entry, but the standard contract is deployed there (code present at 0xcA11…CA11, 2026-10-28).
 const arcChain = { ...arc, contracts: { ...arc.contracts, multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" as Address } } } as Chain;
 
 export const AERO_CHAINS: AeroChain[] = [
-  { id: 8453, key: "base", name: "Base", chain: base, rpcs: [], registry: "0x7b2A2c12dC5Ea2a31455952a05031C3E4BB28F3E", llama: "base", blockSec: 2, feeLogs: true },
+  { id: 8453, key: "base", name: "Base", chain: base, rpcs: [], registry: "0x7b2A2c12dC5Ea2a31455952a05031C3E4BB28F3E", llama: "base", blockSec: 0.2, feeLogs: true, logSpan: 45_000, logAddresses: 10, backfillHours: 5,
+    // Base's Denim upgrade: block 53,556,127 (18:00:01 UTC, 2026-11-05) is the last 2 s gap; from it on, a block every 0.2 s.
+    // The public node serves log queries of up to 50,000 blocks and 10 addresses (checked that evening).
+    blockSecBefore: { untilBlock: 53_556_127, sec: 2 } },
   { id: 1, key: "ethereum", name: "Ethereum", chain: mainnet, rpcs: ["https://ethereum-rpc.publicnode.com", "https://ethereum.reth.rs/rpc"], registry: "0xdd1705e23762F4D6e44D8C31BD8Ea80c54612239", llama: "ethereum", blockSec: 12, feeLogs: true },
   { id: 10, key: "optimism", name: "OP", chain: optimism, rpcs: ["https://optimism-rpc.publicnode.com", "https://mainnet.optimism.io"], registry: "0xb6F9705A631CC1C0E8570FFde48882C95E2Df408", llama: "optimism", blockSec: 2, feeLogs: true },
   { id: 42161, key: "arbitrum", name: "Arbitrum", chain: arbitrum, rpcs: ["https://arbitrum-one-rpc.publicnode.com", "https://arb1.arbitrum.io/rpc"], registry: "0x9E635b2c689fC52201DF7eF1C9FA607c2F58f666", llama: "arbitrum", blockSec: 0.295, feeLogs: true, logRpcs: ["https://arb1.arbitrum.io/rpc"], logSpan: 9_000, logAddresses: 15, backfillHours: 24 },

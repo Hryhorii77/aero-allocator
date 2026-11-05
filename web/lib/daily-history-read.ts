@@ -1,7 +1,9 @@
 import type { Address } from "viem";
+import { secondsBetween } from "./block-time";
 import { client, getGauges, registryAbi } from "./gauges";
 import { eventsWithin, RETAIN_DAYS, type Ledger } from "./fee-ledger";
 import { usdOf } from "./fee-history";
+import { blockTime } from "./aero-chains";
 import { feeChain, loadPrices } from "./gauge-fees-read";
 import { nextDayToRecord, rollupDays, type Release } from "./daily-history";
 import { loadDailyHistoryForUpdate, saveDailyHistory } from "./daily-history-store";
@@ -19,7 +21,8 @@ export async function recordDailyHistory(chainId: number, ledger: Ledger, nowSec
   if (read.state === "error") throw new Error("daily history could not be read; not writing over it");
   const history = read.state === "ok" ? read.value : null;
   const headSec = Math.floor(ledger.updatedAt / 1000);
-  const coverageFromSec = headSec - (ledger.lastBlock - ledger.coverageFrom) * cfg.blockSec;
+  const bt = blockTime(cfg);
+  const coverageFromSec = headSec - secondsBetween(bt, ledger.coverageFrom, ledger.lastBlock);
   if (nextDayToRecord(history, coverageFromSec, nowSec) === null) return history?.points.length ?? 0;
 
   const list = await getGauges(chainId);
@@ -28,12 +31,12 @@ export async function recordDailyHistory(chainId: number, ledger: Ledger, nowSec
     contracts: list.gauges.map((g) => ({ address: cfg.registry, abi: registryAbi, functionName: "gaugeToRewards", args: [g.gauge] }) as const),
   });
   const head = BigInt(ledger.lastBlock);
-  const events = rewards.map((r) => eventsWithin(ledger, r, head, RETAIN_DAYS, cfg.blockSec));
+  const events = rewards.map((r) => eventsWithin(ledger, r, head, RETAIN_DAYS, bt));
   const prices = await loadPrices(cfg, [...new Set(events.flat().map((e) => e.token))] as Address[]);
   const price = (t: Address) => prices.get(t) ?? prices.get(t.toLowerCase()) ?? null;
   const releases = list.gauges.map((g, i) => ({
     gauge: g.gauge,
-    releases: events[i].map((e): Release => ({ t: headSec - Number(head - e.blockNumber) * cfg.blockSec, usd: usdOf(e, price) })),
+    releases: events[i].map((e): Release => ({ t: headSec - secondsBetween(bt, e.blockNumber, head), usd: usdOf(e, price) })),
   }));
 
   const next = rollupDays(history, chainId, releases, coverageFromSec, await loadWeightHistory(chainId), nowSec);

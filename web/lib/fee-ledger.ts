@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { FeeEvent } from "./gauge-fees";
+import { blockSecondsBefore, secondsBetween, type BlockTimeLike } from "./block-time";
 
 // A stored record of every NotifyFeesAmount release since it started being kept. Public RPCs only serve event logs
 // ~10,000 blocks back, so a pace over days can't be read on demand; it has to be accumulated. An hourly job (and
@@ -7,9 +8,10 @@ import type { FeeEvent } from "./gauge-fees";
 
 /** Blocks a single catch-up may reach back; a little under the public nodes' 10,000-block log lookback. */
 export const MAX_LOOKBACK_BLOCKS = 9_500n;
-/** Base produces a block every 2 seconds: 43,200 a day. Other chains pass their own block time. */
+/** The fallback block time when a caller passes none (chains pass their own, see blockTime in aero-chains.ts). */
 const DEFAULT_BLOCK_SEC = 2;
-const blocksPerDay = (blockSec: number) => Math.round(86_400 / blockSec);
+/** The block `days` days before `head`. */
+const daysBefore = (blockSec: BlockTimeLike, head: number | bigint, days: number) => blockSecondsBefore(blockSec, head, days * 86_400);
 /** Events older than this are dropped; the pace never looks further back than FEE_PACE_DAYS anyway. */
 export const RETAIN_DAYS = 4;
 export const FEE_PACE_DAYS = 2;
@@ -52,7 +54,7 @@ export function appendEvents(
   fresh: Array<Pick<FeeEvent, "token" | "amount" | "blockNumber"> & { rewards: Address }>,
   range: { from: bigint; to: bigint; reset: boolean },
   nowMs: number,
-  blockSec: number = DEFAULT_BLOCK_SEC,
+  blockSec: BlockTimeLike = DEFAULT_BLOCK_SEC,
 ): Ledger {
   const base: Ledger =
     ledger && !range.reset
@@ -69,14 +71,14 @@ export function appendEvents(
     }
   }
   const lastBlock = Math.max(base.lastBlock, Number(range.to));
-  const cutoff = lastBlock - blocksPerDay(blockSec) * RETAIN_DAYS;
+  const cutoff = daysBefore(blockSec, lastBlock, RETAIN_DAYS);
   const events = [...base.events, ...added].filter((e) => e.b >= cutoff);
   return { version: 1, coverageFrom: Math.max(base.coverageFrom, cutoff), lastBlock, updatedAt: nowMs, events };
 }
 
 /** One rewards contract's releases within the pace window, as FeeEvents ready for feePace. */
-export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint, days = FEE_PACE_DAYS, blockSec = DEFAULT_BLOCK_SEC): Array<Pick<FeeEvent, "token" | "amount" | "blockNumber">> {
-  const since = Number(headBlock) - blocksPerDay(blockSec) * days;
+export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint, days = FEE_PACE_DAYS, blockSec: BlockTimeLike = DEFAULT_BLOCK_SEC): Array<Pick<FeeEvent, "token" | "amount" | "blockNumber">> {
+  const since = daysBefore(blockSec, headBlock, days);
   const key = rewards.toLowerCase();
   return ledger.events
     .filter((e) => e.r === key && e.b >= Math.max(since, ledger.coverageFrom))
@@ -84,7 +86,7 @@ export function eventsWithin(ledger: Ledger, rewards: string, headBlock: bigint,
 }
 
 /** Hours of history the record holds, capped at the pace window. */
-export function coverageHours(ledger: Ledger, headBlock: bigint, days = FEE_PACE_DAYS, blockSec = DEFAULT_BLOCK_SEC): number {
-  const from = Math.max(ledger.coverageFrom, Number(headBlock) - blocksPerDay(blockSec) * days);
-  return (Math.max(0, Number(headBlock) - from) * blockSec) / 3600;
+export function coverageHours(ledger: Ledger, headBlock: bigint, days = FEE_PACE_DAYS, blockSec: BlockTimeLike = DEFAULT_BLOCK_SEC): number {
+  const from = Math.max(ledger.coverageFrom, daysBefore(blockSec, headBlock, days));
+  return Math.max(0, secondsBetween(blockSec, from, headBlock)) / 3600;
 }

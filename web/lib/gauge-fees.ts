@@ -1,4 +1,5 @@
 import { parseAbiItem, type Address } from "viem";
+import { secondsBetween, type BlockTimeLike } from "./block-time";
 
 // Fees that reached a gauge's voters, from the rewards contract's own NotifyFeesAmount events: each one is the
 // exact token amount released to voters when the fee accumulator advanced. Fees still pending (not yet released)
@@ -9,8 +10,6 @@ export const notifyFeesEvent = parseAbiItem("event NotifyFeesAmount(address inde
 
 export const ADDRESSES_PER_QUERY = 5;
 export const BLOCKS_PER_QUERY = 10_000;
-/** Base produces a block every 2 seconds. */
-export const BLOCKS_PER_HOUR = 1800;
 
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -100,7 +99,7 @@ export async function readFeeEvents(
   return out;
 }
 
-/** Seconds per Base block. */
+/** The fallback seconds per block (Base before Denim); callers pass their chain's blockTime. */
 export const BLOCK_SEC = 2;
 /** Shortest stretch a rate is quoted over: a few minutes of fees say nothing about the next 47 hours. */
 export const MIN_RATE_WINDOW_SEC = 3600;
@@ -117,13 +116,13 @@ export function feePace(
   pending: Array<{ token: Address; amount: bigint }>,
   headBlock: bigint,
   price: (t: Address) => TokenPrice,
-  blockSec: number = BLOCK_SEC,
+  blockSec: BlockTimeLike = BLOCK_SEC,
 ): { usdPerDay: number; windowSec: number } | null {
   if (events.length === 0) return null;
   const first = events.reduce((m, e) => (e.blockNumber < m ? e.blockNumber : m), events[0].blockNumber);
   const later = events.filter((e) => e.blockNumber > first);
   if (later.length === 0) return null;
-  const windowSec = Number(headBlock - first) * blockSec;
+  const windowSec = secondsBetween(blockSec, first, headBlock);
   if (windowSec < MIN_RATE_WINDOW_SEC) return null;
   return { usdPerDay: feesUsdPerDay(later, pending, windowSec, price), windowSec };
 }
