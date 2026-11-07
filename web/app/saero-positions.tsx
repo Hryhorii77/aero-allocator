@@ -23,6 +23,7 @@ import { reminderIcs } from "@/lib/ics";
 import { SITE_URL } from "@/lib/site";
 import { totalCostText } from "@/lib/opportunity";
 import { EarnedFees } from "./earned-fees";
+import { EarnedWalletTotal } from "./earned-wallet";
 import { PositionAdviceLine } from "./position-advice-line";
 import { NotifyButton } from "./notify-button";
 import { PositionShare } from "./position-share";
@@ -248,6 +249,13 @@ export function SaeroPositions() {
         </p>
       )}
       {state === "done" && costText && <p className="mt-3 text-sm text-neutral-300">{costText}</p>}
+      {state === "done" && result && result.positions.filter((p) => p.staked > 0).length > 1 && (
+        <EarnedWalletTotal
+          // A new read of the list (another owner, or a refresh after an allocation) starts the total over.
+          key={`${owner ?? ""}:${result.positions.map((p) => `${p.tokenId}-${p.lastAllocatedSec}-${p.votingPower}`).join(",")}`}
+          tokenIds={result.positions.filter((p) => p.staked > 0).map((p) => p.tokenId)}
+        />
+      )}
       {state === "done" && result && result.positions.length > 0 && (
         <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2">
           {result.positions.map((p) => {

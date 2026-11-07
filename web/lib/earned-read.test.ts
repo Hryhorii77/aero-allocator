@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PublicClient } from "viem";
 import { AERO_CHAINS } from "./aero-chains";
-import { readEarnedAll } from "./earned-read";
+import { readEarnedAll, type PriceCache } from "./earned-read";
 
 const USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const RSGP = "0x00000000000000000000000000000000000000a1";
@@ -72,5 +72,30 @@ describe("readEarnedAll", () => {
   it("reads only the newest programs on a gauge with very many and then says the total is a floor", async () => {
     const all = await readEarnedAll(1n, { chains: [AERO_CHAINS[0]], client: async () => fakeClient({ programs: 500 }), fetchFn: prices });
     expect(all.atLeast).toBe(true);
+  });
+
+  it("asks the price route once per token and chain across positions that share a price cache", async () => {
+    const urls: string[] = [];
+    const counting = (async (url: string) => (urls.push(url), new Response(JSON.stringify({ prices: { [USDC]: 1, [RSGP]: 0.5 } })))) as unknown as typeof fetch;
+    const cache: PriceCache = new Map();
+    const chains = [AERO_CHAINS[0], AERO_CHAINS.find((c) => c.id === 10)!];
+    const reads = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => readEarnedAll(BigInt(i + 1), { chains, client: async () => fakeClient(), fetchFn: counting, prices: cache })),
+    );
+    expect(urls).toHaveLength(2); // one call per chain, not 20
+    for (const r of reads) expect(r.totalUsd).toBeCloseTo(7); // 3.5 on each chain, every token priced
+    expect(reads.every((r) => !r.atLeast)).toBe(true);
+  });
+  it("forgets a failed price call, so the next position asks again", async () => {
+    let calls = 0;
+    const flaky = (async () => (++calls === 1 ? new Response("{}", { status: 429 }) : new Response(JSON.stringify({ prices: { [USDC]: 1, [RSGP]: 0.5 } })))) as unknown as typeof fetch;
+    const cache: PriceCache = new Map();
+    const opts = { chains: [AERO_CHAINS[0]], client: async () => fakeClient(), fetchFn: flaky, prices: cache };
+    const first = await readEarnedAll(1n, opts);
+    expect(first.atLeast).toBe(true); // unpriced this time
+    const second = await readEarnedAll(2n, opts);
+    expect(calls).toBe(2);
+    expect(second.totalUsd).toBeCloseTo(3.5);
+    expect(second.atLeast).toBe(false);
   });
 });
