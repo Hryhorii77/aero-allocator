@@ -112,3 +112,47 @@ export function combineChains(chains: EarnedChain[], skipped: string[], truncate
   const kept = chains.filter((c) => c.fees.lines.length + c.incentives.lines.length > 0).sort((a, b) => b.totalUsd - a.totalUsd);
   return { chains: kept, totalUsd: kept.reduce((s, c) => s + c.totalUsd, 0), atLeast: truncated || kept.some((c) => c.unpriced), skipped };
 }
+
+/** Several positions' earnings added up: the wallet's total, each chain's share, each position's total, and what couldn't be read. */
+export interface EarnedWallet {
+  totalUsd: number;
+  /** A position or chain wasn't read, a token has no price or older programs were left out: the total is a floor. */
+  atLeast: boolean;
+  /** Each chain's total over every position, largest first. */
+  chains: Array<{ chainId: number; name: string; totalUsd: number }>;
+  /** Each position that was read, largest first (zeros included, so the list accounts for every position). */
+  positions: Array<{ tokenId: bigint; totalUsd: number; atLeast: boolean }>;
+  /** Positions whose read failed entirely. */
+  failed: bigint[];
+  /** Chain names some position's read skipped. */
+  skipped: string[];
+}
+
+export function combinePositions(results: Array<{ tokenId: bigint; all: EarnedAll | null }>): EarnedWallet {
+  const byChain = new Map<number, { chainId: number; name: string; totalUsd: number }>();
+  const positions: EarnedWallet["positions"] = [];
+  const failed: bigint[] = [];
+  const skipped = new Set<string>();
+  for (const { tokenId, all } of results) {
+    if (!all) {
+      failed.push(tokenId);
+      continue;
+    }
+    for (const s of all.skipped) skipped.add(s);
+    positions.push({ tokenId, totalUsd: all.totalUsd, atLeast: all.atLeast || all.skipped.length > 0 });
+    for (const c of all.chains) {
+      const row = byChain.get(c.chainId) ?? { chainId: c.chainId, name: c.name, totalUsd: 0 };
+      row.totalUsd += c.totalUsd;
+      byChain.set(c.chainId, row);
+    }
+  }
+  positions.sort((a, b) => b.totalUsd - a.totalUsd);
+  return {
+    totalUsd: positions.reduce((s, p) => s + p.totalUsd, 0),
+    atLeast: failed.length > 0 || positions.some((p) => p.atLeast),
+    chains: [...byChain.values()].filter((c) => c.totalUsd > 0).sort((a, b) => b.totalUsd - a.totalUsd),
+    positions,
+    failed,
+    skipped: [...skipped],
+  };
+}
