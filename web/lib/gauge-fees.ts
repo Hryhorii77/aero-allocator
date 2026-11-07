@@ -73,7 +73,7 @@ export const MIN_SPAN = 1_000n;
 // "query exceeds max results 20000", "A maximum of 10 addresses is allowed", "block range is too large", "Log response size exceeded").
 const TOO_BIG = /range|exceed|too (many|large|big)|max(imum)?|results|addresses|size|limit/i;
 // …but a rate limit ("request limit reached", "Too Many Requests", 429) is a busy node, retried as before.
-const RATE_LIMITED = /rate|request limit|too many requests|429|capacity/i;
+const RATE_LIMITED = /rate|request limit|too many requests|\b429\b|capacity/i;
 // viem's full message also quotes the request body, so read only the node's own words (`details`) and the short message.
 const errorText = (e: unknown) => {
   const x = e as { shortMessage?: string; details?: string; message?: string; cause?: { details?: string; shortMessage?: string } } | null;

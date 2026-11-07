@@ -140,4 +140,10 @@ describe("readFeeEvents limits", () => {
       vi.useRealTimers();
     }
   });
+
+  it("treats 429 as a rate limit only as a whole number, not inside a block number", async () => {
+    const { isTooBig } = await import("./gauge-fees");
+    expect(isTooBig({ details: "block range is too large: 53429000-53474000" })).toBe(true);
+    expect(isTooBig({ details: "HTTP 429 Too Many Requests" })).toBe(false);
+  });
 });
