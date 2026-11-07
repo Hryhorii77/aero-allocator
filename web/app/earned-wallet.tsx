@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AERO_CHAINS } from "@/lib/aero-chains";
 import { combinePositions, type EarnedAll, type EarnedWallet } from "@/lib/earned";
-import { readEarnedAll } from "@/lib/earned-read";
+import { readEarnedAll, type PriceCache } from "@/lib/earned-read";
 import { btn, NOTE, NUM } from "./ui";
 
 const usd = (n: number) => (n >= 0.01 || n === 0 ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "<0.01");
@@ -23,13 +23,14 @@ export function EarnedWalletTotal({ tokenIds }: { tokenIds: bigint[] }) {
     setState("loading");
     setDone(0);
     const results: Array<{ tokenId: bigint; all: EarnedAll | null }> = [];
+    const prices: PriceCache = new Map(); // one price call per token and chain for the whole wallet
     let next = 0;
     const worker = async () => {
       while (next < tokenIds.length) {
         const tokenId = tokenIds[next++];
         let all: EarnedAll | null = null;
         try {
-          all = await readEarnedAll(tokenId);
+          all = await readEarnedAll(tokenId, { prices });
           if (all.chains.length === 0 && all.skipped.length === AERO_CHAINS.length) all = null; // nothing could be read
         } catch {
           all = null;

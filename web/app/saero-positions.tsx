@@ -250,7 +250,11 @@ export function SaeroPositions() {
       )}
       {state === "done" && costText && <p className="mt-3 text-sm text-neutral-300">{costText}</p>}
       {state === "done" && result && result.positions.filter((p) => p.staked > 0).length > 1 && (
-        <EarnedWalletTotal key={owner ?? ""} tokenIds={result.positions.filter((p) => p.staked > 0).map((p) => p.tokenId)} />
+        <EarnedWalletTotal
+          // A new read of the list (another owner, or a refresh after an allocation) starts the total over.
+          key={`${owner ?? ""}:${result.positions.map((p) => `${p.tokenId}-${p.lastAllocatedSec}-${p.votingPower}`).join(",")}`}
+          tokenIds={result.positions.filter((p) => p.staked > 0).map((p) => p.tokenId)}
+        />
       )}
       {state === "done" && result && result.positions.length > 0 && (
         <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2">

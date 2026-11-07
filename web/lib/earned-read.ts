@@ -32,21 +32,46 @@ async function clientFor(cfg: AeroChain): Promise<PublicClient> {
   return createPublicClient({ chain: cfg.chain, transport: fallback(cfg.rpcs.map((u) => http(u))) }) as PublicClient;
 }
 
-async function pricesFor(chainId: number, tokens: string[], fetchFn: typeof fetch): Promise<Record<string, number>> {
-  const out: Record<string, number> = {};
-  for (let i = 0; i < tokens.length; i += PRICE_BATCH) {
-    const chunk = tokens.slice(i, i + PRICE_BATCH);
-    const got = await fetchFn(`/api/token-prices?chain=${chainId}&tokens=${chunk.join(",")}`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ prices: Record<string, number> }>) : { prices: {} }))
-      .then((j) => j.prices ?? {})
-      .catch(() => ({}) as Record<string, number>);
-    Object.assign(out, got);
+/**
+ * Prices already asked for, shared by every position in one wallet read, keyed `chainId:token`. Most positions earn the same tokens, so a
+ * wallet of 10 positions over a few chains asks the price route a handful of times instead of once per position and chain (the route
+ * allows 30 calls a minute per visitor). A failed call is forgotten, so a later position asks again.
+ */
+export type PriceCache = Map<string, Promise<number | undefined>>;
+
+async function pricesFor(chainId: number, tokens: string[], fetchFn: typeof fetch, cache: PriceCache = new Map()): Promise<Record<string, number>> {
+  const key = (t: string) => `${chainId}:${t.toLowerCase()}`;
+  const missing = tokens.filter((t) => !cache.has(key(t)));
+  for (let i = 0; i < missing.length; i += PRICE_BATCH) {
+    const chunk = missing.slice(i, i + PRICE_BATCH);
+    const got = fetchFn(`/api/token-prices?chain=${chainId}&tokens=${chunk.join(",")}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ prices: Record<string, number> }>) : null))
+      .then((j) => (j ? (j.prices ?? {}) : null))
+      .catch(() => null);
+    for (const t of chunk) {
+      const k = key(t);
+      const p = got.then((prices) => {
+        if (prices === null) {
+          if (cache.get(k) === p) cache.delete(k);
+          return undefined;
+        }
+        return prices[t.toLowerCase()];
+      });
+      cache.set(k, p);
+    }
   }
+  const out: Record<string, number> = {};
+  await Promise.all(
+    tokens.map(async (t) => {
+      const v = await cache.get(key(t));
+      if (v !== undefined) out[t] = v;
+    }),
+  );
   return out;
 }
 
 /** One chain: null when the position has no gauges there. `truncated` when a gauge had more incentive programs than were read. */
-export async function readEarnedChain(cfg: AeroChain, tokenId: bigint, client: PublicClient, fetchFn: typeof fetch = fetch): Promise<{ chain: EarnedChain; truncated: boolean } | null> {
+export async function readEarnedChain(cfg: AeroChain, tokenId: bigint, client: PublicClient, fetchFn: typeof fetch = fetch, prices?: PriceCache): Promise<{ chain: EarnedChain; truncated: boolean } | null> {
   const listed = (await client.readContract({ address: SAERO.leafVoter, abi: saeroLeafAbi, functionName: "allocatedGauges", args: [tokenId] })) as Address[];
   const gauges = listed.filter((g) => !ZERO.test(g));
   if (gauges.length === 0) return null;
@@ -106,18 +131,21 @@ export async function readEarnedChain(cfg: AeroChain, tokenId: bigint, client: P
       if (d.status === "success") meta.set(t, { decimals: Number(d.result), symbol: s.status === "success" ? String(s.result) : "token" });
     });
   }
-  const prices = tokens.length ? await pricesFor(cfg.id, tokens, fetchFn) : {};
-  return { chain: chainTotal(cfg.id, cfg.name, summariseAmounts(fees, meta, prices), summariseAmounts(incentives, meta, prices)), truncated };
+  const priced = tokens.length ? await pricesFor(cfg.id, tokens, fetchFn, prices) : {};
+  return { chain: chainTotal(cfg.id, cfg.name, summariseAmounts(fees, meta, priced), summariseAmounts(incentives, meta, priced)), truncated };
 }
 
 /** Every chain at once; a chain whose node fails is named in `skipped` instead of failing the whole read. */
-export async function readEarnedAll(tokenId: bigint, opts: { chains?: AeroChain[]; client?: (cfg: AeroChain) => Promise<PublicClient>; fetchFn?: typeof fetch } = {}): Promise<EarnedAll> {
+export async function readEarnedAll(
+  tokenId: bigint,
+  opts: { chains?: AeroChain[]; client?: (cfg: AeroChain) => Promise<PublicClient>; fetchFn?: typeof fetch; prices?: PriceCache } = {},
+): Promise<EarnedAll> {
   const chains = opts.chains ?? AERO_CHAINS;
   const skipped: string[] = [];
   const results = await Promise.all(
     chains.map(async (cfg) => {
       try {
-        return await readEarnedChain(cfg, tokenId, await (opts.client ?? clientFor)(cfg), opts.fetchFn);
+        return await readEarnedChain(cfg, tokenId, await (opts.client ?? clientFor)(cfg), opts.fetchFn, opts.prices);
       } catch {
         skipped.push(cfg.name);
         return null;
