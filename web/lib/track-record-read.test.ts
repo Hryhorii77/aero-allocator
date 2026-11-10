@@ -11,7 +11,7 @@ vi.mock("./gauge-fees-read", () => fees);
 vi.mock("./daily-history-store", () => ({ loadDailyHistory: vi.fn() }));
 vi.mock("./autopilot-read", () => autopilot);
 
-import { recordTrackEntry } from "./track-record-read";
+import { AUTOPILOT_SNAP_TIMEOUT_MS, recordTrackEntry } from "./track-record-read";
 
 const DAY = 20_758;
 const inWindow = DAY * 86_400 + 600;
@@ -57,6 +57,20 @@ describe("recordTrackEntry", () => {
       expect(store.saveTrackLog.mock.calls[0][0].entries[0]).not.toHaveProperty("ap");
       expect(err).toHaveBeenCalledWith(expect.stringContaining("autopilot-read-failed"));
       err.mockRestore();
+    });
+    it("saves the split alone when the Autopilot read hangs, well inside the cron's 60 s", async () => {
+      ready();
+      vi.useFakeTimers();
+      autopilot.readAutopilotSnap.mockReturnValue(new Promise(() => {})); // a node that never answers
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const run = recordTrackEntry(inWindow);
+      await vi.advanceTimersByTimeAsync(AUTOPILOT_SNAP_TIMEOUT_MS);
+      expect(await run).toBe("logged");
+      expect(store.saveTrackLog.mock.calls[0][0].entries[0]).not.toHaveProperty("ap");
+      expect(err).toHaveBeenCalledWith(expect.stringContaining("autopilot-read-timeout"));
+      expect(AUTOPILOT_SNAP_TIMEOUT_MS).toBeLessThanOrEqual(25_000);
+      err.mockRestore();
+      vi.useRealTimers();
     });
   });
 
