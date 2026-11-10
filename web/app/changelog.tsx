@@ -5,22 +5,32 @@ import { LINK } from "./ui";
 // out) so users can see the dashboard is actively maintained without digging
 // through GitHub history themselves.
 //
-// Kept to the last two ship days only. The point of this panel is "this
-// thing is alive", which the newest entries make just as well as eighteen of
-// them — and eighteen made it a wall of text nobody finishes. Anything older
-// is a commit away via the link at the foot of the panel; trimmed entries stay
-// in git history, so nothing is actually lost by pruning here. When a third
-// ship day lands, drop the oldest day's entries.
+// Kept to roughly the last two weeks, one entry per ship day. The point of this panel is "this thing is alive", and a week of new features
+// that isn't listed reads as abandoned (it stopped at Oct 28 for ten days once). Keep each entry short; drop entries older than about two
+// weeks when adding one. Anything older is a commit away via the link at the foot of the panel.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
-    date: "2026-10-28",
-    title:
-      "New: a paid cross-chain plan for agents (ordered unsigned allocate steps over several chains). Also: Arc is now on the list of chains. Also new: compare all chains. Under the gauge table, one button finds the best split of your amount over every chain at once, after the one-off ETH each extra chain costs. Each position also has an allocate across chains button: it plans the split, or lets you choose the chains and percentages yourself, and sends it from your wallet, one or two transactions, each checked first. It also moves power between chains and takes part of it back, and lets you pick the gauges inside each chain.",
+    date: "2026-11-07",
+    title: "Own several positions? \u201cShow earnings for all N positions\u201d adds up what every one of them has unclaimed, on every chain, with each chain\u2019s and each position\u2019s share.",
   },
   {
-    date: "2026-10-27",
+    date: "2026-11-05",
+    title: "Base moved to 0.2-second blocks (the Denim upgrade); fee pace and history now count time correctly on both sides of the switch.",
+  },
+  {
+    date: "2026-11-04",
     title:
-      "For agents: /openapi.json now describes the free and paid APIs, and two agent skills are in the repo (re-allocate only when the gain is real and steady; check and prepare a veAERO to sAERO upgrade). None of them signs anything. Each position has a share card button: the link holds only its power rounded to two figures. The allocate panel now uses the wait read from the chain, the Upgrade guide no longer shows past dates, and small text is easier to read.",
+      "Each position can now show what it has earned and not claimed yet, fees and incentives on every chain, read in your browser. \u201cNotify me\u201d sends a browser notification when a position\u2019s wait is over, even with the tab closed. Pools that charge Aero\u2019s MEV tax are tagged.",
+  },
+  {
+    date: "2026-11-03",
+    title:
+      "Compare with Autopilot: what Aero\u2019s Autopilot would pay your amount, next to the best split. Biggest allocators: the 10 largest positions\u2019 splits priced for your amount, with \u201cuse this split\u201d. Splits no longer chase a pool\u2019s one-off fee burst.",
+  },
+  {
+    date: "2026-10-31",
+    title:
+      "An \u201cAll networks\u201d view of every chain\u2019s gauges in one list. A public track record that checks each day\u2019s advice against what the gauges really paid. A free MCP server for agents.",
   },
 ];
 

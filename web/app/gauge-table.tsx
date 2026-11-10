@@ -246,7 +246,13 @@ export function GaugeTable() {
     <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>
         Where your sAERO earns the most on {chainName}
-        {data ? <span className="font-normal text-neutral-400"> · {data.gauges.length} gauges</span> : ""}
+        {data ? (
+          <span className="font-normal text-neutral-400" title={`Ranked: activated by Aero with at least ${fmt(MIN_RANK_WEIGHT)} power, the same count as on the chain buttons`}>
+            {!allMode && counts?.has(chainId) ? ` · ${counts.get(chainId)} ranked of ${data.gauges.length} gauges` : ` · ${data.gauges.length} gauges`}
+          </span>
+        ) : (
+          ""
+        )}
       </h2>
       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="chain">
         <button type="button" className={chip(allMode)} aria-pressed={allMode} onClick={() => { setMultiFailed(false); setSel(ALL); }} title="Every network in one list">
@@ -532,7 +538,7 @@ export function GaugeTable() {
               <>
                 &ldquo;You earn&rdquo; is what {fmt(amount)} sAERO would make per day in that gauge alone, after it joins the power already there. Fees
                 are the pace of the last ~{Math.round(fees.windowHours)} hours, not a promise (&ldquo;thin&rdquo; means under 6 hours of history); a gauge with no fee history or under {fmt(MIN_RANK_WEIGHT)} power
-                shows a dash. {fees.fees.length} of {data.gauges.length} gauges have a measurable pace.
+                shows a dash. {fees.fees.length} of the {data.gauges.length} gauges have a fee record to measure.
                 {fees.aeroUsd ? (
                   <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). The amount is voting power; a lock shorter than the maximum holds more AERO than power, so APR on the AERO you staked is lower. Aero&rsquo;s own APR uses its own method and can differ.</>
                 ) : null}{" "}
