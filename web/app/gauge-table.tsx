@@ -397,7 +397,7 @@ export function GaugeTable() {
                     Incentives / day
                   </Th>
                   <Th className="hidden text-right sm:table-cell" sortKey={estimating ? "power" : undefined} active={estimating && sortKey === "power"} onSort={setSortKey}>
-                    Power in it
+                    Allocation Power
                   </Th>
                   {estimating && <Th className="hidden text-right sm:table-cell">Share of weight</Th>}
                   {estimating && <Th className="hidden text-right sm:table-cell">Pace</Th>}
@@ -540,9 +540,9 @@ export function GaugeTable() {
                 are the pace of the last ~{Math.round(fees.windowHours)} hours, not a promise (&ldquo;thin&rdquo; means under 6 hours of history); a gauge with no fee history or under {fmt(MIN_RANK_WEIGHT)} power
                 shows a dash. {fees.fees.length} of the {data.gauges.length} gauges have a fee record to measure.
                 {fees.aeroUsd ? (
-                  <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). The amount is voting power; a lock shorter than the maximum holds more AERO than power, so APR on the AERO you staked is lower. Aero&rsquo;s own APR uses its own method and can differ.</>
+                  <> Est. APR is that figure over a year as a share of your amount at AERO&rsquo;s price (${fees.aeroUsd.toFixed(2)}). The amount is Allocation Power; a lock shorter than the maximum holds more AERO than Allocation Power, so APR on the AERO you staked is lower. Aero&rsquo;s own APR uses its own method and can differ.</>
                 ) : null}{" "}
-                Aero advises judging allocation over a long horizon, because results over a window as short as {waitHours(data.cooldownSec ?? DEFAULT_COOLDOWN_SEC)} hours are noisy.
+                Aero advises judging allocation over a long horizon, because results over a window as short as {data.cooldownSec ? `${waitHours(data.cooldownSec)} hours` : "the wait between allocations"} are noisy.
               </>
             ) : (
               <>Weight is each gauge&rsquo;s share of the allocation weight on {chainName}. Incentives are what projects are streaming to it now.</>

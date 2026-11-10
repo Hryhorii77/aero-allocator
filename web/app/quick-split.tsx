@@ -6,7 +6,7 @@ import type { GaugeRow } from "@/lib/gauges";
 import { gaugeLabel } from "@/lib/gauges";
 import { aprPct, incentiveEndText, paceConfidence, rankByUsdPerDay } from "@/lib/gauge-yield";
 import { projectRange } from "@/lib/projection";
-import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
+import { DEFAULT_COOLDOWN_SEC, waitPhrase } from "@/lib/saero";
 import { bestSplit, splitRate } from "@/lib/split";
 import { btn, NOTE, NUM } from "./ui";
 import { fmtApr } from "./allocation-desk";
@@ -66,7 +66,7 @@ export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: Gaug
       </ul>
       <p className={`mt-2 ${NOTE}`}>
         Pace is <span className={conf === "solid" ? "text-emerald-400" : conf === "spiky" ? "text-amber-500" : "text-neutral-300"}>{conf}</span>
-        {conf === "thin" || conf === "spiky" ? " (a few hours of fees, or a burst: it can fall)" : ""}. An estimate, not a promise. Moving restarts a {waitHours(waitSec)} h wait.
+        {conf === "thin" || conf === "spiky" ? " (a few hours of fees, or a burst: it can fall)" : ""}. An estimate, not a promise. Moving restarts {waitPhrase(cooldownSec, "h")}.
       </p>
       <a href="#positions" className={`mt-3 flex w-full items-center justify-center text-center ${btn("primary", "md")}`}>
         allocate from my wallet

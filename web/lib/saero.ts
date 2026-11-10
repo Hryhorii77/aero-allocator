@@ -81,6 +81,12 @@ export const DEFAULT_COOLDOWN_SEC = 169_200;
 
 /** The wait in whole hours, for text: 169,200 s is 47. */
 export const waitHours = (cooldownSec: number) => Math.round(cooldownSec / 3600);
+/**
+ * The wait as people read it: "the 47-hour wait" / "the 47 h wait" from the value read on the chain, or just "the wait" when that read
+ * failed. Aero says the cooldown could be lowered over time, so text never falls back to the launch value; only the arithmetic does.
+ */
+export const waitPhrase = (cooldownSec: number | null | undefined, style: "hour" | "h" = "hour") =>
+  cooldownSec ? (style === "h" ? `the ${waitHours(cooldownSec)} h wait` : `the ${waitHours(cooldownSec)}-hour wait`) : "the wait";
 
 export interface SaeroPosition {
   tokenId: bigint;

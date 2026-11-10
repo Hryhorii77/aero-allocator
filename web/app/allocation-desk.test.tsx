@@ -45,14 +45,15 @@ describe("AllocationDesk", () => {
     expect(screen.queryByText(/Range:/)).not.toBeInTheDocument();
   });
 
-  it("labels the lock with the wait it is given, 47 hours when it is not", () => {
+  it("labels the wait it is given, and gives a per-day figure (no guessed hours) when it has none", () => {
     const gauges = [g(1, 200_000), g(2, 200_000)];
     const f = { chainId: 8453, generatedAt: 0, windowHours: 30, fees: [fee(1, 1000, 30), fee(2, 900, 30)] };
     const { unmount } = render(<AllocationDesk gauges={gauges} fees={f} amount={1_000_000} cooldownSec={24 * 3600} />);
-    expect(screen.getByText(/over the 24 h lock before you can move it/)).toBeInTheDocument();
+    expect(screen.getByText(/over the 24 h wait before you can move it/)).toBeInTheDocument();
     unmount();
     render(<AllocationDesk gauges={gauges} fees={f} amount={1_000_000} />);
-    expect(screen.getByText(/over the 47 h lock before you can move it/)).toBeInTheDocument();
+    expect(screen.getByText(/a day until the wait is over and you can move it/)).toBeInTheDocument();
+    expect(screen.queryByText(/47/)).not.toBeInTheDocument();
   });
 
   it("asks for an amount", () => {

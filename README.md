@@ -48,6 +48,8 @@ Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and
 | `GET /api/token-prices?tokens=0x…[&chain=10]` | USD prices for up to 12 token addresses on one Aero chain, Base by default (lets the page value earned fees and incentives without sending a position anywhere) |
 | `GET /api/share?vp=<amount>` | The 1200×630 share card (also the link preview) |
 
+Aero’s app now calls a position’s power **Allocation Power** (formerly voting power). The site uses that word; the API fields, the MCP tools and the agent skills keep `power`, `votingPower` and `weight`, so agents built on them keep working.
+
 Paid (x402), below: [Paid API (x402)](#paid-api-x402).
 
 ### Running it
