@@ -11,7 +11,7 @@ import { LINK } from "./ui";
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
     date: "2026-11-10",
-    title: "Uses Aero\u2019s word Allocation Power, and every mention of the wait between allocations now shows the value read from the chain (Aero says it may get shorter).",
+    title: "Uses Aero\u2019s word Allocation Power, and every mention of the wait between allocations now shows the value read from the chain (Aero says it may get shorter). On a phone, a split that puts everything in one pool now says so.",
   },
   {
     date: "2026-11-07",

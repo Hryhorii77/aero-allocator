@@ -64,6 +64,9 @@ export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: Gaug
           </li>
         ))}
       </ul>
+      {rows.length === 1 && (
+        <p className="mt-1 text-xs text-amber-500">All in one pool: the best estimate today, but it rests on one pool&rsquo;s pace.</p>
+      )}
       <p className={`mt-2 ${NOTE}`}>
         Pace is <span className={conf === "solid" ? "text-emerald-400" : conf === "spiky" ? "text-amber-500" : "text-neutral-300"}>{conf}</span>
         {conf === "thin" || conf === "spiky" ? " (a few hours of fees, or a burst: it can fall)" : ""}. An estimate, not a promise. Moving restarts {waitPhrase(cooldownSec, "h")}.
