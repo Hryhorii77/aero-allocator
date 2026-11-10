@@ -8,6 +8,7 @@ import { splitRate } from "./split";
 import { readAllPowers } from "./top-allocators-read";
 import { type AutopilotChain, type AutopilotData, type AutopilotPool } from "./autopilot";
 import { findAutopilotPools } from "./autopilot-find";
+import type { AutopilotSnap } from "./track-record";
 
 const TTL_MS = 30 * 60_000;
 const toTokens = (v: bigint) => Number(v) / 1e18;
@@ -92,3 +93,24 @@ export async function readAutopilot(nowMs = Date.now()): Promise<AutopilotData> 
   return inflight;
 }
 
+
+/**
+ * Where each Autopilot pool's power sits right now, for the track record's morning entry: power and per-chain gauge amounts, whole
+ * tokens. Lighter than readAutopilot (no gauge lists or fees). A pool any chain of which can't be read is left out rather than logged
+ * with that chain's part looking idle, which would make Autopilot look worse than it was.
+ */
+export async function readAutopilotSnap(nowMs = Date.now()): Promise<AutopilotSnap[]> {
+  const found = await findAutopilotPools(await readAllPowers(nowMs));
+  const chains = AERO_CHAINS.filter((c) => c.feeLogs);
+  const snaps = await Promise.all(
+    found.map(async ({ tokenId, power }): Promise<AutopilotSnap | null> => {
+      try {
+        const perChain = await Promise.all(chains.map(async (cfg) => (await leafAllocations(cfg, tokenId)).map((x) => ({ c: cfg.id, g: x.gauge, a: Math.round(x.allocated) }))));
+        return { id: tokenId, power: Math.round(power), parts: perChain.flat().filter((p) => p.a > 0) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return snaps.filter((x): x is AutopilotSnap => x !== null);
+}

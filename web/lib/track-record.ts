@@ -33,6 +33,18 @@ export interface TrackEntry {
   lowUsd: number;
   /** The ranking rule that chose the split (RANK_RULE); absent on entries made before rules were numbered, which are rule 1. */
   rule?: number;
+  /** Where Aero Autopilot's pools had their power when the entry was logged (from 2026-11-11), to check a deposit there the same way. */
+  ap?: AutopilotSnap[];
+}
+
+/**
+ * One Autopilot pool at the moment an entry was logged: its whole power and, per chain, each gauge's amount (whole tokens). Power not on
+ * a gauge (idle or in transit) earns nothing, as it does for a depositor. A pool is only logged when every chain could be read.
+ */
+export interface AutopilotSnap {
+  id: number;
+  power: number;
+  parts: Array<{ c: number; g: string; a: number }>;
 }
 
 /**
@@ -103,6 +115,37 @@ export function realizedUsdPerDay(entry: TrackEntry, daily: DailyHistory | null)
   return total / 2;
 }
 
+/**
+ * What `amount` deposited into one Autopilot pool really earned per day, over the entry's day and the next, from each chain's daily
+ * record: the deposit is spread like the pool (a gauge holding a/P of its power gets a/P of the deposit, the idle share earns nothing),
+ * and each gauge pays it the share it would have had of the gauge's end-of-day weight, as `realizedUsdPerDay` does for the split. It
+ * assumes the keeper left the pool where it was for those two days, and it is before Autopilot's own fee, which Aero hasn't published.
+ * Null until both days are recorded on every chain the pool used.
+ */
+export function autopilotRealizedUsdPerDay(snap: AutopilotSnap, day: number, amount: number, dailyOf: (chainId: number) => DailyHistory | null | undefined): number | null {
+  if (!(snap.power > 0)) return null;
+  const base = dailyOf(TRACK_CHAIN_ID);
+  for (const d of [day, day + 1]) if (!base?.points.some((p) => p.d === d && p.w.length > 0)) return null;
+  const indexes = new Map<number, Map<string, number>>();
+  let total = 0;
+  for (const d of [day, day + 1]) {
+    for (const part of snap.parts) {
+      const h = dailyOf(part.c);
+      if (!h) return null;
+      let index = indexes.get(part.c);
+      if (!index) indexes.set(part.c, (index = new Map(h.gauges.map((g, i) => [g.toLowerCase(), i]))));
+      const point = h.points.find((p) => p.d === d);
+      const i = index.get(part.g.toLowerCase());
+      if (!point || point.w.length === 0 || i === undefined) return null;
+      const [fees, weight, inc] = [point.f[i], point.w[i], point.i[i]];
+      if (fees === undefined || weight === undefined || inc === undefined) return null;
+      const x = (amount * part.a) / snap.power;
+      if (x > 0) total += (fees + inc / 7) * (x / (weight + x));
+    }
+  }
+  return total / 2;
+}
+
 export interface TrackRow {
   day: number;
   parts: Array<{ s: string; pct: number }>;
@@ -111,6 +154,8 @@ export interface TrackRow {
   realizedUsd: number | null;
   /** The ranking rule that chose this split; only RANK_RULE days count toward the results. */
   rule: number;
+  /** The same amount deposited into each Autopilot pool, largest pool first; absent on days logged before Autopilot was tracked. */
+  autopilot?: Array<{ id: number; realizedUsd: number | null }>;
 }
 
 export interface TrackSummary {
@@ -133,6 +178,11 @@ export interface TrackSummary {
     avgPredictedUsd: number;
     avgRealizedUsd: number;
   };
+  /**
+   * The split against the same amount in Autopilot's largest pool, over current-rule days where both are checked. Set only once there
+   * are `needed` such days. Autopilot's figure is before its own fee.
+   */
+  vsAutopilot?: { days: number; avgSplitUsd: number; avgAutopilotUsd: number; splitAhead: number };
   /** The most recent entries, newest first. */
   rows: TrackRow[];
 }
@@ -143,9 +193,24 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-export function summarize(log: TrackLog | null, daily: DailyHistory | null, rowsShown = 21): TrackSummary {
+/**
+ * Counts, results and rows for the page. `daily` is Base's daily record; `dailies` holds the other chains' records, needed only to check
+ * the Autopilot pools (a chain missing from it leaves those figures null).
+ */
+export function summarize(log: TrackLog | null, daily: DailyHistory | null, rowsShown = 21, dailies: Map<number, DailyHistory | null> = new Map()): TrackSummary {
   const entries = log?.entries ?? [];
-  const rows: TrackRow[] = entries.map((e) => ({ day: e.day, parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })), paceUsd: e.paceUsd, lowUsd: e.lowUsd, realizedUsd: realizedUsdPerDay(e, daily), rule: ruleOf(e) }));
+  const dailyOf = (c: number) => (c === TRACK_CHAIN_ID ? daily : dailies.get(c));
+  const rows: TrackRow[] = entries.map((e) => ({
+    day: e.day,
+    parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })),
+    paceUsd: e.paceUsd,
+    lowUsd: e.lowUsd,
+    realizedUsd: realizedUsdPerDay(e, daily),
+    rule: ruleOf(e),
+    ...(e.ap?.length
+      ? { autopilot: [...e.ap].sort((a, b) => b.power - a.power).map((p) => ({ id: p.id, realizedUsd: rounded(autopilotRealizedUsdPerDay(p, e.day, e.amount, dailyOf)) })) }
+      : {}),
+  }));
   const current = rows.filter((r) => r.rule === RANK_RULE);
   const done = current.filter((r): r is TrackRow & { realizedUsd: number } => r.realizedUsd !== null && r.paceUsd > 0);
   const summary: TrackSummary = {
@@ -166,5 +231,17 @@ export function summarize(log: TrackLog | null, daily: DailyHistory | null, rows
       avgRealizedUsd: Number((done.reduce((a, r) => a + r.realizedUsd, 0) / done.length).toFixed(4)),
     };
   }
+  const both = done.filter((r) => r.autopilot?.[0]?.realizedUsd != null);
+  if (both.length >= MIN_DAYS_TO_SHOW) {
+    const ap = (r: TrackRow) => r.autopilot![0].realizedUsd!;
+    summary.vsAutopilot = {
+      days: both.length,
+      avgSplitUsd: Number((both.reduce((a, r) => a + r.realizedUsd, 0) / both.length).toFixed(4)),
+      avgAutopilotUsd: Number((both.reduce((a, r) => a + ap(r), 0) / both.length).toFixed(4)),
+      splitAhead: both.filter((r) => r.realizedUsd > ap(r)).length,
+    };
+  }
   return summary;
 }
+
+const rounded = (n: number | null) => (n === null ? null : Number(n.toFixed(4)));

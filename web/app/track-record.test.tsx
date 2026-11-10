@@ -83,4 +83,31 @@ describe("TrackRecordPanel", () => {
     expect(await screen.findByText("earlier rule")).toBeInTheDocument();
     expect(screen.getByText(/don.t count toward the results/)).toBeInTheDocument();
   });
+  it("shows each Autopilot pool's figure on a day and the comparison once there are enough days with both checked", async () => {
+    stub({
+      ...base,
+      logged: 20,
+      evaluated: 16,
+      results: { medianRealizedOfPredicted: 0.62, atLeastLow: 11, avgPredictedUsd: 10.5, avgRealizedUsd: 6.8 },
+      vsAutopilot: { days: 14, avgSplitUsd: 6.9, avgAutopilotUsd: 3.1, splitAhead: 12 },
+      rows: [
+        { day: 20_400, parts: [{ s: "A/B", pct: 100 }], paceUsd: 10.5, lowUsd: 5, realizedUsd: 6.8, rule: 2, autopilot: [{ id: 20366, realizedUsd: 3.05 }, { id: 20365, realizedUsd: null }] },
+        { day: 20_399, parts: [{ s: "A/B", pct: 100 }], paceUsd: 9, lowUsd: 4, realizedUsd: 7, rule: 2 },
+      ],
+    });
+    render(<TrackRecordPanel standalone />);
+    expect(await screen.findByText(/Against Aero.s Autopilot: over 14 days with both checked/)).toBeInTheDocument();
+    expect(screen.getByText(/ahead on 12 of/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Autopilot, same amount:/)).toHaveLength(1);
+    expect(screen.getByText(/\$3\.05 \(#20366\)/)).toBeInTheDocument();
+    expect(screen.getByText(/not checked yet \(#20365\)/)).toBeInTheDocument();
+    expect(screen.getByText(/before Autopilot.s own fee, which Aero hasn.t published/)).toBeInTheDocument();
+  });
+
+  it("says nothing about Autopilot while no day has its figures", async () => {
+    stub({ ...base, rows: [{ day: 20_399, parts: [{ s: "A/B", pct: 100 }], paceUsd: 9, lowUsd: 4, realizedUsd: null, rule: 2 }] });
+    render(<TrackRecordPanel standalone />);
+    await screen.findByText(/Does the advice hold up/);
+    expect(screen.queryByText(/Autopilot/)).not.toBeInTheDocument();
+  });
 });
