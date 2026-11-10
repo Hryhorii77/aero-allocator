@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC, rollupDays } from "./daily-history";
-import { addEntry, inLogWindow, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type TrackEntry, type TrackLog } from "./track-record";
+import { addEntry, autopilotRealizedUsdPerDay, inLogWindow, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type AutopilotSnap, type TrackEntry, type TrackLog } from "./track-record";
 import type { GaugeRow } from "./gauges";
 
 const G1 = "0x00000000000000000000000000000000000000a1";
@@ -132,3 +132,52 @@ describe("realizedUsdPerDay reads the record the real writer makes", () => {
   });
 });
 
+
+describe("Autopilot next to the split", () => {
+  const OP = 10;
+  const G3 = "0x00000000000000000000000000000000000000b3";
+  // Base: G1 pays $1,000/day at weight 90,000. OP: G3 pays $700/week of incentives plus $200/day of fees at weight 40,000.
+  const base = daily([0, 1, 2, 3].map((d) => ({ d, f: [1_000, 0], w: [90_000, 0], i: [0, 0] })));
+  const op: DailyHistory = { version: 1, chainId: OP, gauges: [G3], seen: [1], points: [0, 1, 2, 3].map((d) => ({ d, f: [200], w: [40_000], i: [700] })) };
+  // A pool of 1,000,000 power: 400,000 on Base's G1, 400,000 on OP's G3, 200,000 idle.
+  const snap: AutopilotSnap = { id: 20366, power: 1_000_000, parts: [{ c: 8453, g: G1, a: 400_000 }, { c: OP, g: G3, a: 400_000 }] };
+  const dailyOf = (c: number) => (c === 8453 ? base : c === OP ? op : null);
+
+  it("spreads the deposit like the pool, lets the idle share earn nothing, and prices each gauge from its own chain's record", () => {
+    // 10,000 -> 4,000 on G1: 1000 x 4000/94000; 4,000 on G3: (200 + 100) x 4000/44000; 2,000 idle.
+    const want = (1000 * 4000) / 94_000 + (300 * 4000) / 44_000;
+    expect(autopilotRealizedUsdPerDay(snap, 0, 10_000, dailyOf)).toBeCloseTo(want, 6);
+  });
+  it("is null until both days are recorded on every chain the pool used", () => {
+    expect(autopilotRealizedUsdPerDay(snap, 3, 10_000, dailyOf)).toBeNull(); // day 4 not recorded
+    expect(autopilotRealizedUsdPerDay(snap, 0, 10_000, (c) => (c === 8453 ? base : null))).toBeNull(); // OP's record missing
+    expect(autopilotRealizedUsdPerDay({ ...snap, parts: [{ c: OP, g: "0xdead", a: 1 }] }, 0, 10_000, dailyOf)).toBeNull(); // gauge not in the record
+  });
+  it("pays nothing for a pool that sat wholly idle, once the days are recorded", () => {
+    expect(autopilotRealizedUsdPerDay({ ...snap, parts: [] }, 0, 10_000, dailyOf)).toBe(0);
+    expect(autopilotRealizedUsdPerDay({ ...snap, parts: [] }, 3, 10_000, dailyOf)).toBeNull();
+  });
+  it("adds each pool's figure to its row, largest pool first, and compares only after enough days with both checked", () => {
+    const small: AutopilotSnap = { id: 20365, power: 10_000, parts: [] };
+    const make = (n: number) => {
+      const points = Array.from({ length: n + 2 }, (_, d) => ({ d, f: [1_000, 0], w: [90_000, 0], i: [0, 0] }));
+      const opPoints = points.map(({ d }) => ({ d, f: [200], w: [40_000], i: [700] }));
+      const log = Array.from({ length: n }, (_, k) => entry(k, { ap: [small, snap] })).reduce<TrackLog | null>((l, e) => addEntry(l, e), null);
+      return summarize(log, daily(points), undefined, new Map([[OP, { ...op, points: opPoints }]]));
+    };
+    const early = make(MIN_DAYS_TO_SHOW - 1);
+    expect(early.rows[0].autopilot?.map((a) => a.id)).toEqual([20366, 20365]);
+    expect(early.rows[0].autopilot?.[1].realizedUsd).toBe(0);
+    expect(early.vsAutopilot).toBeUndefined();
+    const s = make(MIN_DAYS_TO_SHOW);
+    // The split: 10,000 on G1 at weight 90,000 -> $100/day. Autopilot's largest pool: about $69.83/day.
+    expect(s.vsAutopilot).toMatchObject({ days: MIN_DAYS_TO_SHOW, splitAhead: MIN_DAYS_TO_SHOW });
+    expect(s.vsAutopilot!.avgSplitUsd).toBeCloseTo(100, 4);
+    expect(s.vsAutopilot!.avgAutopilotUsd).toBeCloseTo((1000 * 4000) / 94_000 + (300 * 4000) / 44_000, 3);
+  });
+  it("leaves rows logged before Autopilot was tracked without the field", () => {
+    const s = summarize(addEntry(null, entry(0)), base);
+    expect(s.rows[0]).not.toHaveProperty("autopilot");
+    expect(s.vsAutopilot).toBeUndefined();
+  });
+});

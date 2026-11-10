@@ -56,6 +56,14 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
           <span className={`text-neutral-100 ${NUM}`}>${usd(r.avgRealizedUsd)}</span> actual, a day). It paid at least the low case on {r.atLeastLow} of {data.evaluated} days.
         </p>
       )}
+      {data.vsAutopilot && (
+        <p className="mt-2 text-sm text-neutral-300">
+          Against Aero&rsquo;s Autopilot: over {data.vsAutopilot.days} days with both checked, the split paid{" "}
+          <span className={`text-neutral-100 ${NUM}`}>${usd(data.vsAutopilot.avgSplitUsd)}</span> a day on average and the same amount in Autopilot&rsquo;s largest pool{" "}
+          <span className={`text-neutral-100 ${NUM}`}>${usd(data.vsAutopilot.avgAutopilotUsd)}</span>, before its own fee. The split was ahead on {data.vsAutopilot.splitAhead} of{" "}
+          {data.vsAutopilot.days} days.
+        </p>
+      )}
       {/* The days themselves are shown before the 14-day summary only on the page of their own: each is a dated prediction, so listing them early proves
           nothing either way but shows the record is being kept. The home panel waits for results, and keeps the list folded. */}
       {data.rows.length > 0 && (r || standalone) && (
@@ -76,6 +84,17 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
                   </span>
                 </div>
                 <div className={`mt-0.5 break-words ${NOTE}`}>{row.parts.map((p) => `${p.s} ${p.pct}%`).join(" · ")}</div>
+                {row.autopilot && (
+                  <div className={`mt-0.5 ${NOTE}`}>
+                    Autopilot, same amount:{" "}
+                    {row.autopilot.map((a, i) => (
+                      <span key={a.id} className={NUM}>
+                        {i > 0 && " · "}
+                        {a.realizedUsd === null ? "not checked yet" : `$${usd(a.realizedUsd)}`} (#{a.id})
+                      </span>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -92,6 +111,12 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
         &ldquo;Actual&rdquo; takes the fees and incentives each gauge really paid on the day of the entry and the next, and gives your amount the share of the gauge it would have had at the end of that
         day. It is a check on the estimate, not a promise about the future.
       </p>
+      {data.rows.some((row) => row.autopilot) && (
+        <p className={`mt-2 ${NOTE}`}>
+          &ldquo;Autopilot, same amount&rdquo; spreads the amount the way each Autopilot pool had its power that morning (the share it kept idle earns nothing) and prices it from what those gauges
+          paid on every chain over the same two days. It assumes the pool didn&rsquo;t move in between and is before Autopilot&rsquo;s own fee, which Aero hasn&rsquo;t published.
+        </p>
+      )}
     </section>
   );
 }

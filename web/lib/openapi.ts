@@ -457,6 +457,16 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                 avgRealizedUsd: num("Average USD per day it really paid."),
               },
             },
+            vsAutopilot: {
+              type: "object",
+              description: "The split against the same amount in Aero Autopilot's largest pool, over days where both are checked. Present only once there are `needed` such days. Autopilot's figure is before its own fee.",
+              properties: {
+                days: { type: "integer", description: "Days with both checked." },
+                avgSplitUsd: num("Average USD per day the split paid on those days."),
+                avgAutopilotUsd: num("Average USD per day the same amount in Autopilot's largest pool paid."),
+                splitAhead: { type: "integer", description: "Days on which the split paid more." },
+              },
+            },
             rows: {
               type: "array",
               description: "The latest days, newest first.",
@@ -469,6 +479,11 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                   lowUsd: num("The low case, USD per day."),
                   realizedUsd: nullable(num("USD per day it really paid; null until both days are recorded.")),
                   rule: { type: "integer", description: "The ranking rule that chose this split." },
+                  autopilot: {
+                    type: "array",
+                    description: "From 2026-11-11: the same amount deposited into each Aero Autopilot pool (largest first), spread the way the pool's power sat that morning on every chain (its idle share earns nothing), before Autopilot's fee. Absent on earlier days.",
+                    items: { type: "object", properties: { id: { type: "integer", description: "The pool's sAERO position id." }, realizedUsd: nullable(num("USD per day it really paid; null until both days are recorded on every chain the pool used.")) } },
+                  },
                 },
               },
             },
