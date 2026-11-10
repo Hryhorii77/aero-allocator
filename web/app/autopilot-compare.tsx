@@ -6,7 +6,7 @@ import type { GaugeFees } from "@/lib/gauge-fees-read";
 import { rankByUsdPerDay } from "@/lib/gauge-yield";
 import type { GaugeRow } from "@/lib/gauges";
 import { fetchJson } from "@/lib/fetch-json";
-import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
+import { waitHours } from "@/lib/saero";
 import { bestSplit, splitRate } from "@/lib/split";
 import { btn, NOTE, NUM } from "./ui";
 
@@ -38,7 +38,7 @@ export function AutopilotComparePanel({ gauges, fees, amount, cooldownSec }: { g
     const ranked = rankByUsdPerDay(gauges, fees.fees, amount, undefined, { waitSec: cooldownSec });
     return bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: r.symbol, rate: splitRate(r), weight: r.weight })), amount)?.usdPerDay ?? null;
   }, [gauges, fees, amount, cooldownSec]);
-  const hours = waitHours(cooldownSec ?? DEFAULT_COOLDOWN_SEC);
+  const hours = cooldownSec ? waitHours(cooldownSec) : null;
 
   if (!open) {
     return (
@@ -90,7 +90,7 @@ export function AutopilotComparePanel({ gauges, fees, amount, cooldownSec }: { g
           <p className={`mt-2 ${NOTE}`}>
             A deposit earns its pool&rsquo;s rate, worked out here from where the pool&rsquo;s power sits now and priced like the best split (a burst of fees at the
             gauge&rsquo;s usual level). Power the pool holds off every gauge, new deposits waiting their turn or power in transit, earns nothing and lowers that rate
-            for everyone in it. The figure is before Autopilot&rsquo;s own fee, which Aero hasn&rsquo;t published, and a new deposit waits in a queue of up to {hours} hours
+            for everyone in it. The figure is before Autopilot&rsquo;s own fee, which Aero hasn&rsquo;t published, and a new deposit waits in a queue of up to {hours ? `${hours} hours` : "one wait"}
             before it earns anything.
           </p>
           <p className={`mt-1 ${NOTE}`}>

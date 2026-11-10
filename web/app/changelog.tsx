@@ -10,6 +10,10 @@ import { LINK } from "./ui";
 // weeks when adding one. Anything older is a commit away via the link at the foot of the panel.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-11-10",
+    title: "Uses Aero\u2019s word Allocation Power, and every mention of the wait between allocations now shows the value read from the chain (Aero says it may get shorter).",
+  },
+  {
     date: "2026-11-07",
     title: "Own several positions? \u201cShow earnings for all N positions\u201d adds up what every one of them has unclaimed, on every chain, with each chain\u2019s and each position\u2019s share.",
   },

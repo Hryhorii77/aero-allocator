@@ -46,21 +46,21 @@ describe("SaeroReturn", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("names the wait it is given, 47 hours when it is not", () => {
+  it("names the wait it is given, and just “the wait” when it is not", () => {
     const { unmount } = render(<SaeroReturn position={position} cooldownReady waitHours={24} />);
     fireEvent.click(screen.getByRole("button", { name: "return to idle…" }));
     expect(screen.getByText(/the 24-hour wait starts again/)).toBeInTheDocument();
     unmount();
     render(<SaeroReturn position={position} cooldownReady />);
     fireEvent.click(screen.getByRole("button", { name: "return to idle…" }));
-    expect(screen.getByText(/the 47-hour wait starts again/)).toBeInTheDocument();
+    expect(screen.getByText(/and the wait starts again/)).toBeInTheDocument();
   });
 
   it("explains what happens, then simulates and sends one marker entry for the whole amount with no ETH", async () => {
     sim.simulateContract.mockResolvedValue({});
     render(<SaeroReturn position={position} cooldownReady />);
     fireEvent.click(screen.getByRole("button", { name: "return to idle…" }));
-    expect(screen.getByText(/the 47-hour wait starts again/)).toBeInTheDocument();
+    expect(screen.getByText(/the wait starts again/)).toBeInTheDocument();
     expect(screen.getByText(/No ETH is needed on Base/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "return to idle" }));
     await waitFor(() => expect(write.writeContract).toHaveBeenCalledTimes(1));

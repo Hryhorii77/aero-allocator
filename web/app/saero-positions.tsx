@@ -37,7 +37,7 @@ const CALLS_PER_POSITION = 6;
 const toTokens = (v: bigint) => Number(v) / 1e18;
 
 /** Reads every sAERO position of an address straight from Base in this browser, so the address never reaches our server. */
-export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positions: SaeroPosition[]; cooldownSec: number }> {
+export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positions: SaeroPosition[]; cooldownSec: number | null }> {
   const { wagmiConfig } = await import("@/lib/wagmi");
   const chainId = SAERO_CHAIN_ID;
   const count = await readContract(wagmiConfig, {
@@ -55,7 +55,7 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
     chainId,
   })
     .then(Number)
-    .catch(() => DEFAULT_COOLDOWN_SEC);
+    .catch(() => null);
   if (n === 0) return { positions: [], cooldownSec };
 
   const idRes = await readContracts(wagmiConfig, {
@@ -106,7 +106,7 @@ export async function readSaeroPositions(owner: `0x${string}`): Promise<{ positi
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 /** Saves a calendar event for the moment a position's wait ends. Built here from numbers already on the page; nothing is sent anywhere. */
-function ReminderButton({ tokenId, readyAtSec, waitHours: hours }: { tokenId: bigint; readyAtSec: number; waitHours: number }) {
+function ReminderButton({ tokenId, readyAtSec, waitHours: hours }: { tokenId: bigint; readyAtSec: number; waitHours?: number }) {
   const save = () => {
     const ics = reminderIcs({ tokenId: tokenId.toString(), readyAtSec, url: `${SITE_URL}/#positions`, nowSec: Math.floor(Date.now() / 1000), waitHours: hours });
     const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
@@ -132,7 +132,7 @@ export function SaeroPositions() {
   const [input, setInput] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "invalid" | "error" | "done">("idle");
   const [owner, setOwner] = useState<`0x${string}` | null>(null);
-  const [result, setResult] = useState<{ positions: SaeroPosition[]; cooldownSec: number } | null>(null);
+  const [result, setResult] = useState<{ positions: SaeroPosition[]; cooldownSec: number | null } | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   // What each position leaves on the table by staying, USD/day, reported by its advice line.
   const [costs, setCosts] = useState<Record<string, { costUsdPerDay: number; costLowUsdPerDay: number }>>({});
@@ -182,19 +182,20 @@ export function SaeroPositions() {
     void load(connected);
   }, [live, connected]);
 
-  // The wait is read from the chain with the positions; until they are read, the 47 hours Aero launched with.
-  const lockHours = waitHours(result?.cooldownSec ?? DEFAULT_COOLDOWN_SEC);
+  // The wait is read from the chain with the positions; until then (or if that read fails) the text says "the wait", never a guessed number.
+  const waitSec = result?.cooldownSec ?? null;
+  const lockHours = waitSec ? waitHours(waitSec) : undefined;
   const costText = totalCostText(Object.values(costs));
   if (!live) return null;
   return (
     <section id="positions" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
       <h2 className={H2}>Your sAERO positions</h2>
       <p className={`mt-1 ${NOTE}`}>
-        Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated {lockHours} hours after its last
+        Read from Aero&rsquo;s new contracts on Base, in this browser. Each position can be re-allocated {lockHours ? `${lockHours} hours` : "a set wait"} after its last
         allocation.
       </p>
       <details className="mt-1">
-        <summary className={`cursor-pointer select-none ${NOTE}`}>Want to move more often than every {lockHours} hours?</summary>
+        <summary className={`cursor-pointer select-none ${NOTE}`}>Want to move more often than {lockHours ? `every ${lockHours} hours` : "the wait allows"}?</summary>
         <p className={`mt-1 ${NOTE}`}>
           The wait belongs to each position, not to your wallet, and a position that has never been allocated has no wait (checked on Base: its
           first allocation simulates cleanly). So holding your AERO as several separate positions lets you move one while the others wait. There
@@ -259,14 +260,14 @@ export function SaeroPositions() {
       {state === "done" && result && result.positions.length > 0 && (
         <ul className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2">
           {result.positions.map((p) => {
-            const cd = cooldownState(p.lastAllocatedSec, result.cooldownSec, nowSec);
+            const cd = cooldownState(p.lastAllocatedSec, result.cooldownSec ?? DEFAULT_COOLDOWN_SEC, nowSec);
             return (
               <li key={p.tokenId.toString()} className="rounded-lg border border-neutral-800 px-3 py-3 text-sm text-neutral-400">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <span className={`font-semibold text-neutral-100 ${NUM}`}>#{p.tokenId.toString()}</span>
                   <span>
                     <span className={`text-neutral-200 ${NUM}`}>{fmt(p.staked)}</span> AERO staked ·{" "}
-                    <span className={`text-neutral-200 ${NUM}`}>{fmt(p.votingPower)}</span> power
+                    <span className={`text-neutral-200 ${NUM}`}>{fmt(p.votingPower)}</span> Allocation Power
                   </span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">

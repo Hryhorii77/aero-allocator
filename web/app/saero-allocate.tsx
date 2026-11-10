@@ -97,7 +97,7 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
   const [current, setCurrent] = useState<CurrentPick[] | null>(null);
   const [compare, setCompare] = useState<{ nowUsd: number | null; unmeasured: string[]; best: Split | null } | null>(null);
   const [feesNote, setFeesNote] = useState<number | null>(null);
-  const [lockHours, setLockHours] = useState(waitHours(DEFAULT_COOLDOWN_SEC));
+  const [lockHours, setLockHours] = useState<number | null>(null);
   const [pct, setPct] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -127,7 +127,7 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
         const top = all.slice(0, CHOICES);
         const ranked = [...top, ...all.filter((r) => splitGauges.has(r.gauge.toLowerCase()) && !top.includes(r))];
         setFeesNote(f.windowHours);
-        setLockHours(analysis.cooldownHours);
+        setLockHours(g.cooldownSec ? waitHours(g.cooldownSec) : null);
         setCurrent(cur);
         if (cur.length > 0) setCompare({ nowUsd: analysis.currentUsdPerDay, unmeasured: analysis.unmeasured, best: split });
         else setCompare(null);
@@ -231,7 +231,7 @@ export function SaeroAllocate({ position, cooldownReady, onAllocated }: { positi
     <div className="mt-3 rounded-lg border border-neutral-800 px-3 py-3">
       <p className={BODY}>
         Pick up to {MAX_GAUGES} gauges (the best {CHOICES} by estimated $/day for {fmt(position.staked)} AERO are listed) and give each a share. This{" "}
-        <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for {lockHours} hours.
+        <span className="text-neutral-200">replaces your whole Base allocation</span> for this position, and you can&rsquo;t change it again for {lockHours ? `${lockHours} hours` : "the wait Aero sets"}.
       </p>
       {current && current.length > 0 && (
         <p className={`mt-3 ${BODY}`}>

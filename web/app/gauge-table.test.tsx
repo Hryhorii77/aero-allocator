@@ -52,7 +52,7 @@ describe("GaugeTable", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
     render(<GaugeTable />);
     expect(await screen.findByText(/per day, best split of your amount/)).toBeInTheDocument();
-    expect(screen.getByText(/over the 47 h lock/)).toBeInTheDocument();
+    expect(screen.getByText(/a day until the wait is over/)).toBeInTheDocument();
     const rows = screen.getAllByRole("row");
     // header + 10 gauges; T3 is the only one with a fee estimate, so it leads.
     expect(rows).toHaveLength(11);
@@ -130,7 +130,7 @@ describe("GaugeTable", () => {
     expect(row).not.toHaveTextContent("solid");
   });
 
-  it("words the long-horizon note with the wait the chain reports, 47 hours when the list has none", async () => {
+  it("words the long-horizon note with the wait the chain reports, “the wait” when the list has none", async () => {
     vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
     const stub = (cooldownSec?: number) =>
       vi.fn(async (url: string) => ({
@@ -143,7 +143,7 @@ describe("GaugeTable", () => {
     unmount();
     vi.stubGlobal("fetch", stub());
     render(<GaugeTable />);
-    expect(await screen.findByText(/as short as 47 hours are noisy/)).toBeInTheDocument();
+    expect(await screen.findByText(/as short as the wait between allocations are noisy/)).toBeInTheDocument();
   });
 
   it("sorts by the column you click", async () => {
@@ -151,8 +151,8 @@ describe("GaugeTable", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => (url.includes("gauge-fees") ? { chainId: 8453, generatedAt: 0, windowHours: 5, fees: [{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 5 }] } : { chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
     render(<GaugeTable />);
     await screen.findByText(/per day, best split of your amount/);
-    fireEvent.click(screen.getByRole("button", { name: "Power in it" }));
-    expect(screen.getByRole("columnheader", { name: /Power in it/ })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: "Allocation Power" }));
+    expect(screen.getByRole("columnheader", { name: /Allocation Power/ })).toHaveAttribute("aria-sort", "descending");
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("T0/USDC");
   });
 

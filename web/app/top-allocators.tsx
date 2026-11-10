@@ -71,7 +71,7 @@ export function TopAllocatorsPanel({ gauges, fees, amount, cooldownSec }: { gaug
       {data && (
         <>
           <p className={`mt-2 ${NOTE}`}>
-            The {data.allocators.length} largest of all positions by voting power, by position id. A big position spreads out so it doesn&rsquo;t dilute itself, which
+            The {data.allocators.length} largest of all positions by Allocation Power, by position id. A big position spreads out so it doesn&rsquo;t dilute itself, which
             rarely suits a smaller amount: &ldquo;for you&rdquo; prices each split for your {amount.toLocaleString("en-US")} sAERO the same way the best split is priced.
           </p>
           <ul className="mt-2 divide-y divide-neutral-800/80">

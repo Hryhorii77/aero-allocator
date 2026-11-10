@@ -10,7 +10,7 @@ import { projectRange } from "@/lib/projection";
 import { bestSplit, splitRate } from "@/lib/split";
 import { gaugeLabel } from "@/lib/gauges";
 import { ago } from "@/lib/ago";
-import { DEFAULT_COOLDOWN_SEC, waitHours } from "@/lib/saero";
+import { waitHours } from "@/lib/saero";
 import { NOTE, NUM } from "./ui";
 import { fetchJson } from "@/lib/fetch-json";
 
@@ -57,7 +57,7 @@ function CrossChainNote({ chainId, gauges, chainName }: { chainId: number; gauge
  * to over the 47-hour lock, and how much history each estimate rests on.
  */
 export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; chainName?: string; cooldownSec?: number }) {
-  const lockHours = waitHours(cooldownSec ?? DEFAULT_COOLDOWN_SEC);
+  const lockHours = cooldownSec ? waitHours(cooldownSec) : null;
   const apr = (usd: number) => aprPct(usd, amount, fees.aeroUsd);
   const ranked = useMemo(() => rankByUsdPerDay(gauges, fees.fees, amount, undefined, { waitSec: cooldownSec }), [gauges, fees, amount, cooldownSec]);
   const split = useMemo(
@@ -83,7 +83,11 @@ export function AllocationDesk({ gauges, fees, amount, chainName, cooldownSec }:
           value={gain >= 0.5 ? `+${gain.toFixed(1)}%` : "same"}
           label={gain >= 0.5 ? "more than putting it all in the top gauge" : "as putting it all in the top gauge"}
         />
-        <Card value={`$${usd2((split.usdPerDay * lockHours) / 24)}`} label={`over the ${lockHours} h lock before you can move it`} />
+        {lockHours ? (
+          <Card value={`$${usd2((split.usdPerDay * lockHours) / 24)}`} label={`over the ${lockHours} h wait before you can move it`} />
+        ) : (
+          <Card value={`$${usd2(split.usdPerDay)}`} label="a day until the wait is over and you can move it" />
+        )}
         <Card value={conf} label={spiky ? "a gauge in this split is releasing far more fees than usual right now; the split and its range count it at its usual level, not the burst" : `how steady the fee pace is (${Math.round(weakest)} h of history in the weakest pick)`} />
       </div>
       <p className="mt-3 text-sm text-neutral-300">

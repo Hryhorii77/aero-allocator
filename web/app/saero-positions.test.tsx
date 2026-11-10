@@ -160,14 +160,14 @@ describe("SaeroPositions", () => {
 
   it("explains that each position has its own wait, and that an existing one can't be split", async () => {
     render(<SaeroPositions />);
-    expect(await screen.findByText(/Want to move more often than every 47 hours/)).toBeInTheDocument();
+    expect(await screen.findByText(/Want to move more often than the wait allows/)).toBeInTheDocument();
     expect(screen.getByText(/The wait belongs to each position, not to your wallet/)).toHaveTextContent(/no way to split an existing position/);
   });
 
   it("takes the wait length it shows from the chain, not a fixed 47 hours", async () => {
     read.readContract.mockImplementation(async (_cfg: unknown, { functionName }: { functionName: string }) => (functionName === "balanceOf" ? 0n : 86_400));
     render(<SaeroPositions />);
-    expect(await screen.findByText(/Want to move more often than every 47 hours/)).toBeInTheDocument();
+    expect(await screen.findByText(/Want to move more often than the wait allows/)).toBeInTheDocument(); // nothing read yet: no guessed hours
     fireEvent.change(await screen.findByLabelText(/address to read/i), { target: { value: OWNER } });
     fireEvent.click(screen.getByRole("button", { name: "read" }));
     expect(await screen.findByText(/Want to move more often than every 24 hours/)).toBeInTheDocument();

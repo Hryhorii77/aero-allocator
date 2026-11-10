@@ -10,7 +10,7 @@ export function llmsTxt(siteUrl: string): string {
 > Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), your sAERO positions, and the unsigned transaction to allocate them. Non-custodial: we never hold keys, sign or send anything. Estimates, not financial advice.
 
 Site: ${siteUrl}
-Chain: Base (8453). Amounts are sAERO voting power.
+Chain: Base (8453). Amounts are sAERO Allocation Power (Aero’s current name for what was voting power; API fields keep the names "power", "votingPower" and "weight").
 
 ## Free (no payment, rate limited)
 

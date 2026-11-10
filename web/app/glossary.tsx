@@ -10,9 +10,9 @@ export function glossaryTerms(flowHours?: number): Array<{ term: string; meaning
       meaning: "What your amount would make per day in that gauge alone, after it joins the power already there.",
     },
     {
-      term: "Power, share of weight",
+      term: "Allocation Power, share of weight",
       meaning:
-        "Power is the voting power of sAERO. Share of weight is how much of the gauge's power would be yours; the more power a gauge holds, the less each unit of it earns.",
+        "Allocation Power (\"power\" for short on this page; it used to be called voting power) is what an sAERO stake points at gauges: the AERO staked, scaled by the time left on the lock. Share of weight is how much of the gauge's power would be yours; the more power a gauge holds, the less each unit of it earns.",
     },
     {
       term: "thin, fair, solid pace",
