@@ -32,6 +32,11 @@ describe("QuickSplit", () => {
     expect(screen.queryByText(/All in one pool/)).toBeNull();
   });
 
+  it("names the chain in its label, since on a phone it sits above the section heading", () => {
+    render(<QuickSplit gauges={[g(1, 200_000)]} fees={fees([fee(1, 1000)])} amount={10_000} chainName="Base" />);
+    expect(screen.getByText("Best split for your amount on Base")).toBeInTheDocument();
+  });
+
   it("notes when the whole split sits in one pool", () => {
     render(<QuickSplit gauges={[g(1, 200_000)]} fees={fees([fee(1, 1000)])} amount={10_000} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(1);

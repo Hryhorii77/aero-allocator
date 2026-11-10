@@ -286,7 +286,7 @@ describe("GaugeTable", () => {
     it("shows the quick split with one button to the positions panel, and folds the long parts until 'more' is pressed", async () => {
       stub([{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 40 }, { gauge: "0x4", feesUsdPerDay: 900, windowHours: 40 }]);
       const { container } = render(<GaugeTable />);
-      expect(await screen.findByText("Best split for your amount")).toBeInTheDocument();
+      expect(await screen.findByText("Best split for your amount on Base")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "allocate from my wallet" })).toHaveAttribute("href", "#positions");
       // Folded on phones, always shown from sm up: the class pair carries both.
       const folded = container.querySelectorAll(".hidden.sm\\:block");
@@ -303,7 +303,7 @@ describe("GaugeTable", () => {
       vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("gauge-fees") ? { ok: false, status: 500 } : { ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
       const { container } = render(<GaugeTable />);
       await screen.findByText("T0/USDC");
-      expect(screen.queryByText("Best split for your amount")).not.toBeInTheDocument();
+      expect(screen.queryByText("Best split for your amount on Base")).not.toBeInTheDocument();
       expect(container.querySelectorAll(".hidden.sm\\:block")).toHaveLength(0);
     });
 
@@ -314,7 +314,7 @@ describe("GaugeTable", () => {
         { gauge: "0x3", feesUsdPerDay: 900, windowHours: 40 },
       ]);
       render(<GaugeTable />);
-      await screen.findByText("Best split for your amount");
+      await screen.findByText("Best split for your amount on Base");
       const chip = screen.getByRole("button", { name: "steadiest only" });
       expect(chip).toHaveAttribute("aria-pressed", "false");
       fireEvent.click(chip);
@@ -328,7 +328,7 @@ describe("GaugeTable", () => {
     it("says so when no gauge passes the filter", async () => {
       stub([{ gauge: "0x1", feesUsdPerDay: 500, windowHours: 40, steady: { buckets: 6, paying: 3 } }]);
       render(<GaugeTable />);
-      await screen.findByText("Best split for your amount");
+      await screen.findByText("Best split for your amount on Base");
       fireEvent.click(screen.getByRole("button", { name: "steadiest only" }));
       expect(screen.getByText(/No gauge has a clean fee record right now/)).toBeInTheDocument();
     });

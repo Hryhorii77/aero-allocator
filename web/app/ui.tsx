@@ -49,7 +49,7 @@ export const NUM = "font-mono tabular-nums";
 
 /** Text input: 16px on phones (no iOS zoom), 14px from `sm`, red border when `invalid`. */
 export function input(invalid = false, extra = ""): string {
-  return `rounded-lg border bg-neutral-950 px-2.5 py-1.5 text-base text-neutral-200 placeholder:text-neutral-600 focus:outline-none sm:text-sm ${
+  return `min-h-11 rounded-lg border bg-neutral-950 px-2.5 py-1.5 text-base sm:min-h-0 text-neutral-200 placeholder:text-neutral-600 focus:outline-none sm:text-sm ${
     invalid ? "border-rose-600 focus:border-rose-500" : "border-neutral-700 focus:border-sky-600"
   } ${extra}`.trim();
 }

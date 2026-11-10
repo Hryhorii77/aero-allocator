@@ -19,13 +19,16 @@ import { LEAD } from "./ui";
  * The page after Aero's launch (Aerodrome build): where an amount of sAERO earns the most, your own positions, and the allocate
  * button. The weekly-vote dashboard it replaced has been removed.
  */
+const INTRO =
+  "sAERO is staked AERO on Aero: you point its Allocation Power at gauges and earn the trading fees and incentives those gauges pay. See which gauges pay the most per day for your amount, then allocate from your wallet. Your address never reaches our server.";
+
 export function SaeroPage() {
   // Same mounted-state rule as the checklist itself, so the link only exists while the section does.
   const [upgrade, setUpgrade] = useState(false);
   useEffect(() => setUpgrade(upgradeChecklistVisible(Date.now(), DISPLAY_PRESET.protocol)), []);
   const sections = [{ id: "gauges", label: "Gauges" }, { id: "positions", label: "Positions" }, ...(upgrade ? [{ id: "upgrade", label: "Upgrade guide" }] : [])];
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 overflow-x-clip px-6 py-10 lg:px-8">
+    <main className="mx-auto w-full max-w-6xl flex-1 overflow-x-clip px-6 pb-10 pt-2 sm:pt-10 lg:px-8">
       <header className="sticky top-0 z-20 -mx-6 mb-4 border-b border-neutral-800/80 bg-neutral-950/95 px-6 py-2 backdrop-blur sm:py-3">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
           <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-white sm:text-3xl">
@@ -44,12 +47,12 @@ export function SaeroPage() {
         </div>
         <JumpBar items={sections} />
       </header>
-      <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Where to allocate your sAERO.</h1>
-      <p className={`mt-2 ${LEAD}`}>
-        sAERO is staked AERO on Aero: you point its Allocation Power at gauges and earn the trading fees and incentives those gauges pay. See which
-        gauges pay the most per day for your amount, then allocate from your wallet. Your address never reaches our server.
-      </p>
+      {/* On a phone the first screen is the amount, the quick split and its "allocate from my wallet" button (measured at 360 x 640), so the
+          heading is kept for screen readers only and the intro moves below the gauge section. From `sm` up nothing changes. */}
+      <h1 className="sr-only text-xl font-semibold tracking-tight text-white sm:not-sr-only sm:block sm:text-2xl">Where to allocate your sAERO.</h1>
+      <p className={`mt-2 hidden sm:block ${LEAD}`}>{INTRO}</p>
       <GaugeTable />
+      <p className={`mt-4 sm:hidden ${LEAD}`}>{INTRO}</p>
       <SaeroPositions />
       <TrackRecordPanel />
       <UpgradeChecklist />

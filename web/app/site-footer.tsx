@@ -3,6 +3,9 @@
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { SAERO } from "@/lib/saero";
 import { LINK } from "./ui";
+
+/** A standalone footer link: at least 44 x 44 px on a phone, like btn() and chip(); `inline-flex` because min-height does nothing inline. */
+const FOOT_LINK = `${LINK} inline-flex min-h-11 min-w-11 items-center sm:min-h-0 sm:min-w-0`;
 import { TipJar } from "./tip-jar";
 
 const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
@@ -23,13 +26,13 @@ export function SiteFooter() {
             Where to allocate your sAERO: gauges ranked by what your amount earns per day. Allocation happens in your wallet, on Aero.
           </p>
           <div className="flex flex-wrap gap-x-4">
-            <a href={X_URL} target="_blank" rel="noreferrer" className={LINK}>
+            <a href={X_URL} target="_blank" rel="noreferrer" className={FOOT_LINK}>
               X
             </a>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className={LINK}>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className={FOOT_LINK}>
               GitHub
             </a>
-            <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" className={LINK}>
+            <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" className={FOOT_LINK}>
               README
             </a>
           </div>
@@ -37,14 +40,14 @@ export function SiteFooter() {
             <TipJar placement="up" />
           </div>
         </div>
-        <div className="flex flex-col gap-1.5 sm:text-right">
+        <div className="flex flex-col gap-0 sm:gap-1.5 sm:text-right">
           <div className="mb-0.5 text-xs uppercase tracking-wider text-neutral-500">Onchain</div>
           {explorer && (
-            <a href={`${explorer.url}/address/${SAERO.voter}`} target="_blank" rel="noreferrer" className={LINK}>
+            <a href={`${explorer.url}/address/${SAERO.voter}`} target="_blank" rel="noreferrer" className={`${FOOT_LINK} self-start sm:self-end`}>
               Aero voter contract ↗
             </a>
           )}
-          <a href="https://aero.xyz" target="_blank" rel="noreferrer" className={LINK}>
+          <a href="https://aero.xyz" target="_blank" rel="noreferrer" className={`${FOOT_LINK} self-start sm:self-end`}>
             Aero ↗
           </a>
         </div>
