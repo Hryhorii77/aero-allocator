@@ -45,10 +45,10 @@ Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and
 | `GET /api/gauge-flows?chain=8453` | How each gauge's share of the allocation weight moved over the last day, and gauges whose incentives just appeared |
 | `GET /api/all-chains-split?amount=100000&days=30` | best split of an amount over every chain, after the ETH each extra chain costs (read-only) |
 | `GET /api/allocation-fee?chain=10&gauges=2` | ETH cost on Base of sending power to another chain |
-
-Aero’s app now calls a position’s power **Allocation Power** (formerly voting power). The site uses that word; the API fields, the MCP tools and the agent skills keep `power`, `votingPower` and `weight`, so agents built on them keep working.
 | `GET /api/token-prices?tokens=0x…[&chain=10]` | USD prices for up to 12 token addresses on one Aero chain, Base by default (lets the page value earned fees and incentives without sending a position anywhere) |
 | `GET /api/share?vp=<amount>` | The 1200×630 share card (also the link preview) |
+
+Aero’s app now calls a position’s power **Allocation Power** (formerly voting power). The site uses that word; the API fields, the MCP tools and the agent skills keep `power`, `votingPower` and `weight`, so agents built on them keep working.
 
 Paid (x402), below: [Paid API (x402)](#paid-api-x402).
 

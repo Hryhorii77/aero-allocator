@@ -35,7 +35,7 @@ describe("AutopilotComparePanel", () => {
     expect(row).toHaveTextContent(/for you \$4\.7\d\/day · best split \$10\.00/);
     expect(row).toHaveTextContent("Base 60% · OP 30% · not on any gauge 10%");
     expect(screen.getByText(/before Autopilot.s own fee, which Aero hasn.t published/)).toBeInTheDocument();
-    expect(screen.getByText(/queue of up to one wait/)).toBeInTheDocument();
+    expect(screen.getByText(/queue that can last a full wait/)).toBeInTheDocument();
   });
 
   it("says so plainly when the read fails, or when no pool holds power", async () => {

@@ -90,7 +90,7 @@ export function AutopilotComparePanel({ gauges, fees, amount, cooldownSec }: { g
           <p className={`mt-2 ${NOTE}`}>
             A deposit earns its pool&rsquo;s rate, worked out here from where the pool&rsquo;s power sits now and priced like the best split (a burst of fees at the
             gauge&rsquo;s usual level). Power the pool holds off every gauge, new deposits waiting their turn or power in transit, earns nothing and lowers that rate
-            for everyone in it. The figure is before Autopilot&rsquo;s own fee, which Aero hasn&rsquo;t published, and a new deposit waits in a queue of up to {hours ? `${hours} hours` : "one wait"}
+            for everyone in it. The figure is before Autopilot&rsquo;s own fee, which Aero hasn&rsquo;t published, and a new deposit waits in a queue that can last {hours ? `up to ${hours} hours` : "a full wait"}
             before it earns anything.
           </p>
           <p className={`mt-1 ${NOTE}`}>
