@@ -243,8 +243,10 @@ export function GaugeTable() {
   const totalCount = counts && counts.size > 0 ? [...counts.values()].reduce((a, b) => a + b, 0) : undefined;
 
   return (
-    <section id="gauges" className="mt-4 scroll-mt-36 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:px-5">
-      <h2 className={H2}>
+    <section id="gauges" className="mt-2 flex scroll-mt-36 flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 px-3 py-4 sm:mt-4 sm:block sm:px-5">
+      {/* Phones: the amount box and quick split are moved above this heading and the chain buttons (order-first below), so the first
+          screen holds the answer and its button; the heading then sits over the folded table it names. */}
+      <h2 className={`${H2} ${hasFees ? "mt-4 sm:mt-0" : ""}`}>
         Where your sAERO earns the most on {chainName}
         {data ? (
           <span className="font-normal text-neutral-400" title={`Ranked: activated by Aero with at least ${fmt(MIN_RANK_WEIGHT)} power, the same count as on the chain buttons`}>
@@ -286,7 +288,7 @@ export function GaugeTable() {
         </p>
       )}
       {hasFees && (
-        <div className="mt-4">
+        <div className="order-first sm:order-none sm:mt-4">
           <label className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-neutral-400">
             <span>I hold</span>
             <input
@@ -310,7 +312,7 @@ export function GaugeTable() {
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
           {fees && data && parsed.ok && !allMode && (
             <div className="sm:hidden">
-              <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} />
+              <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} chainName={chainName} />
               <button type="button" aria-expanded={more} className={`mt-3 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
                 {more ? "hide the details" : "more: explanations, all chains and every gauge"}
               </button>

@@ -19,7 +19,7 @@ const usd2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2
  * The phone's first answer: where this amount earns the most (up to three gauges), what it adds up to per day, how much to trust it,
  * and one button to the positions panel where the allocation is signed. The long explanations and the full table sit behind "more".
  */
-export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; cooldownSec?: number }) {
+export function QuickSplit({ gauges, fees, amount, cooldownSec, chainName }: { gauges: GaugeRow[]; fees: GaugeFees; amount: number; cooldownSec?: number; chainName?: string }) {
   const waitSec = cooldownSec ?? DEFAULT_COOLDOWN_SEC;
   // The clock for "incentives end in…": the fee data's own time, or the moment this card mounted when it has none.
   const [mountedMs] = useState(() => Date.now());
@@ -42,7 +42,7 @@ export function QuickSplit({ gauges, fees, amount, cooldownSec }: { gauges: Gaug
 
   return (
     <div className="mt-4 rounded-xl border border-sky-900/60 bg-sky-950/20 px-3 py-3">
-      <div className="text-xs uppercase tracking-wide text-neutral-400">Best split for your amount</div>
+      <div className="text-xs uppercase tracking-wide text-neutral-400">Best split for your amount{chainName ? ` on ${chainName}` : ""}</div>
       <div className={`mt-1 text-2xl font-semibold text-emerald-400 ${NUM}`}>
         ${usd2(split.usdPerDay)} <span className="text-sm font-normal text-neutral-400">a day{apr !== null ? ` · about ${fmtApr(apr)} APR` : ""}</span>
       </div>
