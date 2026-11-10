@@ -286,8 +286,10 @@ describe("GaugeTable", () => {
     it("shows the quick split with one button to the positions panel, and folds the long parts until 'more' is pressed", async () => {
       stub([{ gauge: "0x3", feesUsdPerDay: 1000, windowHours: 40 }, { gauge: "0x4", feesUsdPerDay: 900, windowHours: 40 }]);
       const { container } = render(<GaugeTable />);
-      expect(await screen.findByText("Best split for your amount on Base")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "allocate from my wallet" })).toHaveAttribute("href", "#positions");
+      // The loading placeholder carries the same label, so wait for the card's own button first.
+      expect(await screen.findByRole("link", { name: "allocate from my wallet" })).toHaveAttribute("href", "#positions");
+      expect(screen.getByText("Best split for your amount on Base")).toBeInTheDocument();
+      expect(container.querySelector('[aria-busy="true"]')).toBeNull();
       // Folded on phones, always shown from sm up: the class pair carries both.
       const folded = container.querySelectorAll(".hidden.sm\\:block");
       expect(folded.length).toBeGreaterThanOrEqual(2);
@@ -296,6 +298,32 @@ describe("GaugeTable", () => {
       fireEvent.click(more);
       expect(container.querySelectorAll(".hidden.sm\\:block")).toHaveLength(0);
       expect(screen.getByRole("button", { name: "hide the details" })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("holds the quick card's space on a phone while fees load, and drops it the moment a read fails", async () => {
+      vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+      let failFees: () => void = () => {};
+      vi.stubGlobal("fetch", vi.fn((url: string) =>
+        url.includes("gauge-fees")
+          ? new Promise((resolve) => (failFees = () => resolve({ ok: false, status: 500 })))
+          : Promise.resolve({ ok: true, json: async () => ({ chainId: 8453, generatedAt: 0, totalWeight: 1, gauges }) })));
+      const { container } = render(<GaugeTable />);
+      await screen.findByText("T0/USDC");
+      const busy = container.querySelector('[aria-busy="true"]');
+      expect(busy).not.toBeNull();
+      expect(busy!.closest(".sm\\:hidden")).not.toBeNull(); // phones only
+      expect(busy!.querySelector(".min-h-\\[23\\.5rem\\]")).not.toBeNull(); // the three-pool card's height
+      failFees();
+      expect(await screen.findByText(/Fee estimates are unavailable/)).toBeInTheDocument();
+      expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    });
+
+    it("drops the placeholder when the gauges can't be read either", async () => {
+      vi.spyOn(Date, "now").mockReturnValue(AERO_LAUNCH_AT_MS + 3600_000);
+      vi.stubGlobal("fetch", vi.fn((url: string) => (url.includes("gauge-fees") ? new Promise(() => {}) : Promise.resolve({ ok: false, status: 500 }))));
+      const { container } = render(<GaugeTable />);
+      expect(await screen.findByText(/Couldn.t load gauges/)).toBeInTheDocument();
+      expect(container.querySelector('[aria-busy="true"]')).toBeNull();
     });
 
     it("keeps everything visible without a fee estimate (nothing to summarise yet)", async () => {
@@ -314,7 +342,7 @@ describe("GaugeTable", () => {
         { gauge: "0x3", feesUsdPerDay: 900, windowHours: 40 },
       ]);
       render(<GaugeTable />);
-      await screen.findByText("Best split for your amount on Base");
+      await screen.findByRole("link", { name: "allocate from my wallet" });
       const chip = screen.getByRole("button", { name: "steadiest only" });
       expect(chip).toHaveAttribute("aria-pressed", "false");
       fireEvent.click(chip);
@@ -328,7 +356,7 @@ describe("GaugeTable", () => {
     it("says so when no gauge passes the filter", async () => {
       stub([{ gauge: "0x1", feesUsdPerDay: 500, windowHours: 40, steady: { buckets: 6, paying: 3 } }]);
       render(<GaugeTable />);
-      await screen.findByText("Best split for your amount on Base");
+      await screen.findByRole("link", { name: "allocate from my wallet" });
       fireEvent.click(screen.getByRole("button", { name: "steadiest only" }));
       expect(screen.getByText(/No gauge has a clean fee record right now/)).toBeInTheDocument();
     });

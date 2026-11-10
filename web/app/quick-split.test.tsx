@@ -37,6 +37,11 @@ describe("QuickSplit", () => {
     expect(screen.getByText("Best split for your amount on Base")).toBeInTheDocument();
   });
 
+  it("keeps the three-pool card's height with fewer pools, so content below doesn't move", () => {
+    const { container } = render(<QuickSplit gauges={[g(1, 200_000)]} fees={fees([fee(1, 1000)])} amount={10_000} />);
+    expect(container.querySelector(".min-h-\\[23\\.5rem\\]")).not.toBeNull();
+  });
+
   it("notes when the whole split sits in one pool", () => {
     render(<QuickSplit gauges={[g(1, 200_000)]} fees={fees([fee(1, 1000)])} amount={10_000} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(1);

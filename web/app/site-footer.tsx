@@ -3,10 +3,10 @@
 import { DISPLAY_PRESET } from "@/lib/protocol";
 import { SAERO } from "@/lib/saero";
 import { LINK } from "./ui";
+import { TipJar } from "./tip-jar";
 
 /** A standalone footer link: at least 44 x 44 px on a phone, like btn() and chip(); `inline-flex` because min-height does nothing inline. */
 const FOOT_LINK = `${LINK} inline-flex min-h-11 min-w-11 items-center sm:min-h-0 sm:min-w-0`;
-import { TipJar } from "./tip-jar";
 
 const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
 const X_URL = "https://x.com/hryhorii77";

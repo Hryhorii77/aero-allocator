@@ -13,7 +13,7 @@ import { AERO_LAUNCH_AT_MS } from "./launch";
 import { AERO_CHAINS, BASE_CHAIN, chainById } from "@/lib/aero-chains";
 import type { ChainCount } from "@/lib/chain-counts";
 import { Glossary } from "./glossary";
-import { QuickSplit } from "./quick-split";
+import { QUICK_MORE_LABEL, QuickSplit, QuickSplitPlaceholder } from "./quick-split";
 import { AllChainsSplitPanel } from "./all-chains-split";
 import { AllocationDesk, fmtApr } from "./allocation-desk";
 import { GaugeHistoryPanel } from "./gauge-history";
@@ -74,7 +74,10 @@ function Th({ children, sortKey, active, onSort, className = "" }: { children: s
  * the pool name so nothing scrolls sideways.
  */
 export function GaugeTable() {
-  const [live, setLive] = useState(false);
+  // Decided in the first render, not after mounting: the server and the browser agree (Aero launched 2026-10-22), and waiting for an
+  // effect left the section out of the first paint, so it then pushed the intro, changelog and footer off a phone's screen (a 0.59 layout
+  // shift measured 2026-11-10).
+  const [live, setLive] = useState(() => DISPLAY_PRESET.protocol === "aerodrome" && Date.now() >= AERO_LAUNCH_AT_MS);
   const [oneData, setData] = useState<GaugeList | null>(null);
   const [oneFailed, setFailed] = useState(false);
   const [all, setAll] = useState(false);
@@ -308,13 +311,20 @@ export function GaugeTable() {
               {parsed.error}
             </p>
           )}
-          {!fees && !feesFailed && <p className={`mt-3 ${NOTE}`}>Reading fees from recent blocks…</p>}
+          {/* On a phone the placeholder below says this inside the card's own space. */}
+          {!fees && !feesFailed && <p className={`mt-3 ${NOTE} ${parsed.ok && !allMode && !failed ? "hidden sm:block" : ""}`}>Reading fees from recent blocks…</p>}
+          {/* Phones: hold the quick card's space while the gauges and fees load; gone at once if either read fails. */}
+          {parsed.ok && !allMode && !failed && !feesFailed && !(fees && data) && (
+            <div className="sm:hidden">
+              <QuickSplitPlaceholder chainName={chainName} />
+            </div>
+          )}
           {feesFailed && <p className="mt-3 text-sm text-amber-500">Fee estimates are unavailable right now.</p>}
           {fees && data && parsed.ok && !allMode && (
             <div className="sm:hidden">
               <QuickSplit gauges={data.gauges} fees={fees} amount={amount} cooldownSec={data.cooldownSec} chainName={chainName} />
               <button type="button" aria-expanded={more} className={`mt-3 w-full ${btn("secondary", "md")}`} onClick={() => setMore((v) => !v)}>
-                {more ? "hide the details" : "more: explanations, all chains and every gauge"}
+                {more ? "hide the details" : QUICK_MORE_LABEL}
               </button>
             </div>
           )}
