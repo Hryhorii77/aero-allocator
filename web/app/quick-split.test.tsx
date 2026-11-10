@@ -29,6 +29,13 @@ describe("QuickSplit", () => {
     expect(pcts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
     expect(screen.getByText(/about \d+(\.\d)?k?% APR/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "allocate from my wallet" })).toHaveAttribute("href", "#positions");
+    expect(screen.queryByText(/All in one pool/)).toBeNull();
+  });
+
+  it("notes when the whole split sits in one pool", () => {
+    render(<QuickSplit gauges={[g(1, 200_000)]} fees={fees([fee(1, 1000)])} amount={10_000} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByText(/All in one pool: the best estimate today, but it rests on one pool’s pace/)).toBeInTheDocument();
   });
 
   it("says how far the figure can fall and warns when the pace is thin", () => {
