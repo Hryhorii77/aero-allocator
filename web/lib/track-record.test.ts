@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC, rollupDays } from "./daily-history";
-import { addEntry, autopilotRealizedUsdPerDay, inLogWindow, INPUTS_KEPT, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type AutopilotSnap, type TrackEntry, type TrackLog } from "./track-record";
+import { addEntry, autopilotRealizedUsdPerDay, inLogWindow, INPUTS_KEPT, INPUTS_VERSION, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type AutopilotSnap, type TrackEntry, type TrackLog } from "./track-record";
 import type { GaugeRow } from "./gauges";
 
 const G1 = "0x00000000000000000000000000000000000000a1";
@@ -42,6 +42,7 @@ describe("recommend", () => {
     })) };
     const e = recommend(gs.map((g) => gauge(g, 200_000.4)), fees, now)!;
     expect(e.in).toHaveLength(INPUTS_KEPT);
+    expect(e.iv).toBe(INPUTS_VERSION);
     for (const p of e.parts) expect(e.in!.some((x) => x.g === p.g)).toBe(true);
     const first = e.in!.find((x) => x.g === gs[0])!;
     expect(first).toEqual({ g: gs[0], f: 1000, u: 980.46, i: 0, w: 200_000, h: 40, sp: 5, sb: 8 });

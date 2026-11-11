@@ -157,15 +157,15 @@ export async function readGaugeFees(chainId = BASE_CHAIN.id, nowSec = Math.floor
     // Steadiness looks back over everything the record keeps, not just the 2-day pace window: three half-days need more than 48 h.
     const buckets = feeBuckets(eventsWithin(ledger, rewards[i], head, RETAIN_DAYS, bt), head, price, bt, nowSec, STEADY_BUCKET_HOURS);
     const steady = steadiness(buckets);
-    const spike = spikeOf(buckets, pace.usdPerDay);
     const typical = typicalOf(buckets);
+    const spike = spikeOf(buckets, pace.usdPerDay, typical);
     fees.push({
       gauge: g,
       feesUsdPerDay: pace.usdPerDay,
       windowHours: pace.windowSec / 3600,
       ...(steady ? { steady } : {}),
       ...(spike ? { spike } : {}),
-      ...(typical !== null ? { typicalUsdPerDay: Number(typical.toFixed(2)) } : {}),
+      ...(typical !== null ? { typicalUsdPerDay: typical } : {}),
     });
   });
   return { chainId, generatedAt: nowSec * 1000, windowHours: coverageHours(ledger, head, undefined, bt), fees, aeroUsd: await aeroPriceUsd() };

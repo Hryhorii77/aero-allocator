@@ -36,17 +36,25 @@ export interface TrackEntry {
   /** Where Aero Autopilot's pools had their power when the entry was logged (from 2026-11-11), to check a deposit there the same way. */
   ap?: AutopilotSnap[];
   /**
-   * What the ranking saw for the split's gauges and the runners-up (from 2026-11-11; 10 of them, 25 from 2026-11-12), so a miss can be explained and another ranking
+   * What the ranking saw for the split's gauges and the runners-up (from 2026-11-11; how many, and when `u` is set, depends on `iv`), so a miss can be explained and another ranking
    * replayed without rebuilding the inputs: the 2-day fee pace and the 6-hour ledger behind it are kept only 4 days.
    */
   in?: PickInput[];
+  /**
+   * What `in` holds. Absent (1, 2026-11-11 only): 10 best-ranked, `u` only when the pace was a burst. 2: INPUTS_KEPT best-ranked, `u`
+   * whenever the usual level can be told, so a missing `u` means it couldn't (a burst is `f >= SPIKE_RATIO * u`).
+   */
+  iv?: number;
 }
+
+/** The current layout of `in` (TrackEntry.iv). */
+export const INPUTS_VERSION = 2;
 
 /** How many of the best-ranked gauges `recommend` keeps inputs for, besides every gauge in the split. */
 export const INPUTS_KEPT = 25;
 
 /**
- * One gauge as the ranking saw it at pick time. USD per day unless named: `f` the fee pace, `u` the usual level (median half-day; from 2026-11-12 every day, before that only on a burst),
+ * One gauge as the ranking saw it at pick time. USD per day unless named: `f` the fee pace, `u` the usual level (median half-day; see TrackEntry.iv for when it is present),
  * `i` incentives streaming now and `il` their average over the wait (when it is lower), `w` weight in whole tokens, `h` hours of fee
  * history behind the pace, `sp` / `sb` paying and complete half-days.
  */
@@ -122,6 +130,7 @@ export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, w
     lowUsd: Number(range.lowUsdPerDay.toFixed(4)),
     rule: RANK_RULE,
     in: kept.map(pickInput),
+    iv: INPUTS_VERSION,
   };
 }
 

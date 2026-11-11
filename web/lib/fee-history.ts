@@ -99,8 +99,7 @@ export interface Spike {
  * couple of big releases cannot move, so a burst inside the pace window shows up against it. Null when the record is too short, or the
  * median half-day is empty (a gauge that releases rarely has no usual level to compare with), or the pace is not far above it.
  */
-export function spikeOf(buckets: FeeBucket[], paceUsdPerDay: number): Spike | null {
-  const typical = typicalOf(buckets);
+export function spikeOf(buckets: FeeBucket[], paceUsdPerDay: number, typical: number | null = typicalOf(buckets)): Spike | null {
   return typical !== null && paceUsdPerDay >= typical * SPIKE_RATIO ? { typicalUsdPerDay: typical } : null;
 }
 
