@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feeBuckets, spikeOf, steadiness, steadyScore } from "./fee-history";
+import { feeBuckets, spikeOf, steadiness, steadyScore, typicalOf } from "./fee-history";
 
 const T = "0x0000000000000000000000000000000000000001" as const;
 const price = () => ({ priceUsd: 1, decimals: 6 });
@@ -58,5 +58,16 @@ describe("spikeOf", () => {
   it("says nothing with too little record, or when the usual half-day is empty (releases are rare)", () => {
     expect(spikeOf(b(100, 100, 100), 5000)).toBeNull();
     expect(spikeOf(b(0, 0, 0, 900, 0), 5000)).toBeNull();
+  });
+});
+
+describe("typicalOf", () => {
+  const b = (...usd: number[]) => usd.map((u, i) => ({ t: i * 43200, usd: u }));
+  it("gives the usual level whether or not the pace is a burst", () => {
+    expect(typicalOf(b(90, 100, 110, 100, 100, 120))).toBe(200);
+  });
+  it("is null with too little record or an empty median half-day", () => {
+    expect(typicalOf(b(100, 100, 100))).toBeNull();
+    expect(typicalOf(b(0, 0, 0, 900, 0))).toBeNull();
   });
 });

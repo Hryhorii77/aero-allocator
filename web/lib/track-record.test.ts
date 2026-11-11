@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC, rollupDays } from "./daily-history";
-import { addEntry, autopilotRealizedUsdPerDay, inLogWindow, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type AutopilotSnap, type TrackEntry, type TrackLog } from "./track-record";
+import { addEntry, autopilotRealizedUsdPerDay, inLogWindow, INPUTS_KEPT, MIN_DAYS_TO_SHOW, RANK_RULE, realizedUsdPerDay, recommend, summarize, TRACK_AMOUNT, type AutopilotSnap, type TrackEntry, type TrackLog } from "./track-record";
 import type { GaugeRow } from "./gauges";
 
 const G1 = "0x00000000000000000000000000000000000000a1";
@@ -34,16 +34,20 @@ describe("recommend", () => {
   });
   it("keeps the ranking's inputs for the split's gauges and the runners-up, so a miss can be explained later", () => {
     const now = 1_000 * 86_400 + 300;
-    const gs = Array.from({ length: 14 }, (_, k) => `0x${(0xb0 + k).toString(16).padStart(40, "0")}`);
+    const gs = Array.from({ length: 30 }, (_, k) => `0x${(0xb0 + k).toString(16).padStart(40, "0")}`);
     const fees = { chainId: 8453, generatedAt: 0, windowHours: 40, fees: gs.map((g, k) => ({
-      gauge: g as `0x${string}`, feesUsdPerDay: 1000 - k * 50, windowHours: 40.04,
-      ...(k === 0 ? { spike: { typicalUsdPerDay: 980.456 }, steady: { buckets: 8, paying: 5 } } : {}),
+      gauge: g as `0x${string}`, feesUsdPerDay: 1000 - k * 20, windowHours: 40.04,
+      ...(k === 0 ? { spike: { typicalUsdPerDay: 980.456 }, typicalUsdPerDay: 980.456, steady: { buckets: 8, paying: 5 } } : {}),
+      ...(k === 1 ? { typicalUsdPerDay: 543.21 } : {}),
     })) };
     const e = recommend(gs.map((g) => gauge(g, 200_000.4)), fees, now)!;
-    expect(e.in).toHaveLength(10);
+    expect(e.in).toHaveLength(INPUTS_KEPT);
     for (const p of e.parts) expect(e.in!.some((x) => x.g === p.g)).toBe(true);
     const first = e.in!.find((x) => x.g === gs[0])!;
     expect(first).toEqual({ g: gs[0], f: 1000, u: 980.46, i: 0, w: 200_000, h: 40, sp: 5, sb: 8 });
+    // The usual level is kept on an ordinary day too, not only on a burst.
+    expect(e.in!.find((x) => x.g === gs[1])?.u).toBe(543.21);
+    expect(e.in!.find((x) => x.g === gs[2])?.u).toBeUndefined();
   });
   it("is null when nothing can be ranked", () => {
     expect(recommend([gauge(G1, 200_000)], { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [] }, 1)).toBeNull();

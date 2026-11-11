@@ -318,6 +318,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
             windowHours: num("Hours of history the pace rests on."),
             steady: { type: "object", description: "Present once there are three complete half-days.", properties: { buckets: { type: "integer" }, paying: { type: "integer", description: "How many half-days paid at least half the average one." } } },
             spike: { type: "object", description: "Present when the pace is at least three times the gauge's usual level.", properties: { typicalUsdPerDay: num("The gauge's usual fees per day (median half-day, scaled).") } },
+            typicalUsdPerDay: num("The gauge's usual fees per day (median complete half-day over the 4-day record, scaled), present whether or not the pace is a burst; absent until there are four half-days or when the median one is empty."),
           },
         },
         GaugeHistory: {

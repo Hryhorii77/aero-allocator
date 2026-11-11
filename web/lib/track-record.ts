@@ -36,17 +36,17 @@ export interface TrackEntry {
   /** Where Aero Autopilot's pools had their power when the entry was logged (from 2026-11-11), to check a deposit there the same way. */
   ap?: AutopilotSnap[];
   /**
-   * What the ranking saw for the split's gauges and the runners-up (from 2026-11-11), so a miss can be explained and another ranking
+   * What the ranking saw for the split's gauges and the runners-up (from 2026-11-11; 10 of them, 25 from 2026-11-12), so a miss can be explained and another ranking
    * replayed without rebuilding the inputs: the 2-day fee pace and the 6-hour ledger behind it are kept only 4 days.
    */
   in?: PickInput[];
 }
 
 /** How many of the best-ranked gauges `recommend` keeps inputs for, besides every gauge in the split. */
-export const INPUTS_KEPT = 10;
+export const INPUTS_KEPT = 25;
 
 /**
- * One gauge as the ranking saw it at pick time. USD per day unless named: `f` the fee pace, `u` the usual level when the pace was a burst,
+ * One gauge as the ranking saw it at pick time. USD per day unless named: `f` the fee pace, `u` the usual level (median half-day; from 2026-11-12 every day, before that only on a burst),
  * `i` incentives streaming now and `il` their average over the wait (when it is lower), `w` weight in whole tokens, `h` hours of fee
  * history behind the pace, `sp` / `sb` paying and complete half-days.
  */
@@ -68,7 +68,7 @@ function pickInput(r: YieldRow): PickInput {
   return {
     g: r.gauge.toLowerCase(),
     f: r2(r.feesUsdPerDay),
-    ...(r.spike ? { u: r2(r.spike.typicalUsdPerDay) } : {}),
+    ...(r.typicalUsdPerDay !== undefined ? { u: r2(r.typicalUsdPerDay) } : r.spike ? { u: r2(r.spike.typicalUsdPerDay) } : {}),
     i: r2(r.incentivesUsdPerDay),
     ...(r.incentivesLowUsdPerDay !== undefined && r.incentivesLowUsdPerDay < r.incentivesUsdPerDay ? { il: r2(r.incentivesLowUsdPerDay) } : {}),
     w: Math.round(r.weight),

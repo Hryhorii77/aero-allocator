@@ -31,6 +31,8 @@ export interface YieldRow {
   steady?: { buckets: number; paying: number };
   /** Set when the fee pace is far above the gauge's usual level, with that level. */
   spike?: Spike;
+  /** The gauge's usual fees per day, whether or not the pace is a burst; absent when it can't be told. */
+  typicalUsdPerDay?: number;
 }
 
 /** Yearly return in percent for earning `usdPerDay` on `amount` AERO at `aeroUsd` each; null when the price or amount is missing. */
@@ -114,6 +116,7 @@ export function rankByUsdPerDay(
       windowHours: fee.windowHours,
       ...(fee.steady ? { steady: fee.steady } : {}),
       ...(fee.spike ? { spike: fee.spike } : {}),
+      ...(fee.typicalUsdPerDay !== undefined ? { typicalUsdPerDay: fee.typicalUsdPerDay } : {}),
     });
   }
   return rows.sort((a, b) => b.usdPerDay - a.usdPerDay);
