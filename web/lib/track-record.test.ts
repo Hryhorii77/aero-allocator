@@ -32,6 +32,19 @@ describe("recommend", () => {
     expect(e.parts[0].g).toBe(G2.toLowerCase());
     expect(e.parts.find((p) => p.g === G1.toLowerCase())?.pct ?? 0).toBeLessThan(50);
   });
+  it("keeps the ranking's inputs for the split's gauges and the runners-up, so a miss can be explained later", () => {
+    const now = 1_000 * 86_400 + 300;
+    const gs = Array.from({ length: 14 }, (_, k) => `0x${(0xb0 + k).toString(16).padStart(40, "0")}`);
+    const fees = { chainId: 8453, generatedAt: 0, windowHours: 40, fees: gs.map((g, k) => ({
+      gauge: g as `0x${string}`, feesUsdPerDay: 1000 - k * 50, windowHours: 40.04,
+      ...(k === 0 ? { spike: { typicalUsdPerDay: 980.456 }, steady: { buckets: 8, paying: 5 } } : {}),
+    })) };
+    const e = recommend(gs.map((g) => gauge(g, 200_000.4)), fees, now)!;
+    expect(e.in).toHaveLength(10);
+    for (const p of e.parts) expect(e.in!.some((x) => x.g === p.g)).toBe(true);
+    const first = e.in!.find((x) => x.g === gs[0])!;
+    expect(first).toEqual({ g: gs[0], f: 1000, u: 980.46, i: 0, w: 200_000, h: 40, sp: 5, sb: 8 });
+  });
   it("is null when nothing can be ranked", () => {
     expect(recommend([gauge(G1, 200_000)], { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [] }, 1)).toBeNull();
   });

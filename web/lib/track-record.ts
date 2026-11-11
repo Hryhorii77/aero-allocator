@@ -1,7 +1,7 @@
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC } from "./daily-history";
 import type { GaugeFees } from "./gauge-fees-read";
-import { rankByUsdPerDay } from "./gauge-yield";
+import { rankByUsdPerDay, type YieldRow } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 import { gaugeLabel } from "./gauges";
 import { projectRange } from "./projection";
@@ -35,6 +35,46 @@ export interface TrackEntry {
   rule?: number;
   /** Where Aero Autopilot's pools had their power when the entry was logged (from 2026-11-11), to check a deposit there the same way. */
   ap?: AutopilotSnap[];
+  /**
+   * What the ranking saw for the split's gauges and the runners-up (from 2026-11-11), so a miss can be explained and another ranking
+   * replayed without rebuilding the inputs: the 2-day fee pace and the 6-hour ledger behind it are kept only 4 days.
+   */
+  in?: PickInput[];
+}
+
+/** How many of the best-ranked gauges `recommend` keeps inputs for, besides every gauge in the split. */
+export const INPUTS_KEPT = 10;
+
+/**
+ * One gauge as the ranking saw it at pick time. USD per day unless named: `f` the fee pace, `u` the usual level when the pace was a burst,
+ * `i` incentives streaming now and `il` their average over the wait (when it is lower), `w` weight in whole tokens, `h` hours of fee
+ * history behind the pace, `sp` / `sb` paying and complete half-days.
+ */
+export interface PickInput {
+  g: string;
+  f: number;
+  u?: number;
+  i: number;
+  il?: number;
+  w: number;
+  h: number;
+  sp?: number;
+  sb?: number;
+}
+
+const r2 = (n: number) => Number(n.toFixed(2));
+
+function pickInput(r: YieldRow): PickInput {
+  return {
+    g: r.gauge.toLowerCase(),
+    f: r2(r.feesUsdPerDay),
+    ...(r.spike ? { u: r2(r.spike.typicalUsdPerDay) } : {}),
+    i: r2(r.incentivesUsdPerDay),
+    ...(r.incentivesLowUsdPerDay !== undefined && r.incentivesLowUsdPerDay < r.incentivesUsdPerDay ? { il: r2(r.incentivesLowUsdPerDay) } : {}),
+    w: Math.round(r.weight),
+    h: Number(r.windowHours.toFixed(1)),
+    ...(r.steady ? { sp: r.steady.paying, sb: r.steady.buckets } : {}),
+  };
 }
 
 /**
@@ -70,6 +110,9 @@ export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, w
   const split = bestSplit(ranked.map((r) => ({ gauge: r.gauge, symbol: gaugeLabel(r), rate: splitRate(r), weight: r.weight })), amount);
   if (!split) return null;
   const range = projectRange(ranked, split);
+  const inSplit = new Set(split.parts.map((p) => p.gauge.toLowerCase()));
+  const byRate = [...ranked].sort((a, b) => (splitRate(b) * amount) / (b.weight + amount) - (splitRate(a) * amount) / (a.weight + amount));
+  const kept = byRate.filter((r, i) => i < INPUTS_KEPT || inSplit.has(r.gauge.toLowerCase()));
   return {
     t: nowSec,
     day: Math.floor(nowSec / DAY_SEC),
@@ -78,6 +121,7 @@ export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, w
     paceUsd: Number(range.paceUsdPerDay.toFixed(4)),
     lowUsd: Number(range.lowUsdPerDay.toFixed(4)),
     rule: RANK_RULE,
+    in: kept.map(pickInput),
   };
 }
 
