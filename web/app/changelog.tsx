@@ -10,6 +10,10 @@ import { LINK } from "./ui";
 // weeks when adding one. Anything older is a commit away via the link at the foot of the panel.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-11-11",
+    title: "For agents: the free gauge-fees API now gives each gauge\u2019s usual fees per day, not only during a fee burst. The track record also keeps what the ranking saw each morning, so a day the advice missed can be explained.",
+  },
+  {
     date: "2026-11-10",
     title: "Uses Aero\u2019s word Allocation Power, and every mention of the wait between allocations now shows the value read from the chain (Aero says it may get shorter). On a phone, the best split and its \u201callocate from my wallet\u201d button now fill the first screen, and a split that puts everything in one pool says so. The track record starts checking Aero\u2019s Autopilot the same way: from tomorrow each day also shows what the same amount in Autopilot really paid.",
   },
