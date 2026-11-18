@@ -456,6 +456,8 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                 atLeastLow: { type: "integer", description: "Days on which it paid at least the low case." },
                 avgPredictedUsd: num("Average predicted USD per day."),
                 avgRealizedUsd: num("Average USD per day it really paid."),
+                avgPredictedAprPct: num("The mean of each day's predicted APR, percent. Absent when a day has no AERO price."),
+                avgRealizedAprPct: num("The mean of each day's realized APR, percent. Absent when a day has no AERO price."),
               },
             },
             vsAutopilot: {
@@ -468,6 +470,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                 splitAhead: { type: "integer", description: "Days on which the split paid more." },
               },
             },
+            aeroUsd: nullable(num("AERO's USD price now, used for days logged before each entry kept its own (2026-11-19).")),
             rows: {
               type: "array",
               description: "The latest days, newest first.",
@@ -479,6 +482,10 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                   paceUsd: num("Predicted USD per day at the fee pace of the time."),
                   lowUsd: num("The low case, USD per day."),
                   realizedUsd: nullable(num("USD per day it really paid; null until both days are recorded.")),
+                  paceAprPct: nullable(num("paceUsd as a yearly return on the amount's value in AERO at `aeroUsd`, percent.")),
+                  realizedAprPct: nullable(num("realizedUsd as a yearly return at `aeroUsd`, percent; null until checked.")),
+                  aeroUsd: nullable(num("The AERO price the APRs use: the one logged with the entry, or today's for older entries.")),
+                  aeroUsdLogged: { type: "boolean", description: "Whether `aeroUsd` was logged with the entry (from 2026-11-19) rather than today's price." },
                   rule: { type: "integer", description: "The ranking rule that chose this split." },
                   autopilot: {
                     type: "array",

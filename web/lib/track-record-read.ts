@@ -1,5 +1,5 @@
 import { loadDailyHistory } from "./daily-history-store";
-import { getGaugeFees } from "./gauge-fees-read";
+import { aeroPriceUsd, getGaugeFees } from "./gauge-fees-read";
 import { getGauges } from "./gauges";
 import { addEntry, inLogWindow, recommend, summarize, TRACK_CHAIN_ID, type TrackSummary } from "./track-record";
 import { loadTrackLog, loadTrackLogForUpdate, saveTrackLog } from "./track-record-store";
@@ -50,11 +50,12 @@ let cached: { at: number; value: TrackSummary } | null = null;
 /** The summary the page and the API show. Cached for five minutes: it only changes once a day. */
 export async function getTrackRecord(): Promise<TrackSummary> {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
-  const [log, daily] = await Promise.all([loadTrackLog(), loadDailyHistory(TRACK_CHAIN_ID)]);
+  // Today's AERO price only prices entries logged before each entry kept its own; a failed price read leaves their APR out, nothing else.
+  const [log, daily, aeroUsd] = await Promise.all([loadTrackLog(), loadDailyHistory(TRACK_CHAIN_ID), aeroPriceUsd().catch(() => null)]);
   // The other chains' daily records, only for the chains Autopilot's pools were on in the rows shown.
   const chains = [...new Set((log?.entries ?? []).flatMap((e) => (e.ap ?? []).flatMap((p) => p.parts.map((x) => x.c))))].filter((c) => c !== TRACK_CHAIN_ID);
   const dailies = new Map<number, DailyHistory | null>(await Promise.all(chains.map(async (c) => [c, await loadDailyHistory(c)] as const)));
-  const value = summarize(log, daily, undefined, dailies);
+  const value = summarize(log, daily, undefined, dailies, aeroUsd);
   cached = { at: Date.now(), value };
   return value;
 }

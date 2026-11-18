@@ -10,6 +10,10 @@ import { LINK } from "./ui";
 // weeks when adding one. Anything older is a commit away via the link at the foot of the panel.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
+    date: "2026-11-19",
+    title: "The track record now shows each day as an APR too, next to the dollars a day, so it can be set beside Aero\u2019s allocation leaderboard.",
+  },
+  {
     date: "2026-11-11",
     title: "For agents: the free gauge-fees API now gives each gauge\u2019s usual fees per day, not only during a fee burst. The track record also keeps what the ranking saw each morning, so a day the advice missed can be explained.",
   },
@@ -29,16 +33,6 @@ const CHANGELOG: Array<{ date: string; title: string }> = [
     date: "2026-11-04",
     title:
       "Each position can now show what it has earned and not claimed yet, fees and incentives on every chain, read in your browser. \u201cNotify me\u201d sends a browser notification when a position\u2019s wait is over, even with the tab closed. Pools that charge Aero\u2019s MEV tax are tagged.",
-  },
-  {
-    date: "2026-11-03",
-    title:
-      "Compare with Autopilot: what Aero\u2019s Autopilot would pay your amount, next to the best split. Biggest allocators: the 10 largest positions\u2019 splits priced for your amount, with \u201cuse this split\u201d. Splits no longer chase a pool\u2019s one-off fee burst.",
-  },
-  {
-    date: "2026-10-31",
-    title:
-      "An \u201cAll networks\u201d view of every chain\u2019s gauges in one list. A public track record that checks each day\u2019s advice against what the gauges really paid. A free MCP server for agents.",
   },
 ];
 

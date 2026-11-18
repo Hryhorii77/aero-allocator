@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { TrackSummary } from "@/lib/track-record";
 import { TrackRecordPanel } from "./track-record";
 
-const base: TrackSummary = { chainId: 8453, amount: 10_000, logged: 5, evaluated: 3, needed: 14, rule: 2, earlierRule: 0, rows: [] };
+const base: TrackSummary = { chainId: 8453, amount: 10_000, logged: 5, evaluated: 3, needed: 14, rule: 2, earlierRule: 0, rows: [], aeroUsd: null };
 const stub = (data: unknown, ok = true) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok, status: ok ? 200 : 500, json: async () => data })));
 
 afterEach(() => vi.unstubAllGlobals());
@@ -36,6 +36,28 @@ describe("TrackRecordPanel", () => {
     expect(screen.getByText("A/B 60% · C/D 40%")).toBeInTheDocument();
     expect(screen.getByText("not checked yet")).toBeInTheDocument();
     expect(screen.getByText(/not a promise about the future/)).toBeInTheDocument();
+  });
+
+  it("shows each day and the averages as an APR, and says which days use today's AERO price", async () => {
+    const row = { parts: [{ s: "A/B", pct: 100 }], lowUsd: 4, rule: 2 };
+    stub({
+      ...base,
+      logged: 16,
+      evaluated: 15,
+      aeroUsd: 0.424,
+      results: { medianRealizedOfPredicted: 0.7, atLeastLow: 9, avgPredictedUsd: 5.5, avgRealizedUsd: 4.1, avgPredictedAprPct: 47.6, avgRealizedAprPct: 35.4 },
+      rows: [
+        { ...row, day: 20_776, paceUsd: 5, realizedUsd: null, paceAprPct: 43.1, realizedAprPct: null, aeroUsd: 0.4234, aeroUsdLogged: true },
+        { ...row, day: 20_770, paceUsd: 5.87, realizedUsd: 9.26, paceAprPct: 50.5, realizedAprPct: 79.6, aeroUsd: 0.424, aeroUsdLogged: false },
+      ],
+    });
+    render(<TrackRecordPanel standalone />);
+    expect(await screen.findByText("35% APR")).toBeInTheDocument();
+    expect(screen.getByText(/48% predicted/)).toBeInTheDocument();
+    expect(screen.getByText(/\$5.00 predicted \(43% APR\)/)).toBeInTheDocument();
+    expect(screen.getByText(/\$9.26 actual \(80% APR\)/)).toBeInTheDocument();
+    expect(screen.getByText(/use today.s/)).toHaveTextContent("$0.424");
+    expect(screen.getByRole("link", { name: "allocation leaderboard" })).toHaveAttribute("href", "https://aero.xyz/predictive-allocation-leaderboard/");
   });
 
   it("renders nothing when the record can't be read", async () => {

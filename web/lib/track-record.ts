@@ -1,7 +1,7 @@
 import type { DailyHistory } from "./daily-history";
 import { DAY_SEC } from "./daily-history";
 import type { GaugeFees } from "./gauge-fees-read";
-import { rankByUsdPerDay, type YieldRow } from "./gauge-yield";
+import { aprPct, rankByUsdPerDay, type YieldRow } from "./gauge-yield";
 import type { GaugeRow } from "./gauges";
 import { gaugeLabel } from "./gauges";
 import { projectRange } from "./projection";
@@ -45,6 +45,11 @@ export interface TrackEntry {
    * whenever the usual level can be told, so a missing `u` means it couldn't (a burst is `f >= SPIKE_RATIO * u`).
    */
   iv?: number;
+  /**
+   * AERO's USD price when the entry was logged (from 2026-11-19), so its dollars per day can be read as an APR on the amount's value that
+   * morning, as Aero's allocation leaderboard ranks positions. Absent on earlier entries, which use the price when the summary is made.
+   */
+  px?: number;
 }
 
 /** The current layout of `in` (TrackEntry.iv). */
@@ -131,6 +136,7 @@ export function recommend(gauges: GaugeRow[], fees: GaugeFees, nowSec: number, w
     rule: RANK_RULE,
     in: kept.map(pickInput),
     iv: INPUTS_VERSION,
+    ...(fees.aeroUsd && fees.aeroUsd > 0 ? { px: Number(fees.aeroUsd.toPrecision(6)) } : {}),
   };
 }
 
@@ -205,6 +211,14 @@ export interface TrackRow {
   paceUsd: number;
   lowUsd: number;
   realizedUsd: number | null;
+  /**
+   * The same two figures as a yearly return on the amount's value in AERO, at `aeroUsd`: the price logged with the entry, or the price
+   * when the summary was made for entries logged before prices were (`aeroUsdLogged` false). Null when no price is known.
+   */
+  paceAprPct: number | null;
+  realizedAprPct: number | null;
+  aeroUsd: number | null;
+  aeroUsdLogged: boolean;
   /** The ranking rule that chose this split; only RANK_RULE days count toward the results. */
   rule: number;
   /** The same amount deposited into each Autopilot pool, largest pool first; absent on days logged before Autopilot was tracked. */
@@ -230,12 +244,17 @@ export interface TrackSummary {
     atLeastLow: number;
     avgPredictedUsd: number;
     avgRealizedUsd: number;
+    /** The same averages as an APR (the mean of each day's APR); absent when a day has no price. */
+    avgPredictedAprPct?: number;
+    avgRealizedAprPct?: number;
   };
   /**
    * The split against the same amount in Autopilot's largest pool, over current-rule days where both are checked. Set only once there
    * are `needed` such days. Autopilot's figure is before its own fee.
    */
   vsAutopilot?: { days: number; avgSplitUsd: number; avgAutopilotUsd: number; splitAhead: number };
+  /** AERO's USD price when the summary was made (used for entries logged without one); null when it can't be priced. */
+  aeroUsd: number | null;
   /** The most recent entries, newest first. */
   rows: TrackRow[];
 }
@@ -248,22 +267,38 @@ const median = (xs: number[]) => {
 
 /**
  * Counts, results and rows for the page. `daily` is Base's daily record; `dailies` holds the other chains' records, needed only to check
- * the Autopilot pools (a chain missing from it leaves those figures null).
+ * the Autopilot pools (a chain missing from it leaves those figures null). `aeroUsdNow` prices the entries logged without a price.
  */
-export function summarize(log: TrackLog | null, daily: DailyHistory | null, rowsShown = 21, dailies: Map<number, DailyHistory | null> = new Map()): TrackSummary {
+export function summarize(
+  log: TrackLog | null,
+  daily: DailyHistory | null,
+  rowsShown = 21,
+  dailies: Map<number, DailyHistory | null> = new Map(),
+  aeroUsdNow: number | null = null,
+): TrackSummary {
   const entries = log?.entries ?? [];
   const dailyOf = (c: number) => (c === TRACK_CHAIN_ID ? daily : dailies.get(c));
-  const rows: TrackRow[] = entries.map((e) => ({
-    day: e.day,
-    parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })),
-    paceUsd: e.paceUsd,
-    lowUsd: e.lowUsd,
-    realizedUsd: realizedUsdPerDay(e, daily),
-    rule: ruleOf(e),
-    ...(e.ap?.length
-      ? { autopilot: [...e.ap].sort((a, b) => b.power - a.power).map((p) => ({ id: p.id, realizedUsd: rounded(autopilotRealizedUsdPerDay(p, e.day, e.amount, dailyOf)) })) }
-      : {}),
-  }));
+  const now = aeroUsdNow && aeroUsdNow > 0 ? Number(aeroUsdNow.toPrecision(6)) : null;
+  const rows: TrackRow[] = entries.map((e) => {
+    const realizedUsd = realizedUsdPerDay(e, daily);
+    const px = e.px && e.px > 0 ? e.px : now;
+    const apr = (usd: number | null) => (usd === null ? null : rounded1(aprPct(usd, e.amount, px)));
+    return {
+      day: e.day,
+      parts: e.parts.map((p) => ({ s: p.s, pct: p.pct })),
+      paceUsd: e.paceUsd,
+      lowUsd: e.lowUsd,
+      realizedUsd,
+      paceAprPct: apr(e.paceUsd),
+      realizedAprPct: apr(realizedUsd),
+      aeroUsd: px,
+      aeroUsdLogged: px !== null && px === e.px,
+      rule: ruleOf(e),
+      ...(e.ap?.length
+        ? { autopilot: [...e.ap].sort((a, b) => b.power - a.power).map((p) => ({ id: p.id, realizedUsd: rounded(autopilotRealizedUsdPerDay(p, e.day, e.amount, dailyOf)) })) }
+        : {}),
+    };
+  });
   const current = rows.filter((r) => r.rule === RANK_RULE);
   const done = current.filter((r): r is TrackRow & { realizedUsd: number } => r.realizedUsd !== null && r.paceUsd > 0);
   const summary: TrackSummary = {
@@ -275,6 +310,7 @@ export function summarize(log: TrackLog | null, daily: DailyHistory | null, rows
     rule: RANK_RULE,
     earlierRule: rows.length - current.length,
     rows: rows.slice(-rowsShown).reverse(),
+    aeroUsd: now,
   };
   if (done.length >= MIN_DAYS_TO_SHOW) {
     summary.results = {
@@ -283,6 +319,10 @@ export function summarize(log: TrackLog | null, daily: DailyHistory | null, rows
       avgPredictedUsd: Number((done.reduce((a, r) => a + r.paceUsd, 0) / done.length).toFixed(4)),
       avgRealizedUsd: Number((done.reduce((a, r) => a + r.realizedUsd, 0) / done.length).toFixed(4)),
     };
+    if (done.every((r) => r.paceAprPct !== null && r.realizedAprPct !== null)) {
+      summary.results.avgPredictedAprPct = Number((done.reduce((a, r) => a + r.paceAprPct!, 0) / done.length).toFixed(1));
+      summary.results.avgRealizedAprPct = Number((done.reduce((a, r) => a + r.realizedAprPct!, 0) / done.length).toFixed(1));
+    }
   }
   const both = done.filter((r) => r.autopilot?.[0]?.realizedUsd != null);
   if (both.length >= MIN_DAYS_TO_SHOW) {
@@ -298,3 +338,4 @@ export function summarize(log: TrackLog | null, daily: DailyHistory | null, rows
 }
 
 const rounded = (n: number | null) => (n === null ? null : Number(n.toFixed(4)));
+const rounded1 = (n: number | null) => (n === null ? null : Number(n.toFixed(1)));

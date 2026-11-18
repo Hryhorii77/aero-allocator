@@ -7,6 +7,7 @@ import { LINK, NOTE, NUM, TAG } from "./ui";
 import { fetchJson } from "@/lib/fetch-json";
 
 const usd = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const apr = (pct: number | null | undefined) => (pct == null ? "" : ` (${Math.round(pct)}% APR)`);
 const date = (day: number) => new Date(day * 86_400_000).toISOString().slice(0, 10);
 
 /**
@@ -53,7 +54,14 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
         <p className="mt-2 text-sm text-neutral-300">
           Over {data.evaluated} checked days, the split paid a median{" "}
           <span className={`text-neutral-100 ${NUM}`}>{Math.round(r.medianRealizedOfPredicted * 100)}%</span> of the figure predicted at the time (on average ${usd(r.avgPredictedUsd)} predicted,{" "}
-          <span className={`text-neutral-100 ${NUM}`}>${usd(r.avgRealizedUsd)}</span> actual, a day). It paid at least the low case on {r.atLeastLow} of {data.evaluated} days.
+          <span className={`text-neutral-100 ${NUM}`}>${usd(r.avgRealizedUsd)}</span> actual, a day
+          {r.avgRealizedAprPct !== undefined && (
+            <>
+              ; as a yearly return on the amount&rsquo;s value, {Math.round(r.avgPredictedAprPct!)}% predicted and{" "}
+              <span className={`text-neutral-100 ${NUM}`}>{Math.round(r.avgRealizedAprPct)}% APR</span> actual
+            </>
+          )}
+          ). It paid at least the low case on {r.atLeastLow} of {data.evaluated} days.
         </p>
       )}
       {data.vsAutopilot && (
@@ -79,8 +87,13 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
                     {row.rule !== data.rule && <span className={`ml-2 ${TAG} text-neutral-400`} title="Chosen under an earlier ranking rule: shown, not counted in the results">earlier rule</span>}
                   </span>
                   <span className={`sm:shrink-0 sm:text-right ${NUM}`}>
-                    <span className="text-neutral-400">${usd(row.paceUsd)} predicted</span> ·{" "}
-                    <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>{row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual`}</span>
+                    <span className="text-neutral-400">
+                      ${usd(row.paceUsd)} predicted{apr(row.paceAprPct)}
+                    </span>{" "}
+                    ·{" "}
+                    <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>
+                      {row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual${apr(row.realizedAprPct)}`}
+                    </span>
                   </span>
                 </div>
                 <div className={`mt-0.5 break-words ${NOTE}`}>{row.parts.map((p) => `${p.s} ${p.pct}%`).join(" · ")}</div>
@@ -111,6 +124,7 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
         &ldquo;Actual&rdquo; takes the fees and incentives each gauge really paid on the day of the entry and the next, and gives your amount the share of the gauge it would have had at the end of that
         day. It is a check on the estimate, not a promise about the future.
       </p>
+      {data.rows.some((row) => row.paceAprPct !== null) && (r || standalone) && <AprNote data={data} />}
       {data.rows.some((row) => row.autopilot) && (
         <p className={`mt-2 ${NOTE}`}>
           &ldquo;Autopilot, same amount&rdquo; spreads the amount the way each Autopilot pool had its power that morning (the share it kept idle earns nothing) and prices it from what those gauges
@@ -118,5 +132,30 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * What the APR figures mean. Each entry is priced at AERO's price the morning it was logged; entries from before prices were kept use
+ * today's, and the note says so. Aero's own allocation leaderboard ranks real positions by the same kind of figure, with one difference
+ * worth saying: this record checks a fresh split every day, while a real position can move only once per wait.
+ */
+function AprNote({ data }: { data: TrackSummary }) {
+  const oldest = data.rows.filter((row) => !row.aeroUsdLogged && row.aeroUsd !== null);
+  return (
+    <p className={`mt-2 ${NOTE}`}>
+      APR is the dollars a day over a year, on what {data.amount.toLocaleString("en-US")} AERO was worth the morning the split was logged.
+      {oldest.length > 0 && data.aeroUsd !== null && (
+        <>
+          {" "}
+          Days logged before 2026-11-19 didn&rsquo;t keep AERO&rsquo;s price, so they use today&rsquo;s (<span className={NUM}>${data.aeroUsd.toFixed(3)}</span>).
+        </>
+      )}{" "}
+      Aero&rsquo;s{" "}
+      <a href="https://aero.xyz/predictive-allocation-leaderboard/" target="_blank" rel="noopener noreferrer" className={LINK}>
+        allocation leaderboard
+      </a>{" "}
+      ranks real positions by the APR they earned. Unlike a real position, which can move only once per wait, this record checks a fresh split every day.
+    </p>
   );
 }
