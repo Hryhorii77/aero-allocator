@@ -50,6 +50,12 @@ describe("recommend", () => {
     expect(e.in!.find((x) => x.g === gs[1])?.u).toBe(543.21);
     expect(e.in!.find((x) => x.g === gs[2])?.u).toBeUndefined();
   });
+  it("keeps AERO's price with the entry when the fees read has one, and leaves it out when it doesn't", () => {
+    const now = 1_000 * 86_400 + 300;
+    const fees = { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [{ gauge: G1 as `0x${string}`, feesUsdPerDay: 1000, windowHours: 40 }] };
+    expect(recommend([gauge(G1, 200_000)], { ...fees, aeroUsd: 0.42431044 }, now)!.px).toBe(0.42431);
+    expect(recommend([gauge(G1, 200_000)], { ...fees, aeroUsd: null }, now)!.px).toBeUndefined();
+  });
   it("is null when nothing can be ranked", () => {
     expect(recommend([gauge(G1, 200_000)], { chainId: 8453, generatedAt: 0, windowHours: 40, fees: [] }, 1)).toBeNull();
   });
@@ -126,6 +132,22 @@ describe("summarize", () => {
     expect(s.evaluated).toBe(MIN_DAYS_TO_SHOW - 3);
     expect(s.results).toBeUndefined(); // 14 days logged, but 3 were under the old rule
     expect(s.rows.filter((r) => r.rule === 1)).toHaveLength(3);
+  });
+  it("gives each day and the results as an APR, at the entry's own AERO price or today's for entries logged without one", () => {
+    // $10 predicted and $100 realized a day on 10,000 AERO: at $0.50 that is 73% and 730% a year; at $1, 36.5% and 365%.
+    const { log, d } = days(MIN_DAYS_TO_SHOW, 1_000);
+    const priced = { ...log!, entries: log!.entries.map((e, k) => (k === 0 ? e : { ...e, px: 0.5 })) };
+    const s = summarize(priced, d, 30, new Map(), 1);
+    const oldest = s.rows[s.rows.length - 1];
+    expect(oldest).toMatchObject({ paceAprPct: 36.5, realizedAprPct: 365, aeroUsd: 1, aeroUsdLogged: false });
+    expect(s.rows[0]).toMatchObject({ paceAprPct: 73, realizedAprPct: 730, aeroUsd: 0.5, aeroUsdLogged: true });
+    expect(s.aeroUsd).toBe(1);
+    expect(s.results?.avgRealizedAprPct).toBeCloseTo((365 + 13 * 730) / 14, 1);
+    // No price at all: no APR, and the dollar results are unchanged.
+    const none = summarize(log, d);
+    expect(none.rows[0]).toMatchObject({ paceAprPct: null, realizedAprPct: null, aeroUsd: null, aeroUsdLogged: false });
+    expect(none.results?.avgRealizedAprPct).toBeUndefined();
+    expect(none.results?.avgRealizedUsd).toBeCloseTo(100, 4);
   });
   it("counts an entry as not evaluated while its days are not recorded, and survives no data at all", () => {
     const { log } = days(3, 1_000);

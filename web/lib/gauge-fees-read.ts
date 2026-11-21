@@ -74,7 +74,7 @@ export interface GaugeFees {
 }
 
 /** AERO's USD price from the engine's price source (DefiLlama with retry and a stale fallback); null if unavailable. */
-async function aeroPriceUsd(): Promise<number | null> {
+export async function aeroPriceUsd(): Promise<number | null> {
   const m = await getPrices([AERO_TOKEN]).catch(() => null);
   const p = m?.get(AERO_TOKEN) ?? m?.get(AERO_TOKEN.toLowerCase());
   return p && p.priceUsd > 0 ? p.priceUsd : null;

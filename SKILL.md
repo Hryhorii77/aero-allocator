@@ -25,7 +25,7 @@ Everything is read-only or unsigned. The site and APIs never hold keys, sign or 
 - `/api/gauge-flows?chain=8453` — which gauges are gaining or losing share of the allocation weight, and which just got incentives.
 - `/api/all-chains-split?amount=100000&days=30` — the best split over every chain, after the ETH each extra chain costs.
 - `/api/allocation-fee?chain=10&gauges=2` — the ETH cost on Base of sending power to another chain.
-- `/api/track-record` — the site's own record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later (results after 14 checked days).
+- `/api/track-record` — the site's own record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later, in USD a day and as an APR (results after 14 checked days).
 
 ## Paid (x402, USDC on Base, settled only after a successful answer)
 
