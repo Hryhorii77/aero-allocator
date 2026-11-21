@@ -10,7 +10,7 @@ import { LINK } from "./ui";
 // weeks when adding one. Anything older is a commit away via the link at the foot of the panel.
 const CHANGELOG: Array<{ date: string; title: string }> = [
   {
-    date: "2026-11-19",
+    date: "2026-11-21",
     title: "The track record now shows each day as an APR too, next to the dollars a day, so it can be set beside Aero\u2019s allocation leaderboard.",
   },
   {

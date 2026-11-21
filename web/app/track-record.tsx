@@ -87,11 +87,12 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
                     {row.rule !== data.rule && <span className={`ml-2 ${TAG} text-neutral-400`} title="Chosen under an earlier ranking rule: shown, not counted in the results">earlier rule</span>}
                   </span>
                   <span className={`sm:shrink-0 sm:text-right ${NUM}`}>
-                    <span className="text-neutral-400">
+                    {/* Each half stays whole, so a narrow screen breaks the line at the "·" rather than inside "(55% APR)". */}
+                    <span className="whitespace-nowrap text-neutral-400">
                       ${usd(row.paceUsd)} predicted{apr(row.paceAprPct)}
                     </span>{" "}
                     ·{" "}
-                    <span className={row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}>
+                    <span className={`whitespace-nowrap ${row.realizedUsd === null ? "text-neutral-500" : "text-neutral-100"}`}>
                       {row.realizedUsd === null ? "not checked yet" : `$${usd(row.realizedUsd)} actual${apr(row.realizedAprPct)}`}
                     </span>
                   </span>
@@ -141,14 +142,17 @@ export function TrackRecordPanel({ standalone = false }: { standalone?: boolean 
  * worth saying: this record checks a fresh split every day, while a real position can move only once per wait.
  */
 function AprNote({ data }: { data: TrackSummary }) {
-  const oldest = data.rows.filter((row) => !row.aeroUsdLogged && row.aeroUsd !== null);
+  // Counted from the rows, not a date: entries keep a price only from the first morning after this shipped, and a later day whose price
+  // read failed is priced the same way.
+  const unpriced = data.rows.filter((row) => !row.aeroUsdLogged && row.aeroUsd !== null).length;
   return (
     <p className={`mt-2 ${NOTE}`}>
       APR is the dollars a day over a year, on what {data.amount.toLocaleString("en-US")} AERO was worth the morning the split was logged.
-      {oldest.length > 0 && data.aeroUsd !== null && (
+      {unpriced > 0 && data.aeroUsd !== null && (
         <>
           {" "}
-          Days logged before 2026-11-19 didn&rsquo;t keep AERO&rsquo;s price, so they use today&rsquo;s (<span className={NUM}>${data.aeroUsd.toFixed(3)}</span>).
+          {unpriced === data.rows.length ? (unpriced === 1 ? "This day" : `All ${unpriced} of these days`) : `${unpriced} of these ${data.rows.length} days`} didn&rsquo;t keep AERO&rsquo;s
+          price that morning, so {unpriced === 1 ? "it uses" : "they use"} today&rsquo;s (<span className={NUM}>${data.aeroUsd.toFixed(3)}</span>).
         </>
       )}{" "}
       Aero&rsquo;s{" "}

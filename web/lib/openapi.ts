@@ -470,7 +470,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                 splitAhead: { type: "integer", description: "Days on which the split paid more." },
               },
             },
-            aeroUsd: nullable(num("AERO's USD price now, used for days logged before each entry kept its own (2026-11-19).")),
+            aeroUsd: nullable(num("AERO's USD price now, used for days whose entry kept no price of its own (`aeroUsdLogged` false).")),
             rows: {
               type: "array",
               description: "The latest days, newest first.",
@@ -485,7 +485,7 @@ function buildSpec(siteUrl: string, payTo?: string): Json & { paths: Json } {
                   paceAprPct: nullable(num("paceUsd as a yearly return on the amount's value in AERO at `aeroUsd`, percent.")),
                   realizedAprPct: nullable(num("realizedUsd as a yearly return at `aeroUsd`, percent; null until checked.")),
                   aeroUsd: nullable(num("The AERO price the APRs use: the one logged with the entry, or today's for older entries.")),
-                  aeroUsdLogged: { type: "boolean", description: "Whether `aeroUsd` was logged with the entry (from 2026-11-19) rather than today's price." },
+                  aeroUsdLogged: { type: "boolean", description: "Whether `aeroUsd` was logged with the entry rather than today's price. Entries keep a price from late November 2026; older ones, and any whose price read failed, use today's." },
                   rule: { type: "integer", description: "The ranking rule that chose this split." },
                   autopilot: {
                     type: "array",

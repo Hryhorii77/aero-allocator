@@ -88,7 +88,7 @@ export const TOOLS = [
   {
     name: "track_record",
     description:
-      "The site's own track record: each day it logs the best split for 10,000 sAERO on Base before the fact, then checks it two days later against what those gauges really paid. Results appear only after 14 checked days; before that it reports how many days are logged. Read-only.",
+      "The site's own track record: each day it logs the best split for 10,000 sAERO on Base before the fact, then checks it two days later against what those gauges really paid. Each day also comes as an APR on the amount's value in AERO (paceAprPct, realizedAprPct). Results appear only after 14 checked days; before that it reports how many days are logged. Read-only.",
     inputSchema: { type: "object", properties: {} },
     request: () => ({ path: "/api/track-record", params: {} }),
   },

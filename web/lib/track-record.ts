@@ -46,8 +46,8 @@ export interface TrackEntry {
    */
   iv?: number;
   /**
-   * AERO's USD price when the entry was logged (from 2026-11-19), so its dollars per day can be read as an APR on the amount's value that
-   * morning, as Aero's allocation leaderboard ranks positions. Absent on earlier entries, which use the price when the summary is made.
+   * AERO's USD price when the entry was logged (from the first morning after the APR shipped, late Nov 2026), so its dollars per day can be read as an APR on the amount's value that
+   * morning, as Aero's allocation leaderboard ranks positions. Absent on earlier entries and when the price read failed; those use the price when the summary is made.
    */
   px?: number;
 }

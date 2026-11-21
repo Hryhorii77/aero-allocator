@@ -56,7 +56,8 @@ describe("TrackRecordPanel", () => {
     expect(screen.getByText(/48% predicted/)).toBeInTheDocument();
     expect(screen.getByText(/\$5.00 predicted \(43% APR\)/)).toBeInTheDocument();
     expect(screen.getByText(/\$9.26 actual \(80% APR\)/)).toBeInTheDocument();
-    expect(screen.getByText(/use today.s/)).toHaveTextContent("$0.424");
+    // Counted from the rows: one of the two days kept no price of its own.
+    expect(screen.getByText(/1 of these 2 days didn.t keep AERO.s price that morning, so it uses today.s/)).toHaveTextContent("$0.424");
     expect(screen.getByRole("link", { name: "allocation leaderboard" })).toHaveAttribute("href", "https://aero.xyz/predictive-allocation-leaderboard/");
   });
 
