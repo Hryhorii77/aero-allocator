@@ -17,7 +17,8 @@ import { cooldownState, formatDuration, SAERO } from "./saero";
 import { badRequest, parseTokenId } from "./v1-input";
 import { logX402Usage } from "./x402-usage";
 
-export const CROSS_CHAIN_PLAN_PRICE_USD = 0.25;
+import { CROSS_CHAIN_PLAN_PRICE_USD } from "./paid-prices";
+export { CROSS_CHAIN_PLAN_PRICE_USD };
 
 const iso = (sec: number) => new Date(sec * 1000).toISOString();
 const OTHER_CHAINS = AERO_CHAINS.filter((c) => c.id !== BASE_CHAIN.id && c.feeLogs);

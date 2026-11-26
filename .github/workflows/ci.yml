@@ -39,6 +39,11 @@ jobs:
       - name: Audit (web)
         run: npx tsx scripts/audit-gate.ts web
 
+      # web/docs/agents/ holds the checked copies of /AGENTS.md and /llms.txt; fails when the code changed and they weren't regenerated.
+      - name: Agent documents up to date
+        working-directory: web
+        run: npm run generate-agents-md -- --check
+
       # Errors fail the job; the warnings (deliberate setState-in-effect uses) do not. See web/eslint.config.mjs.
       - name: Lint web
         working-directory: web

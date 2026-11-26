@@ -1,0 +1,44 @@
+# Aero Allocator
+
+> Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), your sAERO positions, and the unsigned transaction to allocate them. Non-custodial: we never hold keys, sign or send anything. Estimates, not financial advice.
+
+Site: https://aeroallocator.app
+Chains: Aero is multi-chain, and this app serves it on 7 chains: Base (8453), Ethereum (1), OP (10), Arbitrum (42161), Ink (57073), Robinhood Chain (4663), Arc (5042). sAERO positions live on Base (8453); their power can be allocated to gauges on any of these chains.
+Amounts are sAERO Allocation Power (Aero’s current name for what was voting power; API fields keep the names "power", "votingPower" and "weight").
+
+## Free (no payment, rate limited)
+
+- GET https://aeroallocator.app/api/gauges?chain=8453 : every Aero gauge on a chain with its weight, caps and incentives. Chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain, 5042 Arc. The Base list also has cooldownSec, the live wait between allocations of one position.
+- GET https://aeroallocator.app/api/gauge-fees?chain=8453 : estimated fees per day per gauge, measured from on-chain fee releases, with the hours of history behind each figure, a steadiness count, the gauge's usual fees per day (typicalUsdPerDay, the median half-day, when it can be told), and a spike marker when the recent pace is a burst far above that usual level.
+- GET https://aeroallocator.app/api/gauge-history?chain=8453&gauge=0x... : one gauge's fees released per 6 hours, its weight snapshots, how steady its payouts were, and a 90-day daily record of fees, power and incentives.
+- GET https://aeroallocator.app/api/gauge-flows?chain=8453 : how each gauge's share of the allocation weight moved over the last day and which gauges just started receiving incentives (empty until two hours of snapshots exist).
+- GET https://aeroallocator.app/api/token-prices?tokens=0x...,0x...[&chain=10] : USD prices for up to 12 token addresses on one Aero chain (Base when chain is left out).
+- GET https://aeroallocator.app/api/all-chains-split?amount=100000&days=30 : best split of an amount over every chain, after the ETH each extra chain costs (read-only).
+- GET https://aeroallocator.app/api/top-gauges?chain=8453&amount=10000&limit=10 : the gauges on a chain ranked by what the amount earns per day in each, with the low case, pace, steadiness and incentive-end notes (the page's table as data). chain=all ranks every chain against its own fees and merges them (the page's "All networks" view), each row with its chainId; the ETH to reach a chain other than Base is not counted there (all-chains-split weighs it).
+- GET https://aeroallocator.app/api/track-record : the site's own track record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later. From 2026-11-11 each day also says what the same amount in each Aero Autopilot pool paid (spread like the pool that morning, before its fee). Each day and the results also give the figures as an APR on the amount's value in AERO (paceAprPct, realizedAprPct). Results appear after 14 checked days; before that it reports how many days are logged.
+- GET https://aeroallocator.app/api/allocation-fee?chain=10&gauges=2 : ETH cost on Base of sending power to another chain (read from Aero's own message adapter).
+
+The same free reads as an MCP server (stdio, Node 22+, no key, never signs): add { "mcpServers": { "aeroallocator": { "command": "npx", "args": ["-y", "aeroallocator-mcp"] } } } to your MCP client. Its tools are top_gauges, best_split_all_chains, power_flows, gauge_history, allocation_fee and track_record.
+
+## Paid (x402: USDC on Base, settled only after a successful answer)
+
+A request with no payment gets HTTP 402 with the price and our payout address. Pay with any x402 client, then retry. A request that is rejected (400, 404, 422) is never charged. These need something the free reads can't give: a chain read keyed to one position, or ready-made calldata.
+
+- GET https://aeroallocator.app/api/v1/position?tokenId=<id> or ?address=0x… ($0.05) : a position's power, lock, idle vs allocated power, the re-allocation wait (47 hours at launch, read live from the chain), what it earns per day now versus the best split of gauges for its own size, and a stay / switch / allocate recommendation. A switch is only recommended on at least 6 hours of fee history.
+- GET https://aeroallocator.app/api/v1/allocate-plan?tokenId=<id>&maxGauges=<1-6> ($0.10) : the unsigned allocate() transaction (to, data, value) for the best split of Base gauges, already simulated as the owner, with the cooldown and warnings. Sign and send it from the owner's wallet. Base only.
+- GET https://aeroallocator.app/api/v1/cross-chain-plan?tokenId=<id>&chains=5042:30,10:20 ($0.25) : ordered unsigned allocate() transactions that spread the position over several chains: the best split over every chain after the ETH each extra chain costs, or the chain percentages you give; plans from the position's state on every chain, says what each step waits for, simulates the step that can be sent now. Never signs or sends.
+
+## Limits
+
+- Fee figures are a recent pace, not a promise; see feeHistoryHours and confidence in each response.
+- Every allocation restarts a wait before the next change (47 hours at launch; read live from the chain).
+- The paid cross-chain plan only prepares transactions; each one is signed by the owner, and a chain's wait applies per position and per chain. Claiming rewards is not offered (Aero allows it only for a position's operator or its orchestrator).
+
+OpenAPI description of all of the above: https://aeroallocator.app/openapi.json
+
+Agent skills (playbooks and small scripts; they never sign or send): https://github.com/Hryhorii77/aero-allocator/tree/main/skills : saero-allocator-automator (re-allocate a position only when it is worth it) and veaero-to-saero-upgrade (check and prepare a veAERO to sAERO upgrade, read-only, irreversible).
+
+Longer read-me-first for agents (chains and contracts, routing and safety rules, site routes): https://aeroallocator.app/AGENTS.md
+
+Source: https://github.com/Hryhorii77/aero-allocator
+Generated from web/lib/llms-txt.ts; the checked copy is web/docs/agents/llms.txt. Do not edit either by hand.

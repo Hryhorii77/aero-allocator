@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "generate-agents-md": "tsx scripts/generate-agents-md.ts"
   },
   "dependencies": {
     "@base-org/account": "^2.5.13",
@@ -41,6 +42,7 @@
     "eslint-config-next": "^16.4.6",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "vitest": "^4.1.11"
   },

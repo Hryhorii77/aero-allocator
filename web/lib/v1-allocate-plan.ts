@@ -10,7 +10,8 @@ import { readCooldownSec, readCurrentGauges, readPosition } from "./position-ser
 import { badRequest, parseTokenId } from "./v1-input";
 import { logX402Usage } from "./x402-usage";
 
-export const ALLOCATE_PLAN_PRICE_USD = 0.1;
+import { ALLOCATE_PLAN_PRICE_USD } from "./paid-prices";
+export { ALLOCATE_PLAN_PRICE_USD };
 const MAX_PLAN_GAUGES = 6;
 
 const iso = (sec: number | null) => (sec && sec > 0 ? new Date(sec * 1000).toISOString() : null);
