@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DISPLAY_PRESET } from "@/lib/protocol";
-import { siteMetadata } from "@/lib/site";
+import { AGENT_DOC_ALTERNATES, siteMetadata } from "@/lib/site";
 import { SiteFooter } from "../site-footer";
 import { TrackRecordPanel } from "../track-record";
 import { LINK } from "../ui";
@@ -17,7 +17,7 @@ export function generateMetadata(): Metadata {
     ...base,
     title: TITLE,
     description: DESCRIPTION,
-    alternates: { canonical: "/track-record" },
+    alternates: { canonical: "/track-record", types: AGENT_DOC_ALTERNATES },
     openGraph: { ...base.openGraph, url: "/track-record", title: TITLE, description: DESCRIPTION },
     twitter: { ...base.twitter, title: TITLE, description: DESCRIPTION },
   };

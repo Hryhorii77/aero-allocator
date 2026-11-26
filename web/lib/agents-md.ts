@@ -10,6 +10,14 @@ import { ALLOCATE_PLAN_PRICE_USD, CROSS_CHAIN_PLAN_PRICE_USD, POSITION_PRICE_USD
 import { DISPLAY_PRESET } from "./protocol";
 import { AERO_TOKEN, SAERO, SAERO_CHAIN_ID } from "./saero";
 
+/**
+ * Headers for /AGENTS.md and /llms.txt. Any origin may fetch them. Browsers keep a copy 5 minutes (`max-age`; Vercel passes only that part
+ * on, keeping `s-maxage` for its CDN, which holds an hour and serves a stale copy for a day while it refetches). nosniff comes from
+ * next.config.ts for every path.
+ */
+export const AGENT_DOC_CACHE = "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
+export const agentDocHeaders = (contentType: string) => ({ "Content-Type": contentType, "Cache-Control": AGENT_DOC_CACHE, "Access-Control-Allow-Origin": "*" });
+
 /** Pages and documents that exist in app/ (a test checks each has a page or route file). */
 export const SITE_ROUTES: Array<{ path: string; file: string; what: string }> = [
   { path: "/", file: "app/page.tsx", what: "The allocator: the best split of gauges for an amount, the gauge table per chain or all networks, your positions (read in your browser) and the allocate, return and across-chains flows signed in your own wallet" },
