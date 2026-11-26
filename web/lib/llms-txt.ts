@@ -1,20 +1,34 @@
-import { ALLOCATE_PLAN_PRICE_USD } from "./v1-allocate-plan";
-import { CROSS_CHAIN_PLAN_PRICE_USD } from "./v1-cross-chain-plan";
-import { POSITION_PRICE_USD } from "./v1-position";
+import { AERO_CHAINS } from "./aero-chains";
+import { ALLOCATE_PLAN_PRICE_USD, CROSS_CHAIN_PLAN_PRICE_USD, POSITION_PRICE_USD } from "./paid-prices";
+import { SAERO_CHAIN_ID } from "./saero";
+
+/** Where the two agent documents are built from, and where their checked copies are written (scripts/generate-agents-md.ts). */
+export const REPO_URL = "https://github.com/Hryhorii77/aero-allocator";
+export const GENERATED_DIR = "web/docs/agents";
+
+const chainName = (id: number) => AERO_CHAINS.find((c) => c.id === id)?.name ?? String(id);
+/** "Base (8453), Ethereum (1), …" from AERO_CHAINS, so the documents list exactly the chains the app serves. */
+export const chainList = (sep = ", ") => AERO_CHAINS.map((c) => `${c.name} (${c.id})`).join(sep);
+
+/** The one-line description both documents open with. */
+export const TAGLINE =
+  "Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), your sAERO positions, and the unsigned transaction to allocate them. Non-custodial: we never hold keys, sign or send anything. Estimates, not financial advice.";
 
 /** What an agent needs to use this site: the free reads, the three paid calls, and how paying works. Plain text, served at /llms.txt. */
 export function llmsTxt(siteUrl: string): string {
+  const saeroChain = `${chainName(SAERO_CHAIN_ID)} (${SAERO_CHAIN_ID})`;
   const usd = (n: number) => `$${n.toFixed(2)}`;
   return `# Aero Allocator
 
-> Where an amount of sAERO earns the most on Aero (the merged Aerodrome and Velodrome), your sAERO positions, and the unsigned transaction to allocate them. Non-custodial: we never hold keys, sign or send anything. Estimates, not financial advice.
+> ${TAGLINE}
 
 Site: ${siteUrl}
-Chain: Base (8453). Amounts are sAERO Allocation Power (Aero’s current name for what was voting power; API fields keep the names "power", "votingPower" and "weight").
+Chains: Aero is multi-chain, and this app serves it on ${AERO_CHAINS.length} chains: ${chainList()}. sAERO positions live on ${saeroChain}; their power can be allocated to gauges on any of these chains.
+Amounts are sAERO Allocation Power (Aero’s current name for what was voting power; API fields keep the names "power", "votingPower" and "weight").
 
 ## Free (no payment, rate limited)
 
-- GET ${siteUrl}/api/gauges?chain=8453 : every Aero gauge on a chain with its weight, caps and incentives. Chains: 8453 Base, 1 Ethereum, 10 OP, 42161 Arbitrum, 57073 Ink, 4663 Robinhood Chain, 5042 Arc. The Base list also has cooldownSec, the live wait between allocations of one position.
+- GET ${siteUrl}/api/gauges?chain=8453 : every Aero gauge on a chain with its weight, caps and incentives. Chains: ${AERO_CHAINS.map((c) => `${c.id} ${c.name}`).join(", ")}. The Base list also has cooldownSec, the live wait between allocations of one position.
 - GET ${siteUrl}/api/gauge-fees?chain=8453 : estimated fees per day per gauge, measured from on-chain fee releases, with the hours of history behind each figure, a steadiness count, the gauge's usual fees per day (typicalUsdPerDay, the median half-day, when it can be told), and a spike marker when the recent pace is a burst far above that usual level.
 - GET ${siteUrl}/api/gauge-history?chain=8453&gauge=0x... : one gauge's fees released per 6 hours, its weight snapshots, how steady its payouts were, and a 90-day daily record of fees, power and incentives.
 - GET ${siteUrl}/api/gauge-flows?chain=8453 : how each gauge's share of the allocation weight moved over the last day and which gauges just started receiving incentives (empty until two hours of snapshots exist).
@@ -44,6 +58,9 @@ OpenAPI description of all of the above: ${siteUrl}/openapi.json
 
 Agent skills (playbooks and small scripts; they never sign or send): https://github.com/Hryhorii77/aero-allocator/tree/main/skills : saero-allocator-automator (re-allocate a position only when it is worth it) and veaero-to-saero-upgrade (check and prepare a veAERO to sAERO upgrade, read-only, irreversible).
 
-Source: https://github.com/Hryhorii77/aero-allocator
+Longer read-me-first for agents (chains and contracts, routing and safety rules, site routes): ${siteUrl}/AGENTS.md
+
+Source: ${REPO_URL}
+Generated from web/lib/llms-txt.ts; the checked copy is ${GENERATED_DIR}/llms.txt. Do not edit either by hand.
 `;
 }

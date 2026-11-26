@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { AERO_CHAINS } from "./aero-chains";
 import { llmsTxt } from "./llms-txt";
+import { CROSS_CHAIN_PLAN_PRICE_USD } from "./paid-prices";
 import { ALLOCATE_PLAN_PRICE_USD } from "./v1-allocate-plan";
 import { POSITION_PRICE_USD } from "./v1-position";
 
@@ -24,5 +26,17 @@ describe("llmsTxt", () => {
   it("gives the npx line for the MCP package, before the paid section", () => {
     expect(t).toContain('"args": ["-y", "aeroallocator-mcp"]');
     expect(t.indexOf("aeroallocator-mcp")).toBeLessThan(t.indexOf("## Paid"));
+  });
+  it("lists every chain the app serves, says sAERO lives on Base, and is not described as Base-only", () => {
+    const line = t.split("\n").find((l) => l.startsWith("Chains:"))!;
+    for (const c of AERO_CHAINS) expect(line).toContain(`${c.name} (${c.id})`);
+    expect(line).toMatch(/multi-chain/);
+    expect(line).toMatch(/sAERO positions live on Base \(8453\)/);
+    expect(t).not.toMatch(/^Chain: Base \(8453\)\./m);
+    expect(t).not.toMatch(/Unichain/i);
+  });
+  it("gives the cross-chain plan at its constant's price and points at /AGENTS.md", () => {
+    expect(t).toContain(`cross-chain-plan?tokenId=<id>&chains=5042:30,10:20 ($${CROSS_CHAIN_PLAN_PRICE_USD.toFixed(2)})`);
+    expect(t).toContain("https://aeroallocator.app/AGENTS.md");
   });
 });

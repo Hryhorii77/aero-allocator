@@ -61,6 +61,10 @@ export function SiteFooter() {
           Building an agent? The read endpoints are free and a position check or ready-to-sign allocation costs a few cents in USDC (x402), no sign-up; see{" "}
           <a href="/llms.txt" className={LINK}>
             llms.txt
+          </a>{" "}
+          or{" "}
+          <a href="/AGENTS.md" className={LINK}>
+            AGENTS.md
           </a>
           .
         </p>

@@ -28,7 +28,8 @@ export function siteMetadata(): Metadata {
     title: TITLE,
     description: DESCRIPTION,
     metadataBase: new URL(SITE_URL),
-    alternates: { canonical: "/" },
+    // The documents for AI agents, announced as <link rel="alternate"> so a crawler that reads the page finds them.
+    alternates: { canonical: "/", types: { "text/markdown": "/AGENTS.md", "text/plain": "/llms.txt" } },
     openGraph: {
       url: "/",
       title: TITLE,

@@ -10,7 +10,8 @@ import { waitHours } from "./saero";
 import { readCooldownSec, readCurrentGauges, readOwnerTokenIds, readPosition, MAX_OWNER_POSITIONS, type ServerPosition } from "./position-server";
 import { logX402Usage } from "./x402-usage";
 
-export const POSITION_PRICE_USD = 0.05;
+import { POSITION_PRICE_USD } from "./paid-prices";
+export { POSITION_PRICE_USD };
 
 const iso = (sec: number | null) => (sec && sec > 0 ? new Date(sec * 1000).toISOString() : null);
 
