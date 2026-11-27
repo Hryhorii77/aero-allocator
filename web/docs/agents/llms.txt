@@ -13,8 +13,8 @@ Amounts are sAERO Allocation Power (Aero’s current name for what was voting po
 - GET https://aeroallocator.app/api/gauge-history?chain=8453&gauge=0x... : one gauge's fees released per 6 hours, its weight snapshots, how steady its payouts were, and a 90-day daily record of fees, power and incentives.
 - GET https://aeroallocator.app/api/gauge-flows?chain=8453 : how each gauge's share of the allocation weight moved over the last day and which gauges just started receiving incentives (empty until two hours of snapshots exist).
 - GET https://aeroallocator.app/api/token-prices?tokens=0x...,0x...[&chain=10] : USD prices for up to 12 token addresses on one Aero chain (Base when chain is left out).
-- GET https://aeroallocator.app/api/all-chains-split?amount=100000&days=30 : best split of an amount over every chain, after the ETH each extra chain costs (read-only).
-- GET https://aeroallocator.app/api/top-gauges?chain=8453&amount=10000&limit=10 : the gauges on a chain ranked by what the amount earns per day in each, with the low case, pace, steadiness and incentive-end notes (the page's table as data). chain=all ranks every chain against its own fees and merges them (the page's "All networks" view), each row with its chainId; the ETH to reach a chain other than Base is not counted there (all-chains-split weighs it).
+- GET https://aeroallocator.app/api/all-chains-split?amount=100000&days=30 : best split of an amount over every chain, after the ETH each extra chain costs (read-only). netUsd is usdPerDay times days minus feeUsd (the one-off ETH to reach the chains, in USD); confidence and weakestHours (the thinnest fee history in the split) say how far to trust it. It has no low case: look each gauge up on top-gauges (lowUsdPerDay).
+- GET https://aeroallocator.app/api/top-gauges?chain=8453&amount=10000&limit=10 : the gauges on a chain ranked by what the amount earns per day in each, with the low case (lowUsdPerDay), pace, hours of fee history (historyHours), steadiness and a note when incentives end inside the wait (incentivesNote, null when none) (the page's table as data). chain=all ranks every chain against its own fees and merges them (the page's "All networks" view), each row with its chainId; the ETH to reach a chain other than Base is not counted there (all-chains-split weighs it).
 - GET https://aeroallocator.app/api/track-record : the site's own track record: each day's recommended split for 10,000 sAERO on Base, logged before the fact, against what those gauges paid two days later. From 2026-11-11 each day also says what the same amount in each Aero Autopilot pool paid (spread like the pool that morning, before its fee). Each day and the results also give the figures as an APR on the amount's value in AERO (paceAprPct, realizedAprPct). Results appear after 14 checked days; before that it reports how many days are logged.
 - GET https://aeroallocator.app/api/allocation-fee?chain=10&gauges=2 : ETH cost on Base of sending power to another chain (read from Aero's own message adapter).
 
@@ -30,7 +30,7 @@ A request with no payment gets HTTP 402 with the price and our payout address. P
 
 ## Limits
 
-- Fee figures are a recent pace, not a promise; see feeHistoryHours and confidence in each response.
+- Fee figures are a recent pace, not a promise. The hours of history behind them are historyHours on top-gauges, weakestHours on all-chains-split and feeHistoryHours on the paid routes; check those, confidence and the low case.
 - Every allocation restarts a wait before the next change (47 hours at launch; read live from the chain).
 - The paid cross-chain plan only prepares transactions; each one is signed by the owner, and a chain's wait applies per position and per chain. Claiming rewards is not offered (Aero allows it only for a position's operator or its orchestrator).
 

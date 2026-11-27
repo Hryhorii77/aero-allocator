@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { ALLOCATE_PLAN_PRICE_USD, handleAllocatePlan } from "@/lib/v1-allocate-plan";
 import { paidRoute } from "@/lib/x402";
@@ -12,7 +13,8 @@ export const GET = paidRoute(
       "Ready-to-sign, already-simulated Aero allocate() transaction for an sAERO position: the best split of Base gauges for its size " +
       "(fees plus incentives, after its own dilution) as unsigned calldata for the Voter, with the cooldown, expected USD per day versus " +
       "now, and warnings. Handles the contract's rules (full overwrite, exact total, ascending addresses, idle power). Never signs or sends. " +
-      "Base only. Pass ?tokenId=.",
+      "Base only. Pass ?tokenId=." +
+      ` Agents: read ${SITE_URL}/AGENTS.md.`,
     tags: ["aero", "aerodrome", "saero", "defi", "base", "calldata", "allocation"],
     discovery: {
       input: { tokenId: "15308", maxGauges: "4" },

@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { CROSS_CHAIN_PLAN_PRICE_USD, handleCrossChainPlan } from "@/lib/v1-cross-chain-plan";
 import { paidRoute } from "@/lib/x402";
@@ -14,7 +15,8 @@ export const GET = paidRoute(
       "Ordered, ready-to-sign Aero allocate() transactions that spread an sAERO position over gauges on several chains (Base, Ethereum, OP, " +
       "Arbitrum, Ink, Robinhood, Arc): the best split after each extra chain's ETH cost, or the percentages you give (?chains=5042:30,10:20). " +
       "Plans from the position's state on every chain, with the ETH to attach, what each step waits for and a simulation of step 1. " +
-      "Never signs or sends. Pass ?tokenId=.",
+      "Never signs or sends. Pass ?tokenId=." +
+      ` Agents: read ${SITE_URL}/AGENTS.md.`,
     tags: ["aero", "aerodrome", "saero", "defi", "base", "calldata", "allocation", "cross-chain"],
     discovery: {
       input: { tokenId: "15308", chains: "5042:30,10:20" },
