@@ -39,6 +39,9 @@ describe("buildAgentsMd", () => {
     expect(t).toMatch(/a recent pace, not a promise/);
     expect(t).toMatch(/rejected \(400, 404, 422\) is never charged/);
     expect(t).toMatch(/Claiming rewards is not offered/);
+    expect(t).toMatch(/You can never allocate for a person/);
+    // The field names it tells agents to check are the ones the responses carry (top-gauges, all-chains-split, the paid routes).
+    for (const f of ["historyHours", "weakestHours", "feeHistoryHours"]) expect(t).toContain(`\`${f}\``);
   });
   it("describes the MCP server as local stdio, with the package's real tools", () => {
     expect(t).toContain("npx -y aeroallocator-mcp");

@@ -25,6 +25,8 @@ describe("paid routes' payment configuration", () => {
     const all = await load();
     expect(all.map((c) => c.path).sort()).toEqual(["/api/v1/allocate-plan", "/api/v1/cross-chain-plan", "/api/v1/position"]);
     for (const c of all) expect(c.description.length, c.path).toBeLessThanOrEqual(500);
+    // Each listing (the x402 Bazaar shows this text) points agents at the read-me-first.
+    for (const c of all) expect(c.description, c.path).toMatch(/ Agents: read https:\/\/\S+\/AGENTS\.md\.$/);
   });
 
   it("declares valid Bazaar discovery metadata for each route", async () => {

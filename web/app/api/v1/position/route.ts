@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import { withApiErrorHandling } from "@/lib/api-error";
 import { POSITION_PRICE_USD, handlePosition } from "@/lib/v1-position";
 import { paidRoute } from "@/lib/x402";
@@ -12,7 +13,8 @@ export const GET = paidRoute(
     description:
       "Where an Aero sAERO position stands on Base: its voting power and lock, how much is idle or allocated to gauges, when it can next be " +
       "re-allocated (the wait after any allocation, 47 hours at launch), what it earns per day now versus the best split of gauges for its own size (fees plus incentives, " +
-      "after its own dilution), and a stay / switch / allocate recommendation. Pass ?tokenId= or ?address=. Read-only.",
+      "after its own dilution), and a stay / switch / allocate recommendation. Pass ?tokenId= or ?address=. Read-only." +
+      ` Agents: read ${SITE_URL}/AGENTS.md.`,
     tags: ["aero", "aerodrome", "saero", "defi", "base", "yield", "allocation"],
     discovery: {
       input: { tokenId: "15308" },
