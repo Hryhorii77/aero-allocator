@@ -5,7 +5,10 @@ import { GENERATED_FILES } from "../scripts/generate-agents-md";
 import { GET as agentsGet } from "../app/AGENTS.md/route";
 import { GET as llmsGet } from "../app/llms.txt/route";
 import { AERO_CHAINS } from "./aero-chains";
-import { buildAgentsMd, MCP_TOOLS, SITE_ROUTES, SKILLS } from "./agents-md";
+import nextConfig from "../next.config";
+import { generateMetadata as trackRecordMetadata } from "../app/track-record/page";
+import { AGENT_DOC_CACHE, buildAgentsMd, MCP_TOOLS, SITE_ROUTES, SKILLS } from "./agents-md";
+import { AGENT_DOC_ALTERNATES, siteMetadata } from "./site";
 import { ALLOCATE_PLAN_PRICE_USD, CROSS_CHAIN_PLAN_PRICE_USD, POSITION_PRICE_USD } from "./paid-prices";
 import { AERO_TOKEN, SAERO } from "./saero";
 
@@ -70,5 +73,20 @@ describe("routes", () => {
     expect(l.status).toBe(200);
     expect(l.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(l.headers.get("access-control-allow-origin")).toBe("*");
+    for (const r of [a, l]) expect(r.headers.get("cache-control")).toBe(AGENT_DOC_CACHE);
+    // Browsers get max-age (Vercel strips s-maxage on the way out, which once left them only "public").
+    expect(AGENT_DOC_CACHE).toMatch(/(^|, )max-age=\d+/);
+  });
+  it("get nosniff from the site-wide headers, which cover every path", async () => {
+    const rules = await nextConfig.headers!();
+    const all = rules.find((r) => r.source === "/:path*")!;
+    expect(all.headers).toContainEqual({ key: "X-Content-Type-Options", value: "nosniff" });
+  });
+});
+
+describe("rel=alternate links", () => {
+  it("are on the home page and on /track-record, which sets its own alternates", () => {
+    expect(siteMetadata().alternates?.types).toEqual(AGENT_DOC_ALTERNATES);
+    expect(trackRecordMetadata().alternates).toEqual({ canonical: "/track-record", types: AGENT_DOC_ALTERNATES });
   });
 });

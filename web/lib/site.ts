@@ -4,6 +4,12 @@ import { DISPLAY_PRESET } from "./protocol";
 /** Where this deployment lives, for absolute URLs in link previews. A self-hosted copy sets NEXT_PUBLIC_SITE_URL. */
 export const SITE_URL: string = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aeroallocator.app";
 
+/**
+ * The documents for AI agents, announced as <link rel="alternate"> so a crawler that reads a page finds them. Every page that sets its own
+ * `alternates` (Next replaces the whole object, it doesn't merge) must include these too, as /track-record does.
+ */
+export const AGENT_DOC_ALTERNATES = { "text/markdown": "/AGENTS.md", "text/plain": "/llms.txt" };
+
 const TITLE = `${DISPLAY_PRESET.appName} — where your sAERO earns the most`;
 const DESCRIPTION =
   "Read your sAERO positions, see which Aero gauges pay the most per day for your amount (fees and incentives, after your own dilution), " +
@@ -28,8 +34,7 @@ export function siteMetadata(): Metadata {
     title: TITLE,
     description: DESCRIPTION,
     metadataBase: new URL(SITE_URL),
-    // The documents for AI agents, announced as <link rel="alternate"> so a crawler that reads the page finds them.
-    alternates: { canonical: "/", types: { "text/markdown": "/AGENTS.md", "text/plain": "/llms.txt" } },
+    alternates: { canonical: "/", types: AGENT_DOC_ALTERNATES },
     openGraph: {
       url: "/",
       title: TITLE,

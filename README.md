@@ -7,6 +7,10 @@
 flow signed in your own wallet. It is free, has no accounts, and never holds keys. Figures are estimates from recent on-chain fee
 releases, not financial advice.
 
+**AI agents:** read [aeroallocator.app/AGENTS.md](https://aeroallocator.app/AGENTS.md) first (what the app does, the seven chains and
+contracts, the free and paid APIs, the MCP server and the safety rules). It is generated from the code (`web/lib/agents-md.ts`); the
+checked copy is [`web/docs/agents/AGENTS.md`](web/docs/agents/AGENTS.md).
+
 This repository holds:
 
 - **`web/`**: the Next.js site above, plus its free and paid (x402) APIs. This is the live product. Start with [The site](#the-site).
@@ -35,7 +39,7 @@ or two on the pools compared.
 
 ### APIs
 
-Free, rate limited, no key. Described for agents at `/llms.txt` (plain text) and `/openapi.json` (OpenAPI 3.1, including the paid routes' 402 behaviour):
+Free, rate limited, no key. Described for agents at `/AGENTS.md` (the read-me-first), `/llms.txt` (plain text) and `/openapi.json` (OpenAPI 3.1, including the paid routes' 402 behaviour):
 
 | Endpoint | |
 |---|---|
@@ -132,7 +136,7 @@ Releases are manual and need the owner's npm login with 2FA: bump `version` in `
 
 Three pay-per-call sAERO endpoints on the site's own deployment, in USDC on Base via the [x402 protocol](https://www.x402.org/), settled by
 Coinbase's CDP facilitator only after a successful answer (a 400/404/422 is never charged). The free site is unaffected.
-All three are listed in Coinbase's x402 Bazaar (and so agentic.market): `position` and `allocate-plan` since their first settled payments on 2026-10-26, `cross-chain-plan` since its first on 2026-10-28 (the call that took three attempts: see the 500-character description limit in CLAUDE.md). They are described for agents at `/llms.txt` and `/openapi.json`.
+All three are listed in Coinbase's x402 Bazaar (and so agentic.market): `position` and `allocate-plan` since their first settled payments on 2026-10-26, `cross-chain-plan` since its first on 2026-10-28 (the call that took three attempts: see the 500-character description limit in CLAUDE.md). They are described for agents at `/AGENTS.md`, `/llms.txt` and `/openapi.json`.
 
 | Endpoint | Price | What it answers |
 |---|---|---|
