@@ -88,7 +88,7 @@ export function buildAgentsMd(siteUrl: string): string {
     "",
     "- The app never holds keys, never signs and never sends a transaction. Every transaction it prepares is unsigned; only the position's owner signs it, in their own wallet.",
     "- Never ask a person for a seed phrase or private key, and never sign for them.",
-    "- Fee figures are a recent pace, not a promise: before acting check the hours of fee history behind them (`historyHours` on top-gauges, `weakestHours` on all-chains-split, `feeHistoryHours` on the paid routes), `confidence` and the low case, and say they are estimates.",
+    "- Fee figures are a recent pace, not a promise: before acting check the hours of fee history behind them (`historyHours` on top-gauges, `weakestHours` on all-chains-split, `feeHistoryHours` on the paid routes), `confidence`, the spiky marks (`pace: \"spiky\"` on top-gauges, `spiky` on all-chains-split: a fee burst that won't last) and the low case, and say they are estimates.",
     "- Every allocation restarts the position's wait before it can change again, per position and per chain. Don't suggest moving more often than the gain justifies.",
     "- A paid request that is rejected (400, 404, 422) is never charged.",
     "- Claiming rewards is not offered here.",
